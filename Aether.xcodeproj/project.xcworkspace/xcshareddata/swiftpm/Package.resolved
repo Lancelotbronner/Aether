@@ -1,0 +1,15 @@
+{
+  "originHash" : "c849c4e33b23367a74f1b28dbb4e28236d870f0a9e0455c5f7ea59d1841ab991",
+  "pins" : [
+    {
+      "identity" : "zip",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tomasf/Zip.git",
+      "state" : {
+        "revision" : "89a20ecc82eddf3d1cb40b55e2143167ee4367d3",
+        "version" : "2.1.1"
+      }
+    }
+  ],
+  "version" : 3
+}
