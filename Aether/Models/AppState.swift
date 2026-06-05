@@ -45,6 +45,7 @@ final class AppState {
 	var showGoToAddress = false
 	var showSearch = false
 	var sidebarSelection: NavigatorTab = .functions
+	var isInspectorPresented = true
 
 	// MARK: - Advanced Analysis UI State
 	var showCallGraph = false

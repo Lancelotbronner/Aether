@@ -1,33 +1,110 @@
 import Foundation
+import capstone
+
+nonisolated final class Rc<T: ~Copyable> {
+	var value: T
+	init(_ value: consuming T) {
+		self.value = value
+	}
+}
+
+nonisolated final class AetherDisassemblyContext: DisassemblyContext {
+	let architecture: Architecture
+	let baseAddress: UInt64
+	let code: Data
+	var address: UInt64
+	var mode = CpuMode(rawValue: 0)
+	var byteRange: Range<Int>
+	var bytes: Data {
+		get { code[byteRange] }
+		set { byteRange = newValue.indices }
+	}
+	var lastInstructionByteRange: Range<Int>
+	var lastInstructionBytes: Data {
+		get { code[lastInstructionByteRange] }
+		set { lastInstructionByteRange = newValue.indices }
+	}
+	var instruction = DisassemblyInstruction()
+	var xrefsTo: [UInt64] = []
+	var xrefsFrom: [UInt64] = []
+	var submitted: [Instruction] = []
+
+	init(for data: Data, at address: UInt64, for architecture: Architecture) {
+		self.code = data
+		baseAddress = address
+		self.address = address
+		byteRange = data.indices
+		lastInstructionByteRange = data.indices.prefix(0)
+		submitted.reserveCapacity(data.count)
+		self.architecture = architecture
+	}
+
+	func submit() {
+		let bytes = code[lastInstructionBytes.count..<(code.count - bytes.count)]
+		let next = Instruction(instruction, with: bytes.span, at: address, for: architecture)
+		next.xrefsTo = xrefsTo
+		next.xrefsFrom = xrefsFrom
+		submitted.append(next)
+
+		xrefsTo.removeAll(keepingCapacity: true)
+		xrefsFrom.removeAll(keepingCapacity: true)
+		instruction = DisassemblyInstruction()
+		lastInstructionByteRange = 0..<byteRange.lowerBound
+	}
+
+	func xref(to address: UInt64) {
+		xrefsTo.append(address)
+	}
+
+	func xref(from address: UInt64) {
+		xrefsFrom.append(address)
+	}
+}
 
 /// Main disassembly engine
 /// Uses Capstone when available, falls back to native implementation
 actor DisassemblerEngine {
+	static var capstone: [CapstoneArch: Rc<CapstoneDisassembler2>] = [:]
 
-    // MARK: - Disassembly
+	// MARK: - Disassembly
 
-    /// Disassemble binary data
-    func disassemble(
-        data: Data,
-        address: UInt64,
-        architecture: Architecture
-    ) async -> [Instruction] {
-        switch architecture {
-        case .x86_64:
-            return disassembleX86_64(data: data, address: address)
-        case .arm64, .arm64e:
-            return disassembleARM64(data: data, address: address)
-        case .i386:
-            return disassembleX86(data: data, address: address)
-        case .armv7:
-            return disassembleARM(data: data, address: address)
-        case .jvm:
-            return disassembleJVM(data: data, address: address)
-        case .unknown:
-            return []
-        }
-    }
+	/// Disassemble binary data
+	func disassemble(
+		data: Data,
+		address: UInt64,
+		architecture: Architecture
+	) -> [Instruction] {
+		if let arch = architecture.capstoneArch {
+			if !Self.capstone.keys.contains(arch) {
+				Self.capstone[arch] = Rc(try! CapstoneDisassembler2(arch, mode: architecture.capstoneMode))
+			}
+			let capstone = Self.capstone[arch]!
+			let context = AetherDisassemblyContext(for: data, at: address, for: architecture)
+			do {
+				try capstone.value.disassemble(context)
+			} catch {
+				context.instruction.assembly.mnemonic = "error"
+				context.instruction.assembly.operands = String(describing: error)
+			}
+			return context.submitted
+		}
+			switch architecture {
+			//        case .x86_64:
+			//            return disassembleX86_64(data: data, address: address)
+			//		case .arm64, .arm64e, .appleSilicon:
+			//            return disassembleARM64(data: data, address: address)
+			//        case .i386:
+			//            return disassembleX86(data: data, address: address)
+			//        case .armv7:
+			//            return disassembleARM(data: data, address: address)
+		case .jvm:
+			return disassembleJVM(data: data, address: address)
+		default:
+			return []
+		}
+	}
 
+	/*
     // MARK: - x86_64 Disassembly
 
     private func disassembleX86_64(data: Data, address: UInt64, is32bit: Bool = false) -> [Instruction] {
@@ -1142,6 +1219,7 @@ actor DisassemblerEngine {
 
         return instructions
     }
+	 */
 
     // MARK: - JVM Bytecode Disassembly
 
@@ -1163,16 +1241,22 @@ actor DisassemblerEngine {
             let endOffset = min(offset + size, data.count)
             let bytes = Array(data[offset..<endOffset])
 
+			var result = DisassemblyInstruction()
+			if let target {
+				result.kind = .branch(.jmp, target)
+			}
             var instruction = Instruction(
-                address: currentAddress,
-                size: size,
-                bytes: bytes,
-                mnemonic: mnemonic,
-                operands: operands,
-                architecture: .jvm,
-                type: type
-            )
-            instruction.branchTarget = target
+				result,
+				with: bytes.span, at: address, for: .jvm)
+//                Instruction(
+//					address: currentAddress,
+//                size: size,
+//                bytes: bytes,
+//                mnemonic: mnemonic,
+//                operands: operands,
+//                architecture: .jvm,
+//                type: type
+//            )
 
             instructions.append(instruction)
             offset += size

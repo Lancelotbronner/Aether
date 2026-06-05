@@ -4,7 +4,7 @@ import Combine
 // MARK: - Plugin Protocol
 
 /// Base protocol for all plugins
-protocol DisassemblerPlugin: AnyObject {
+protocol AetherPlugin: AnyObject {
     /// Unique identifier for the plugin
     var identifier: String { get }
 
@@ -97,7 +97,7 @@ class PluginContext: ObservableObject {
 // MARK: - Analysis Plugin
 
 /// Plugin that performs custom analysis
-protocol AnalysisPlugin: DisassemblerPlugin {
+protocol AnalysisPlugin: AetherPlugin {
     /// Run analysis on the binary
     func analyze(binary: BinaryFile, context: PluginContext) async throws -> AnalysisResult
 }
@@ -135,7 +135,7 @@ struct AnalysisFinding {
 // MARK: - Loader Plugin
 
 /// Plugin that adds support for new file formats
-protocol LoaderPlugin: DisassemblerPlugin {
+protocol LoaderPlugin: AetherPlugin {
     /// Check if this plugin can load the given file
     func canLoad(data: Data) -> Bool
 
@@ -146,7 +146,7 @@ protocol LoaderPlugin: DisassemblerPlugin {
 // MARK: - Processor Plugin
 
 /// Plugin that adds support for new CPU architectures
-protocol ProcessorPlugin: DisassemblerPlugin {
+protocol ProcessorPlugin: AetherPlugin {
     /// Supported architecture identifier
     var architectureId: String { get }
 
@@ -170,7 +170,7 @@ struct CallingConvention {
 // MARK: - UI Plugin
 
 /// Plugin that adds custom UI elements
-protocol UIPlugin: DisassemblerPlugin {
+protocol UIPlugin: AetherPlugin {
     /// Custom sidebar view
     func sidebarView() -> AnyView?
 
@@ -207,7 +207,7 @@ extension UIPlugin {
 class PluginManager: ObservableObject {
     static let shared = PluginManager()
 
-    @Published var loadedPlugins: [String: DisassemblerPlugin] = [:]
+    @Published var loadedPlugins: [String: AetherPlugin] = [:]
     @Published var analysisPlugins: [AnalysisPlugin] = []
     @Published var loaderPlugins: [LoaderPlugin] = []
     @Published var processorPlugins: [ProcessorPlugin] = []
@@ -258,13 +258,13 @@ class PluginManager: ObservableObject {
     private func loadPluginBundle(at url: URL) {
         guard let bundle = Bundle(url: url),
               bundle.load(),
-              let principalClass = bundle.principalClass as? DisassemblerPlugin.Type else {
+              let principalClass = bundle.principalClass as? AetherPlugin.Type else {
             return
         }
 
         // Create instance using NSObject approach for dynamic loading
         if let objcClass = principalClass as? NSObject.Type {
-            if let plugin = objcClass.init() as? DisassemblerPlugin {
+            if let plugin = objcClass.init() as? AetherPlugin {
                 registerPlugin(plugin)
             }
         }
@@ -272,7 +272,7 @@ class PluginManager: ObservableObject {
 
     // MARK: - Plugin Registration
 
-    func registerPlugin(_ plugin: DisassemblerPlugin) {
+    func registerPlugin(_ plugin: AetherPlugin) {
         loadedPlugins[plugin.identifier] = plugin
 
         if let analysis = plugin as? AnalysisPlugin {

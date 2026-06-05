@@ -233,7 +233,7 @@ class ExportService {
             let bytes: String
             let mnemonic: String
             let operands: String
-            let type: String
+            let type: InstructionType
         }
 
         let exportData = instructions.map { insn in
@@ -242,7 +242,7 @@ class ExportService {
                 bytes: insn.hexString,
                 mnemonic: insn.mnemonic,
                 operands: insn.operands,
-                type: insn.type.rawValue
+                type: insn.type
             )
         }
 

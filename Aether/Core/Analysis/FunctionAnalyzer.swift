@@ -142,7 +142,7 @@ class FunctionAnalyzer {
                 }
             }
 
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             // Look for: stp x29, x30, [sp, #-N]!
             // Or: sub sp, sp, #N
             for i in 0..<instructions.count {

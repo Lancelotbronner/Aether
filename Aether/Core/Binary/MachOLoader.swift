@@ -1,34 +1,8 @@
 import Foundation
+import MachO
 
 /// Mach-O binary format loader
 class MachOLoader: BinaryLoaderProtocol {
-
-    // MARK: - Mach-O Constants
-
-    // Magic numbers
-    private let MH_MAGIC: UInt32 = 0xFEEDFACE
-    private let MH_CIGAM: UInt32 = 0xCEFAEDFE
-    private let MH_MAGIC_64: UInt32 = 0xFEEDFACF
-    private let MH_CIGAM_64: UInt32 = 0xCFFAEDFE
-    private let FAT_MAGIC: UInt32 = 0xCAFEBABE
-    private let FAT_CIGAM: UInt32 = 0xBEBAFECA
-
-    // CPU Types
-    private let CPU_TYPE_X86: UInt32 = 7
-    private let CPU_TYPE_X86_64: UInt32 = 0x01000007
-    private let CPU_TYPE_ARM: UInt32 = 12
-    private let CPU_TYPE_ARM64: UInt32 = 0x0100000C
-    private let CPU_TYPE_ARM64_32: UInt32 = 0x0200000C
-
-    // Load Commands
-    private let LC_SEGMENT: UInt32 = 0x1
-    private let LC_SYMTAB: UInt32 = 0x2
-    private let LC_SEGMENT_64: UInt32 = 0x19
-    private let LC_DYSYMTAB: UInt32 = 0xB
-    private let LC_LOAD_DYLIB: UInt32 = 0xC
-    private let LC_MAIN: UInt32 = 0x80000028
-    private let LC_UNIXTHREAD: UInt32 = 0x5
-    private let LC_FUNCTION_STARTS: UInt32 = 0x26
 
     // MARK: - Protocol Implementation
 
@@ -131,17 +105,17 @@ class MachOLoader: BinaryLoaderProtocol {
             }
 
             switch cmd {
-            case LC_SEGMENT:
+			case UInt32(bitPattern: LC_SEGMENT):
                 let (seg, sects) = try parseSegment32(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset)
                 segments.append(seg)
                 sections.append(contentsOf: sects)
 
-            case LC_SEGMENT_64:
+            case UInt32(bitPattern: LC_SEGMENT_64):
                 let (seg, sects) = try parseSegment64(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset)
                 segments.append(seg)
                 sections.append(contentsOf: sects)
 
-            case LC_SYMTAB:
+            case UInt32(bitPattern: LC_SYMTAB):
                 debugLog("Parsing symbol table...")
                 let syms = try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset)
                 symbols.append(contentsOf: syms)
@@ -155,7 +129,7 @@ class MachOLoader: BinaryLoaderProtocol {
                     }
                 }
 
-            case LC_UNIXTHREAD:
+            case UInt32(bitPattern: LC_UNIXTHREAD):
                 // Parse thread state for entry point (older binaries)
                 entryPoint = try parseUnixThread(data: data, offset: cmdOffset, cpuType: header.cpuType)
 
@@ -448,17 +422,17 @@ class MachOLoader: BinaryLoaderProtocol {
         let stateOffset = offset + 16
 
         switch cpuType {
-        case CPU_TYPE_X86_64:
+        case UInt32(bitPattern: CPU_TYPE_X86_64):
             // RIP is at offset 16*8 in x86_64 thread state
             if let rip = data.readUInt64LE(at: stateOffset + 16 * 8) {
                 return rip
             }
-        case CPU_TYPE_ARM64:
+        case UInt32(bitPattern: CPU_TYPE_ARM64):
             // PC is at offset 32*8 in ARM64 thread state
             if let pc = data.readUInt64LE(at: stateOffset + 32 * 8) {
                 return pc
             }
-        case CPU_TYPE_X86:
+        case UInt32(bitPattern: CPU_TYPE_X86):
             // EIP is at offset 10*4 in i386 thread state
             if let eip = data.readUInt32LE(at: stateOffset + 10 * 4) {
                 return UInt64(eip)
@@ -474,13 +448,13 @@ class MachOLoader: BinaryLoaderProtocol {
 
     private func mapCPUType(_ cpuType: UInt32) -> Architecture {
         switch cpuType {
-        case CPU_TYPE_X86_64:
+        case UInt32(bitPattern: CPU_TYPE_X86_64):
             return .x86_64
-        case CPU_TYPE_ARM64:
+        case UInt32(bitPattern: CPU_TYPE_ARM64):
             return .arm64
-        case CPU_TYPE_X86:
+        case UInt32(bitPattern: CPU_TYPE_X86):
             return .i386
-        case CPU_TYPE_ARM:
+        case UInt32(bitPattern: CPU_TYPE_ARM):
             return .armv7
         default:
             return .unknown

@@ -2,12 +2,12 @@ import Foundation
 
 /// Represents a disassembled instruction
 @Observable
-final class Instruction: Identifiable {
-    let address: UInt64
-    let size: Int
-    let bytes: [UInt8]
-    let mnemonic: String
-    let operands: String
+nonisolated final class Instruction: Identifiable {
+	let address: UInt64
+	var size: Int { bytes.count }
+	let bytes: [UInt8]
+	let mnemonic: String
+	let operands: String
     let architecture: Architecture
 
     // Analysis metadata
@@ -16,21 +16,17 @@ final class Instruction: Identifiable {
     var xrefsTo: [UInt64] = []          // Addresses this instruction references
 
     // Instruction classification
-    var type: InstructionType = .other
-    var branchTarget: UInt64?
+	let kind: InstructionKind
+	var type: InstructionType { kind.type }
+	var branchTarget: UInt64? { kind.branchTarget }
 
-	init(address: UInt64, size: Int, bytes: [UInt8], mnemonic: String, operands: String, architecture: Architecture, comment: String? = nil, xrefsFrom: [UInt64] = [], xrefsTo: [UInt64] = [], type: InstructionType = .other, branchTarget: UInt64? = nil) {
+	init(_ result: DisassemblyInstruction, with bytes: Span<UInt8>, at address: UInt64, for arch: Architecture) {
 		self.address = address
-		self.size = size
-		self.bytes = bytes
-		self.mnemonic = mnemonic
-		self.operands = operands
-		self.architecture = architecture
-		self.comment = comment
-		self.xrefsFrom = xrefsFrom
-		self.xrefsTo = xrefsTo
-		self.type = type
-		self.branchTarget = branchTarget
+		self.bytes = bytes.indices.map { bytes[$0] }
+		mnemonic = result.assembly.mnemonic
+		operands = result.assembly.operands
+		architecture = arch
+		kind = result.kind
 	}
 
     /// Full instruction string
@@ -48,32 +44,17 @@ final class Instruction: Identifiable {
 
     /// Is this a control flow instruction?
     var isControlFlow: Bool {
-        switch type {
-        case .jump, .conditionalJump, .call, .return:
-            return true
-        default:
-            return false
-        }
+		kind.isControlFlow
     }
 
     /// Is this a branch instruction?
     var isBranch: Bool {
-        switch type {
-        case .jump, .conditionalJump:
-            return true
-        default:
-            return false
-        }
+		kind.isBranch
     }
 
     /// Does this instruction end a basic block?
     var endsBasicBlock: Bool {
-        switch type {
-        case .jump, .conditionalJump, .return:
-            return true
-        default:
-            return false
-        }
+		kind.isEndOfBlock
     }
 
     static func == (lhs: Instruction, rhs: Instruction) -> Bool {

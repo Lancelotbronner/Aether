@@ -21,10 +21,13 @@ struct AetherContentView: View {
 		} detail: {
 			DetailView()
 		}
-		.onAppear { appState.undoManager = undoManager }
 		.toolbar {
 			AetherToolbar()
 		}
+		.inspector(isPresented: $appState.isInspectorPresented) {
+			Inspector()
+		}
+		.onAppear { appState.undoManager = undoManager }
 		.sheet(isPresented: $appState.showGoToAddress) {
 			GoToAddressSheet()
 		}

@@ -605,6 +605,7 @@ class ExportManager {
         case .x86_64: return "x86"
         case .i386: return "x86"
         case .arm64, .arm64e: return "arm"
+		case .appleSilicon: return "aarch64"
         case .armv7: return "arm"
         case .jvm: return "java"
         case .unknown: return "x86"

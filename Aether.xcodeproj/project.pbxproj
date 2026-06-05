@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		738117AD2FD1F685006D3ECB /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 738117AC2FD1F685006D3ECB /* Zip */; };
+		738119692FD27538006D3ECB /* CapstoneKit in Frameworks */ = {isa = PBXBuildFile; productRef = 738119682FD27538006D3ECB /* CapstoneKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		738116EB2FD1EA75006D3ECB /* Aether.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aether.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		738119662FD2752D006D3ECB /* capstone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = capstone; path = /Users/lancelot/Developer/Packages/capstone; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -40,6 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				738119692FD27538006D3ECB /* CapstoneKit in Frameworks */,
 				738117AD2FD1F685006D3ECB /* Zip in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -50,7 +53,9 @@
 		738116E22FD1EA75006D3ECB = {
 			isa = PBXGroup;
 			children = (
+				738119662FD2752D006D3ECB /* capstone */,
 				738116ED2FD1EA75006D3ECB /* Aether */,
+				738119672FD27538006D3ECB /* Frameworks */,
 				738116EC2FD1EA75006D3ECB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +66,13 @@
 				738116EB2FD1EA75006D3ECB /* Aether.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		738119672FD27538006D3ECB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -84,6 +96,7 @@
 			name = Aether;
 			packageProductDependencies = (
 				738117AC2FD1F685006D3ECB /* Zip */,
+				738119682FD27538006D3ECB /* CapstoneKit */,
 			);
 			productName = Aether;
 			productReference = 738116EB2FD1EA75006D3ECB /* Aether.app */;
@@ -115,6 +128,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				738117AB2FD1F685006D3ECB /* XCRemoteSwiftPackageReference "Zip" */,
+				7381196A2FD2754D006D3ECB /* XCRemoteSwiftPackageReference "capstone" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 738116EC2FD1EA75006D3ECB /* Products */;
@@ -204,6 +218,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_SWIFT_FLAGS = "";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -259,6 +274,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				OTHER_SWIFT_FLAGS = "";
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -302,6 +318,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
+				OTHER_SWIFT_FLAGS = "-enable-experimental-feature Lifetimes";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lancelotbronner.Aether;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -357,6 +374,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.5;
 				MARKETING_VERSION = 1.0;
+				OTHER_SWIFT_FLAGS = "-enable-experimental-feature Lifetimes";
 				PRODUCT_BUNDLE_IDENTIFIER = com.lancelotbronner.Aether;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -405,6 +423,14 @@
 				minimumVersion = 2.1.1;
 			};
 		};
+		7381196A2FD2754D006D3ECB /* XCRemoteSwiftPackageReference "capstone" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Lancelotbronner/capstone";
+			requirement = {
+				branch = next;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -412,6 +438,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 738117AB2FD1F685006D3ECB /* XCRemoteSwiftPackageReference "Zip" */;
 			productName = Zip;
+		};
+		738119682FD27538006D3ECB /* CapstoneKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CapstoneKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

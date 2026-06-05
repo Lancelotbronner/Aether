@@ -3,6 +3,7 @@ import Foundation
 /// Supported CPU architectures
 enum Architecture: String, CaseIterable, Identifiable, Codable {
     case x86_64 = "x86_64"
+	case appleSilicon = "Apple Silicon"
     case arm64 = "ARM64"
     case arm64e = "ARM64e"
     case i386 = "i386"
@@ -17,6 +18,8 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .x86_64, .i386:
             return 1  // Variable length instructions
+		case .appleSilicon:
+			return 4
         case .arm64, .arm64e:
             return 4  // Fixed 4-byte instructions
         case .armv7:
@@ -31,7 +34,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
     /// Pointer size in bytes
     var pointerSize: Int {
         switch self {
-        case .x86_64, .arm64, .arm64e:
+		case .x86_64, .arm64, .arm64e, .appleSilicon:
             return 8
         case .i386, .armv7:
             return 4
@@ -49,7 +52,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
             return "rsp"
         case .i386:
             return "esp"
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             return "sp"
         case .armv7:
             return "sp"
@@ -67,7 +70,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
             return "rbp"
         case .i386:
             return "ebp"
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             return "x29"
         case .armv7:
             return "r11"
@@ -83,7 +86,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .x86_64, .i386:
             return "[stack]"
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             return "x30"
         case .armv7:
             return "lr"
@@ -97,7 +100,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
     /// Is this a 64-bit architecture?
     var is64Bit: Bool {
         switch self {
-        case .x86_64, .arm64, .arm64e:
+		case .x86_64, .arm64, .arm64e, .appleSilicon:
             return true
         case .i386, .armv7, .jvm, .unknown:
             return false
@@ -112,7 +115,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
                     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
         case .i386:
             return ["eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"]
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             return (0...30).map { "x\($0)" } + ["sp"]
         case .armv7:
             return (0...15).map { "r\($0)" }
@@ -130,7 +133,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
             return ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]  // System V AMD64 ABI
         case .i386:
             return []  // Arguments on stack
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             return ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
         case .armv7:
             return ["r0", "r1", "r2", "r3"]
@@ -148,7 +151,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
             return "rax"
         case .i386:
             return "eax"
-        case .arm64, .arm64e:
+		case .arm64, .arm64e, .appleSilicon:
             return "x0"
         case .armv7:
             return "r0"

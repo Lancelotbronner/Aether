@@ -1,4 +1,5 @@
 import Foundation
+import capstone
 
 // MARK: - Capstone Integration via System Library
 
@@ -38,19 +39,6 @@ class CapstoneDisassembler {
         static let mips3 = CSMode(rawValue: 1 << 5)
         static let mips32r6 = CSMode(rawValue: 1 << 6)
         static let bigEndian = CSMode(rawValue: 1 << 31)
-    }
-
-    // MARK: - Instruction Groups
-
-    enum InstructionGroup: UInt8 {
-        case invalid = 0
-        case jump = 1
-        case call = 2
-        case ret = 3
-        case int = 4
-        case iret = 5
-        case privilege = 6
-        case branchRelative = 7
     }
 
     // MARK: - Enhanced Instruction Model

@@ -747,12 +747,10 @@ class Emulator {
         guard !bytes.isEmpty else { return nil }
 
         return Instruction(
-            address: address,
-            size: 1,
-            bytes: [bytes[0]],
-            mnemonic: "unknown",
-            operands: "",
-            architecture: architecture
+			DisassemblyInstruction(),
+			with: .init(),
+			at: address,
+			for: architecture
         )
     }
 }

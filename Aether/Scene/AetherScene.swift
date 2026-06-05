@@ -17,6 +17,9 @@ struct AetherScene: Scene {
 		}
 		.commands {
 			AetherCommands()
+			ToolbarCommands()
+			SidebarCommands()
+			InspectorCommands()
 		}
 	}
 }

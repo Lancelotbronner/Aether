@@ -30,7 +30,7 @@ private struct SettingsView: View {
 				AnalysisSettingsView()
 			}
 			Tab("AI", systemImage: "brain") {
-				AISettingsTab()
+				AssistantSettings()
 			}
 		}
 		.frame(width: 500, height: 350)
