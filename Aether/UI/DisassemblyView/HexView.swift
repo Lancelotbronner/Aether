@@ -33,11 +33,8 @@ struct HexView: View {
 
             // Hex content
             if data.isEmpty {
-                EmptyStateView(
-                    icon: "number.square",
-                    title: "No Data",
-                    message: "Select a section to view hex dump"
-                )
+				ContentUnavailableView("No data", systemImage: "number.square", description: Text("Select a section to view hex dump"))
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {

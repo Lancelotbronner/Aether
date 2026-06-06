@@ -27,17 +27,13 @@ struct DecompilerView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color.sidebar)
 
             Divider()
 
             // Content
             if appState.selectedFunction == nil {
-                EmptyStateView(
-                    icon: "doc.plaintext",
-                    title: "No Function Selected",
-                    message: "Select a function to see pseudo-code"
-                )
+				ContentUnavailableView("No function selected", systemImage: "doc.plaintext", description: Text("Select a function to see pseudo-code"))
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if appState.decompilerOutput.isEmpty {
                 VStack {
                     ProgressView()

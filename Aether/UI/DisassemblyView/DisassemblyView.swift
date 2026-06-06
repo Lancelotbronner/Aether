@@ -82,20 +82,14 @@ struct DisassemblyView: View {
 
             // Content
             if appState.currentFile == nil {
-                EmptyStateView(
-                    icon: "doc.badge.plus",
-                    title: "No Binary Loaded",
-                    message: "Open a binary file or drag and drop one here"
-                )
+				ContentUnavailableView("No binary loaded", systemImage: "doc.badge.plus", description: Text("Open a binary file or drag and drop one here"))
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if isLoading {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if instructions.isEmpty {
-                EmptyStateView(
-                    icon: "cpu",
-                    title: "No Instructions",
-                    message: "Select a function or section to view disassembly"
-                )
+				ContentUnavailableView("No instructions", systemImage: "cpu", description: Text("Select a function or section to view disassembly"))
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -554,33 +548,6 @@ struct OperandText: View {
         case .other:
             return .primary
         }
-    }
-}
-
-// MARK: - Empty State View
-
-struct EmptyStateView: View {
-    let icon: String
-    let title: String
-    let message: String
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-
-            Text(title)
-                .font(.headline)
-                .foregroundColor(.primary)
-
-            Text(message)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 }
 

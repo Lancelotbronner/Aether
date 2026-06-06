@@ -161,11 +161,8 @@ struct CFGView: View {
                 }
                 .clipped()
             } else {
-                EmptyStateView(
-                    icon: "point.3.connected.trianglepath.dotted",
-                    title: "No CFG Available",
-                    message: "Select a function to view its control flow graph"
-                )
+				ContentUnavailableView("No CFG Available", systemImage: "point.3.connected.trianglepath.dotted", description: Text("Select a function to view its control flow graph"))
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(Color.background)

@@ -22,7 +22,7 @@ final class AppState {
 		get { selectedFunction }
 		set {
 			guard let selectedFunction else { return }
-			selectedAddress = selectedFunction.startAddress
+			goToAddress(selectedFunction.startAddress)
 			// Decompile if decompiler view is visible
 			if showDecompiler {
 				decompileCurrentFunction()
