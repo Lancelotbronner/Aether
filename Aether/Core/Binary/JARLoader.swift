@@ -4,7 +4,7 @@ import Compression
 
 // MARK: - JAR/Java Class Loader
 
-class JARLoader: BinaryLoaderProtocol {
+nonisolated final class JARLoader: BinaryLoaderProtocol {
 
     enum JARError: Error, LocalizedError {
         case invalidJAR

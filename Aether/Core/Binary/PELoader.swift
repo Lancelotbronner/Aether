@@ -2,7 +2,7 @@ import Foundation
 import CommonCrypto
 
 /// PE/COFF binary format loader (Windows executables)
-class PELoader: BinaryLoaderProtocol {
+nonisolated final class PELoader: BinaryLoaderProtocol {
 
     // MARK: - PE Constants
 

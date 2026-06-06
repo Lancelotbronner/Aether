@@ -7,7 +7,7 @@ struct PackerResult: Identifiable {
     let details: String
 }
 
-class PackerDetector {
+nonisolated final class PackerDetector: Sendable {
     struct PackerSignature {
         let name: String
         let sectionNames: [String]

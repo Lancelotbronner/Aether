@@ -15,7 +15,7 @@ struct DecompilerView: View {
                     .font(.headline)
                 Spacer()
 
-                if let func_ = appState.selectedFunction {
+				if appState.selectedFunction != nil {
                     Button {
                         copyToClipboard()
                     } label: {
@@ -94,7 +94,7 @@ struct SyntaxHighlightedCode: View {
 
     private func highlightedLine(_ line: String) -> some View {
         var attributedParts: [(String, Color)] = []
-        var currentIndex = line.startIndex
+		_ = line.startIndex
 
         // Simple tokenizer for C-like syntax
         let keywords = Set(["if", "else", "while", "for", "return", "void", "int", "char",

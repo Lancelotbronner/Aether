@@ -109,7 +109,7 @@ class AIAnnotator {
         var traits = Set<FunctionTrait>()
         var category: FunctionCategory = .unknown
 
-        let instructions = function.basicBlocks.flatMap(\.instructions)
+		_ = function.basicBlocks.flatMap(\.instructions)
         let callees = function.callees
 
         // Check for memory operations

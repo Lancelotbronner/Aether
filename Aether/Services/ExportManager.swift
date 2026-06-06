@@ -246,7 +246,7 @@ class ExportManager {
 
         script += "\n# String references\n"
         for str in strings.prefix(100) {
-            let escaped = str.value.replacingOccurrences(of: "\"", with: "\\\"")
+			_ = str.value.replacingOccurrences(of: "\"", with: "\\\"")
             script += "Cs \(str.value.count) @ 0x\(String(format: "%llx", str.address))\n"
         }
 
@@ -735,7 +735,7 @@ class ExportBinaryDiffer {
 
         if !diff.modifiedFunctions.isEmpty {
             report += "\n## Modified Functions\n\n"
-            for (old, new, changes) in diff.modifiedFunctions {
+			for (_, new, changes) in diff.modifiedFunctions {
                 report += "### \(new.displayName)\n\n"
                 for change in changes {
                     switch change {

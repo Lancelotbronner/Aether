@@ -224,7 +224,7 @@ struct ConditionalJumpsView: View {
         }
 
         let sectionOffset = Int(jump.address - section.address)
-        let byteOffset = jump.isLongJump ? sectionOffset + 1 : sectionOffset
+		_ = jump.isLongJump ? sectionOffset + 1 : sectionOffset
 
         // Update status
         let oldMnem = jump.isPatched ? jump.flippedMnemonic : jump.originalMnemonic

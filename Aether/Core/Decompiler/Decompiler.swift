@@ -1,7 +1,7 @@
 import Foundation
 
 /// Enhanced pseudo-code decompiler with control flow recovery
-class Decompiler {
+nonisolated final class Decompiler {
 
     private let structurer = ControlFlowStructurer()
     private var binary: BinaryFile?
@@ -144,7 +144,7 @@ class Decompiler {
 
         for insn in instructions {
             let operands = insn.operands.lowercased()
-            for (i, reg) in argRegs.enumerated() {
+			for (_, reg) in argRegs.enumerated() {
                 if operands.contains(reg.lowercased()) {
                     let type = inferOperandType(insn: insn, operand: reg)
                     usedArgs[reg] = type
@@ -752,7 +752,7 @@ struct DecompilerLocalVar {
 // MARK: - Enhanced Code Printer
 
 /// Enhanced printer that produces cleaner pseudo-C code
-class EnhancedCodePrinter {
+nonisolated final class EnhancedCodePrinter {
     private let binary: BinaryFile?
     private let strings: [UInt64: String]
     private var indentLevel = 1

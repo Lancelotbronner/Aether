@@ -229,7 +229,7 @@ final class AppState {
 		let loader = binaryLoader
 		let strAnalyzer = stringAnalyzer
 
-		let task = Task.detached(priority: .userInitiated) { () -> (BinaryFile, [Symbol], [Symbol], [Symbol], [Function], [UInt64: Symbol], [String: Symbol], [UInt64: Function], [StringReference]) in
+		let task = Task { @concurrent () -> (BinaryFile, [Symbol], [Symbol], [Symbol], [Function], [UInt64: Symbol], [String: Symbol], [UInt64: Function], [StringReference]) in
 			// Load binary (synchronous, no deadlock)
 			let binary = try loader.load(from: data)
 
@@ -243,7 +243,7 @@ final class AppState {
 			try Task.checkCancellation()
 
 			// Get functions from symbols
-			let functions = binary.symbols
+			let functions = binary.symbols.lazy
 				.filter { $0.type == .function && $0.address != 0 }
 				.map { Function(name: $0.name, startAddress: $0.address, endAddress: $0.address + max($0.size, 256)) }
 				.sorted { $0.startAddress < $1.startAddress }
@@ -1200,7 +1200,7 @@ final class AppState {
 			return
 		}
 
-		guard let binary = currentFile, let function = selectedFunction else {
+		guard currentFile != nil, let function = selectedFunction else {
 			fridaScriptError = "Please select a function first"
 			showFridaScript = true
 			return
@@ -1347,7 +1347,7 @@ final class AppState {
 	}
 
 	func saveFile() {
-		guard let binary = currentFile else { return }
+		guard currentFile != nil else { return }
 		preconditionFailure("cannot save without URL")
 	}
 

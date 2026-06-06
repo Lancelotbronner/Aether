@@ -1,7 +1,7 @@
 import Foundation
 
 /// Supported CPU architectures
-enum Architecture: String, CaseIterable, Identifiable, Codable {
+nonisolated enum Architecture: String, CaseIterable, Identifiable, Codable, Sendable {
     case x86_64 = "x86_64"
 	case appleSilicon = "Apple Silicon"
     case arm64 = "ARM64"
@@ -164,7 +164,7 @@ enum Architecture: String, CaseIterable, Identifiable, Codable {
 }
 
 /// Binary file format
-enum BinaryFormat: String, CaseIterable, Identifiable, Codable {
+nonisolated enum BinaryFormat: String, CaseIterable, Identifiable, Codable {
     case machO = "Mach-O"
     case elf = "ELF"
     case pe = "PE"
@@ -193,7 +193,7 @@ enum BinaryFormat: String, CaseIterable, Identifiable, Codable {
     static func detect(from data: Data) -> BinaryFormat {
         guard data.count >= 4 else { return .unknown }
 
-        let magic = data.prefix(4).withUnsafeBytes { $0.load(as: UInt32.self) }
+        let magic = data.readUInt32LE(at: 0)
 
         switch magic {
         case 0xFEEDFACE, 0xFEEDFACF:  // Mach-O 32/64

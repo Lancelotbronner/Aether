@@ -1,7 +1,7 @@
 import Foundation
 
 /// Protocol for binary file loaders
-protocol BinaryLoaderProtocol {
+nonisolated protocol BinaryLoaderProtocol {
     func canLoad(data: Data) -> Bool
     func load(data: Data) throws -> BinaryFile
 }
@@ -33,12 +33,8 @@ enum BinaryLoaderError: Error, LocalizedError {
     }
 }
 
-func debugLog(_ msg: String) {
-    // Debug logging disabled for performance
-}
-
 /// Main binary loader that delegates to format-specific loaders
-class BinaryLoader {
+nonisolated final class BinaryLoader {
     private let loaders: [BinaryLoaderProtocol]
 
     init() {
@@ -79,60 +75,37 @@ class BinaryLoader {
 
 // MARK: - Data Extensions for Binary Reading
 
-extension Data {
+nonisolated extension Data {
     func readUInt8(at offset: Int) -> UInt8? {
-        guard offset >= 0, offset < count else { return nil }
+		guard indices.contains(offset) else { return nil }
         return self[startIndex + offset]
     }
 
     func readUInt16LE(at offset: Int) -> UInt16? {
         guard offset >= 0, offset + 2 <= count else { return nil }
-        let b0 = UInt16(self[startIndex + offset])
-        let b1 = UInt16(self[startIndex + offset + 1])
-        return b0 | (b1 << 8)
+		return bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: UInt16.self)
     }
 
     func readUInt16BE(at offset: Int) -> UInt16? {
-        guard offset >= 0, offset + 2 <= count else { return nil }
-        let b0 = UInt16(self[startIndex + offset])
-        let b1 = UInt16(self[startIndex + offset + 1])
-        return (b0 << 8) | b1
+		readUInt16LE(at: offset)?.byteSwapped
     }
 
     func readUInt32LE(at offset: Int) -> UInt32? {
         guard offset >= 0, offset + 4 <= count else { return nil }
-        let b0 = UInt32(self[startIndex + offset])
-        let b1 = UInt32(self[startIndex + offset + 1])
-        let b2 = UInt32(self[startIndex + offset + 2])
-        let b3 = UInt32(self[startIndex + offset + 3])
-        return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
+		return bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: UInt32.self)
     }
 
     func readUInt32BE(at offset: Int) -> UInt32? {
-        guard offset >= 0, offset + 4 <= count else { return nil }
-        let b0 = UInt32(self[startIndex + offset])
-        let b1 = UInt32(self[startIndex + offset + 1])
-        let b2 = UInt32(self[startIndex + offset + 2])
-        let b3 = UInt32(self[startIndex + offset + 3])
-        return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+		readUInt32LE(at: offset)?.byteSwapped
     }
 
     func readUInt64LE(at offset: Int) -> UInt64? {
         guard offset >= 0, offset + 8 <= count else { return nil }
-        var result: UInt64 = 0
-        for i in 0..<8 {
-            result |= UInt64(self[startIndex + offset + i]) << (i * 8)
-        }
-        return result
+		return bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: UInt64.self)
     }
 
     func readUInt64BE(at offset: Int) -> UInt64? {
-        guard offset >= 0, offset + 8 <= count else { return nil }
-        var result: UInt64 = 0
-        for i in 0..<8 {
-            result |= UInt64(self[startIndex + offset + i]) << ((7 - i) * 8)
-        }
-        return result
+		readUInt64LE(at: offset)?.byteSwapped
     }
 
     func readInt32LE(at offset: Int) -> Int32? {
@@ -152,17 +125,9 @@ extension Data {
 
     func readCString(at offset: Int, maxLength: Int = 256) -> String? {
         guard offset >= 0, offset < count else { return nil }
-        var bytes: [UInt8] = []
-        var currentOffset = offset
-
-        while currentOffset < count && bytes.count < maxLength {
-            let byte = self[startIndex + currentOffset]
-            if byte == 0 { break }
-            bytes.append(byte)
-            currentOffset += 1
-        }
-
-        return String(bytes: bytes, encoding: .utf8)
+		return bytes.extracting(droppingFirst: offset).withUnsafeBytes {
+			String(cString: $0.bindMemory(to: CChar.self).baseAddress!)
+		}
     }
 
     func subdata(offset: Int, count: Int) -> Data? {

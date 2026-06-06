@@ -4,7 +4,7 @@ import Foundation
 
 /// Recovers high-level control flow structures (if/else, while, for, switch)
 /// from the CFG using structural analysis
-class ControlFlowStructurer {
+nonisolated final class ControlFlowStructurer {
 
     // MARK: - Types
 

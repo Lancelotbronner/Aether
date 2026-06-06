@@ -3,7 +3,7 @@ import Combine
 
 /// Represents a loaded binary file
 @Observable
-final class BinaryFile: Identifiable {
+nonisolated final class BinaryFile: Identifiable {
 	let format: BinaryFormat
 	let architecture: Architecture
 	let endianness: Endianness
@@ -80,7 +80,7 @@ final class BinaryFile: Identifiable {
 
 /// Binary segment (e.g., __TEXT, __DATA)
 @Observable
-final class Segment: Identifiable {
+nonisolated final class Segment: Identifiable, Sendable {
 	let name: String
 	let address: UInt64
 	let size: UInt64
@@ -118,7 +118,7 @@ final class Segment: Identifiable {
 
 /// Binary section (e.g., __text, __data)
 @Observable
-final class Section: Identifiable, Hashable {
+nonisolated final class Section: Identifiable, Hashable, Sendable {
 	let name: String
 	let segmentName: String
 	let address: UInt64

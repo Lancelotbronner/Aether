@@ -2,7 +2,7 @@ import Foundation
 import MachO
 
 /// Mach-O binary format loader
-class MachOLoader: BinaryLoaderProtocol {
+nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
     // MARK: - Protocol Implementation
 
@@ -14,33 +14,25 @@ class MachOLoader: BinaryLoaderProtocol {
     }
 
     func load(data: Data) throws -> BinaryFile {
-        debugLog("MachOLoader.load() starting")
         guard let magic = data.readUInt32LE(at: 0) else {
             throw BinaryLoaderError.invalidHeader
         }
-        debugLog("Magic: \(String(format: "0x%X", magic))")
 
         // Handle fat/universal binaries
         if magic == FAT_MAGIC || magic == FAT_CIGAM {
-            debugLog("Fat binary detected")
             return try loadFatBinary(data: data, swapped: magic == FAT_CIGAM)
         }
 
-        debugLog("Regular Mach-O")
         return try loadMachO(data: data, offset: 0)
     }
 
     // MARK: - Fat Binary Loading
 
     private func loadFatBinary(data: Data, swapped: Bool) throws -> BinaryFile {
-        debugLog("loadFatBinary starting")
-
         // Fat header is ALWAYS big-endian, regardless of host architecture
         guard let nfatArch = data.readUInt32BE(at: 4) else {
             throw BinaryLoaderError.invalidHeader
         }
-
-        debugLog("Fat binary has \(nfatArch) architectures")
 
         // Find the best architecture (prefer arm64, then x86_64)
         var bestOffset: UInt32 = 0
@@ -51,8 +43,6 @@ class MachOLoader: BinaryLoaderProtocol {
             // Fat arch entries are also big-endian
             guard let cpuType = data.readUInt32BE(at: archOffset) else { continue }
             guard let offset = data.readUInt32BE(at: archOffset + 8) else { continue }
-
-            debugLog("  Arch \(i): cpuType=0x\(String(format: "%X", cpuType)) offset=\(offset)")
 
             // Prefer ARM64, then x86_64
             if cpuType == CPU_TYPE_ARM64 {
@@ -68,25 +58,21 @@ class MachOLoader: BinaryLoaderProtocol {
             }
         }
 
-        debugLog("Selected arch: \(String(format: "0x%X", bestArch)) at offset \(bestOffset)")
         return try loadMachO(data: data, offset: Int(bestOffset))
     }
 
     // MARK: - Mach-O Loading
 
     private func loadMachO(data: Data, offset: Int) throws -> BinaryFile {
-        debugLog("loadMachO at offset \(offset)")
         guard let magic = data.readUInt32LE(at: offset) else {
             throw BinaryLoaderError.invalidHeader
         }
 
         let is64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64
         let swapped = magic == MH_CIGAM || magic == MH_CIGAM_64
-        debugLog("is64Bit: \(is64Bit), swapped: \(swapped)")
 
         // Parse header
         let header = try parseMachOHeader(data: data, offset: offset, is64Bit: is64Bit, swapped: swapped)
-        debugLog("Header: ncmds=\(header.ncmds)")
 
         // Parse load commands
         let headerSize = is64Bit ? 32 : 28
@@ -97,8 +83,7 @@ class MachOLoader: BinaryLoaderProtocol {
         var symbols: [Symbol] = []
         var entryPoint: UInt64 = 0
 
-        debugLog("Parsing \(header.ncmds) load commands...")
-        for i in 0..<header.ncmds {
+		for _ in 0..<header.ncmds {
             guard let cmd = data.readUInt32LE(at: cmdOffset),
                   let cmdSize = data.readUInt32LE(at: cmdOffset + 4) else {
                 break
@@ -116,10 +101,8 @@ class MachOLoader: BinaryLoaderProtocol {
                 sections.append(contentsOf: sects)
 
             case UInt32(bitPattern: LC_SYMTAB):
-                debugLog("Parsing symbol table...")
                 let syms = try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset)
                 symbols.append(contentsOf: syms)
-                debugLog("Parsed \(syms.count) symbols")
 
             case LC_MAIN:
                 if let entryOff = data.readUInt64LE(at: cmdOffset + 8) {
@@ -140,11 +123,8 @@ class MachOLoader: BinaryLoaderProtocol {
             cmdOffset += Int(cmdSize)
         }
 
-        debugLog("Load commands parsed: \(segments.count) segments, \(sections.count) sections, \(symbols.count) symbols")
-
         // Determine base address (skip __PAGEZERO which has address 0)
         let baseAddress = segments.first(where: { $0.name != "__PAGEZERO" && $0.address > 0 })?.address ?? segments.first?.address ?? 0
-        debugLog("Creating BinaryFile...")
 
         return BinaryFile(
             format: .machO,

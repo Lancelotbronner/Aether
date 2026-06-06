@@ -1,7 +1,7 @@
 import Foundation
 
 /// ELF binary format loader
-class ELFLoader: BinaryLoaderProtocol {
+nonisolated final class ELFLoader: BinaryLoaderProtocol {
 
     // MARK: - ELF Constants
 

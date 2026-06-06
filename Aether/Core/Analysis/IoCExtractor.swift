@@ -19,7 +19,7 @@ struct IoCReport: Identifiable {
     var isEmpty: Bool { totalCount == 0 }
 }
 
-class IoCExtractor {
+nonisolated final class IoCExtractor: Sendable {
     func extract(from binary: BinaryFile) -> IoCReport {
         // Collect all printable strings from sections
         var allStrings: [String] = []

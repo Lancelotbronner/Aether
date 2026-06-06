@@ -135,7 +135,7 @@ struct AnalysisFinding {
 // MARK: - Loader Plugin
 
 /// Plugin that adds support for new file formats
-protocol LoaderPlugin: AetherPlugin {
+protocol _LoaderPlugin: AetherPlugin {
     /// Check if this plugin can load the given file
     func canLoad(data: Data) -> Bool
 
@@ -209,7 +209,7 @@ class PluginManager: ObservableObject {
 
     @Published var loadedPlugins: [String: AetherPlugin] = [:]
     @Published var analysisPlugins: [AnalysisPlugin] = []
-    @Published var loaderPlugins: [LoaderPlugin] = []
+    @Published var loaderPlugins: [_LoaderPlugin] = []
     @Published var processorPlugins: [ProcessorPlugin] = []
     @Published var uiPlugins: [UIPlugin] = []
 
@@ -278,7 +278,7 @@ class PluginManager: ObservableObject {
         if let analysis = plugin as? AnalysisPlugin {
             analysisPlugins.append(analysis)
         }
-        if let loader = plugin as? LoaderPlugin {
+        if let loader = plugin as? _LoaderPlugin {
             loaderPlugins.append(loader)
         }
         if let processor = plugin as? ProcessorPlugin {
@@ -328,7 +328,7 @@ class PluginManager: ObservableObject {
         return results
     }
 
-    func findLoader(for data: Data) -> LoaderPlugin? {
+    func findLoader(for data: Data) -> _LoaderPlugin? {
         loaderPlugins.first { $0.canLoad(data: data) }
     }
 

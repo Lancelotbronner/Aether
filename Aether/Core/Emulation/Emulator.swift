@@ -822,8 +822,8 @@ class SymbolicExecutor {
 
     /// Explore paths through a function
     func explore(function: Function, binary: BinaryFile, maxPaths: Int = 100) -> [ExecutionPath] {
-        var paths: [ExecutionPath] = []
-        var worklist: [ExecutionPath] = []
+		let paths: [ExecutionPath] = []
+		var _: [ExecutionPath] = []
 
         // Initialize with entry state
         let emulator = Emulator(architecture: binary.architecture)

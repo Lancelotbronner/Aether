@@ -23,7 +23,7 @@ struct PEAnomaly: Identifiable {
     }
 }
 
-class PEAnomalyDetector {
+nonisolated final class PEAnomalyDetector: Sendable {
     private let entropyAnalyzer = EntropyAnalyzer()
 
     private let suspiciousSectionNames: Set<String> = [

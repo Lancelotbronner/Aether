@@ -29,7 +29,7 @@ struct EntropyBlock: Identifiable {
     let entropy: Double
 }
 
-class EntropyAnalyzer {
+nonisolated final class EntropyAnalyzer: Sendable {
     private let blockSize: Int
 
     init(blockSize: Int = 256) {

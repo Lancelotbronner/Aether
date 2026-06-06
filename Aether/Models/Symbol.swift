@@ -2,7 +2,7 @@ import Foundation
 
 /// Represents a symbol in the binary
 @Observable
-final class Symbol: Identifiable {
+nonisolated final class Symbol: Identifiable, Sendable {
 	let name: String
 	let address: UInt64
 	let size: UInt64

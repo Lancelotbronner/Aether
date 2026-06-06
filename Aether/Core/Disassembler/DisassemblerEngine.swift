@@ -1245,7 +1245,7 @@ actor DisassemblerEngine {
 			if let target {
 				result.kind = .branch(.jmp, target)
 			}
-            var instruction = Instruction(
+			let instruction = Instruction(
 				result,
 				with: bytes.span, at: address, for: .jvm)
 //                Instruction(
@@ -1953,7 +1953,7 @@ actor DisassemblerEngine {
         let rm = Int(modrm & 0x07) + (rexB ? 8 : 0)
 
         let xmmName = xmmRegisterName(reg)
-        var size = 1
+		let size = 1
 
         if mod == 0x03 {
             let gprName = registerName64(rm, wide: rexW)
@@ -1974,7 +1974,7 @@ actor DisassemblerEngine {
         let rm = Int(modrm & 0x07) + (rexB ? 8 : 0)
 
         let gprName = registerName64(reg, wide: rexW)
-        var size = 1
+		let size = 1
 
         if mod == 0x03 {
             let xmmName = xmmRegisterName(rm)

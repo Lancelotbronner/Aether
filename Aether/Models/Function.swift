@@ -2,7 +2,7 @@ import Foundation
 
 /// Represents an identified function in the binary
 @Observable
-final class Function: Identifiable, Hashable {
+nonisolated final class Function: Identifiable, Hashable {
     var name: String
     let startAddress: UInt64
     var endAddress: UInt64
@@ -139,7 +139,7 @@ final class Function: Identifiable, Hashable {
 
 /// A basic block within a function (for CFG)
 @Observable
-final class BasicBlock: Identifiable, Hashable {
+nonisolated final class BasicBlock: Identifiable, Hashable {
     let startAddress: UInt64
     var endAddress: UInt64
     var instructions: [Instruction] = []
