@@ -153,8 +153,10 @@ nonisolated enum DisassemblyBranch: Int8, Codable {
 	static let jnb = Self.jnc
 	/// Jump if not equal
 	case jne = -3
-	/// Jump if not above
+	/// Jump if not above (CF = 1 or ZF = 1)
 	case jna = -4
+	/// Jump if below or equal (CF = 1 or ZF = 1)
+	static let jbe = Self.jna
 	/// Jump if not sign
 	case jns = -5
 	/// Jump if not parity
@@ -177,6 +179,8 @@ nonisolated enum DisassemblyBranch: Int8, Codable {
 	case je = 3
 	/// Jump if above (CF=0 and ZF=0)
 	case ja = 4
+	/// Jump if above or equal (i.e. not greater)
+	static let jae = Self.jnb
 	/// Jump if sign (SF=1)
 	case js = 5
 	/// Jump if parity even (PF=1)
@@ -184,7 +188,7 @@ nonisolated enum DisassemblyBranch: Int8, Codable {
 	/// Jump if less (SF != OF)
 	case jl = 7
 	/// Jump if greater (ZF=0 and SF=OF)
-	case g = 8
+	case jg = 8
 	/// Jump if lower or equal (i.e. not greater)
 	static let jle = Self.jng
 	/// Jump if greater or equal (i.e. not lower)
@@ -193,7 +197,7 @@ nonisolated enum DisassemblyBranch: Int8, Codable {
 	/// Jump if CX is zero
 	case jcxz = 10
 	/// Jump if ECX is zero
-	case ecxz = 11
+	case jecxz = 11
 	/// Jump if RCX is zero
 	case jrcxz = 12
 }

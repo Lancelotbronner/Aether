@@ -270,9 +270,9 @@ final class AppState {
 			try Task.checkCancellation()
 
 			// Extract strings
-			let strings = strAnalyzer.analyze(binary: binary)
+//			let strings = strAnalyzer.analyze(binary: binary)
 
-			return (binary, imports, exports, symbols, functions, symbolsByAddress, symbolsByName, functionsByAddress, strings)
+			return (binary, imports, exports, symbols, functions, symbolsByAddress, symbolsByName, functionsByAddress, /*strings*/[])
 		}
 
 		loadTask = Task {

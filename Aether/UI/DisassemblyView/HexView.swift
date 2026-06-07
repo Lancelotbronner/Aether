@@ -56,12 +56,12 @@ struct HexView: View {
                         }
                         .padding(4)
                     }
-                    .onChange(of: appState.selectedAddress) { _, newAddress in
-                        let rowAddress = (newAddress / UInt64(bytesPerRow)) * UInt64(bytesPerRow)
-                        withAnimation {
-                            proxy.scrollTo(rowAddress, anchor: .center)
-                        }
-                    }
+//                    .onChange(of: appState.selectedAddress) { _, newAddress in
+//                        let rowAddress = (newAddress / UInt64(bytesPerRow)) * UInt64(bytesPerRow)
+//                        withAnimation {
+//                            proxy.scrollTo(rowAddress, anchor: .center)
+//                        }
+//                    }
                 }
             }
         }

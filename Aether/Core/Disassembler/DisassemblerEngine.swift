@@ -64,7 +64,7 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 /// Main disassembly engine
 /// Uses Capstone when available, falls back to native implementation
 actor DisassemblerEngine {
-	static var capstone: [CapstoneArch: Rc<CapstoneDisassembler2>] = [:]
+	static var capstone: [CapstoneArch: Rc<CapstoneDisassembler>] = [:]
 
 	// MARK: - Disassembly
 
@@ -76,7 +76,7 @@ actor DisassemblerEngine {
 	) -> [Instruction] {
 		if let arch = architecture.capstoneArch {
 			if !Self.capstone.keys.contains(arch) {
-				Self.capstone[arch] = Rc(try! CapstoneDisassembler2(arch, mode: architecture.capstoneMode))
+				Self.capstone[arch] = Rc(try! CapstoneDisassembler(arch, mode: architecture.capstoneMode))
 			}
 			let capstone = Self.capstone[arch]!
 			let context = AetherDisassemblyContext(for: data, at: address, for: architecture)
@@ -88,7 +88,7 @@ actor DisassemblerEngine {
 			}
 			return context.submitted
 		}
-			switch architecture {
+		switch architecture {
 			//        case .x86_64:
 			//            return disassembleX86_64(data: data, address: address)
 			//		case .arm64, .arm64e, .appleSilicon:

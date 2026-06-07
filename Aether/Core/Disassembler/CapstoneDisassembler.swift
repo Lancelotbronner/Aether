@@ -9,7 +9,7 @@ import capstone
 import CapstoneKit
 import Foundation
 
-nonisolated struct CapstoneDisassembler2: DisassemblerPlugin, ~Copyable {
+nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 	let capstone: Capstone
 	let arch: CapstoneArch
 	var mode: CapstoneMode
@@ -44,55 +44,110 @@ nonisolated struct CapstoneDisassembler2: DisassemblerPlugin, ~Copyable {
 			context.instruction.read = unsafeBitCast(disasm.detail.regs_read, to: DisassemblyInstruction.RegistersR.self)
 			context.instruction.modified = unsafeBitCast(disasm.detail.regs_write, to: DisassemblyInstruction.RegistersW.self)
 
+			// universal disassembly
+
+			if capstone.instruction(disasm, in: .ret) || capstone.instruction(disasm, in: .iret) {
+				context.instruction.kind = .ret
+			}
+
+			// arch-specific disassembly
+
 			switch arch {
 			case .aarch64:
-				let id = AArch64.InstructionId(rawValue: disasm.id)
-				let operands = unsafeBitCast(disasm.detail.aarch64.operands, to: InlineArray<16, AArch64.Operand>.self)
-				let lastOp = operands[Int(disasm.detail.aarch64.op_count)-1]
-
-			operands:
-				for i in 0..<Int(disasm.detail.aarch64.op_count) {
-					let cs = operands[i]
-					var op: DisassemblyOperand {
-						get { context.instruction.operands[i] }
-						_modify { yield &context.instruction.operands[i] }
-					}
-
-					op.access = cs.access.toAether
-
-					switch cs.type {
-					case .AARCH64_OP_INVALID:
-						break operands
-					case .AARCH64_OP_REG:
-						op.kind = .register(RegisterIndex(cs.reg))
-					case .AARCH64_OP_IMM:
-						op.kind = .constant(UInt64(bitPattern: cs.imm), [])
-					case .AARCH64_OP_MEM, .AARCH64_OP_MEM_REG, .AARCH64_OP_MEM_IMM:
-						op.kind = .memory(base: RegisterIndex(cs.mem.base), index: RegisterIndex(cs.mem.index), scale: 1, displacement: Int64(cs.mem.disp))
-					default:
-						op.kind = .other
-					}
-				}
-
-				if capstone.instruction(disasm, in: .jump) {
-					context.instruction.kind = .branch(.jmp, UInt64(bitPattern: lastOp.imm))
-				}
-				if capstone.instruction(disasm, in: .call) {
-					context.instruction.kind = .call(UInt64(bitPattern: lastOp.imm))
-				}
-				if capstone.instruction(disasm, in: .ret) || capstone.instruction(disasm, in: .iret) {
-					context.instruction.kind = .ret
-				}
-
-				switch id {
-					//TODO: associate branching instructions
-				default:
-					break
-				}
-
+				try disassemble(aarch64: disasm, in: context)
+			case .x86:
+				try disassemble(x86: disasm, in: context)
 			default:
 				break
 			}
+		}
+	}
+
+	private func disassemble(aarch64 disasm: CapstoneInstruction, in context: any DisassemblyContext) throws {
+		let id = AArch64.InstructionId(rawValue: disasm.id)
+		let operands = unsafeBitCast(disasm.detail.aarch64.operands, to: InlineArray<16, AArch64.Operand>.self)
+		let lastOp = operands[max(0, Int(disasm.detail.aarch64.op_count)-1)]
+
+	operands:
+		for i in 0..<Int(disasm.detail.aarch64.op_count) {
+			let cs = operands[i]
+			var op: DisassemblyOperand {
+				get { context.instruction.operands[i] }
+				_modify { yield &context.instruction.operands[i] }
+			}
+
+			op.access = cs.access.toAether
+
+			switch cs.type {
+			case .AARCH64_OP_INVALID:
+				break operands
+			case .AARCH64_OP_REG:
+				op.kind = .register(RegisterIndex(cs.reg))
+			case .AARCH64_OP_IMM:
+				op.kind = .constant(UInt64(bitPattern: cs.imm), [])
+			case .AARCH64_OP_MEM, .AARCH64_OP_MEM_REG, .AARCH64_OP_MEM_IMM:
+				op.kind = .memory(base: RegisterIndex(cs.mem.base), index: RegisterIndex(cs.mem.index), scale: 1, displacement: Int64(cs.mem.disp))
+			default:
+				op.kind = .other
+			}
+		}
+
+		if capstone.instruction(disasm, in: .jump) {
+			context.instruction.kind = .branch(.jmp, UInt64(bitPattern: lastOp.imm))
+		}
+		if capstone.instruction(disasm, in: .call) {
+			context.instruction.kind = .call(UInt64(bitPattern: lastOp.imm))
+		}
+
+		switch id {
+			//TODO: associate branching instructions
+		default:
+			break
+		}
+	}
+
+	private func disassemble(x86 disasm: CapstoneInstruction, in context: any DisassemblyContext) throws {
+		let id = X86.InstructionId(rawValue: disasm.id)
+		let operands = unsafeBitCast(disasm.detail.x86.operands, to: InlineArray<8, X86.Operand>.self)
+
+		let lastOp = operands[max(0, Int(disasm.detail.x86.op_count)-1)]
+		let targetBranch = UInt64(bitPattern: lastOp.imm)
+
+	operands:
+		for i in 0..<Int(disasm.detail.x86.op_count) {
+			let cs = operands[i]
+			var op: DisassemblyOperand {
+				get { context.instruction.operands[i] }
+				_modify { yield &context.instruction.operands[i] }
+			}
+
+			op.access = cs.access.toAether
+
+			switch cs.type {
+			case .invalid:
+				break operands
+			case .reg:
+				op.kind = .register(RegisterIndex(cs.reg))
+			case .imm:
+				op.kind = .constant(UInt64(bitPattern: cs.imm), [])
+			case .mem:
+				op.kind = .memory(base: RegisterIndex(cs.mem.base), index: RegisterIndex(cs.mem.index), scale: 1, displacement: Int64(cs.mem.disp))
+			}
+		}
+
+		if capstone.instruction(disasm, in: .jump) {
+			context.instruction.kind = .branch(.jmp, targetBranch)
+		}
+		if capstone.instruction(disasm, in: .call) {
+			context.instruction.kind = .call(targetBranch)
+		}
+		if let branch = id?.conditionalJump {
+			context.instruction.kind = .branch(branch, targetBranch)
+		}
+
+		switch id {
+		default:
+			break
 		}
 	}
 }
@@ -100,7 +155,7 @@ nonisolated struct CapstoneDisassembler2: DisassemblerPlugin, ~Copyable {
 nonisolated extension Capstone {
 	func preprocess(_ context: any DisassemblyContext) throws(CapstoneError) -> CapstoneInstruction {
 		var tmp = context.bytes.span
-		let disasm = try disassemble(&tmp, at: &context.address)
+		let disasm = try disassemble(&tmp, at: &context.address).pointee
 		context.bytes = context.bytes.dropFirst(context.bytes.count - tmp.count)
 
 		context.instruction.assembly.mnemonic = withUnsafeBytes(of: disasm.mnemonic) {
@@ -154,6 +209,9 @@ nonisolated extension Architecture {
 
 nonisolated extension AccessSet {
 	var toAether: OperandAccess {
-		unsafeBitCast(self, to: OperandAccess.self)
+		var tmp: OperandAccess = []
+		if contains(.read) { tmp.insert(.read) }
+		if contains(.write) { tmp.insert(.write) }
+		return tmp
 	}
 }

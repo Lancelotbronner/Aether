@@ -15,34 +15,6 @@ struct AetherToolbar: ToolbarContent {
 		@Bindable var appState = appState
 		Group {
 			ToolbarItemGroup {
-				Button("Open", systemImage: "doc.badge.plus") {
-					appState.openFile()
-				}
-				.keyboardShortcut("O", modifiers: .command)
-
-				Button("Save", systemImage: "square.and.arrow.down") {
-					appState.saveFileAs()
-				}
-				.keyboardShortcut("S", modifiers: .command)
-				.disabled(appState.currentFile == nil)
-
-				Button("Close", systemImage: "xmark.circle") {
-					appState.closeFile()
-				}
-				.keyboardShortcut("W", modifiers: .command)
-				.disabled(appState.currentFile == nil)
-
-				if appState.hasUnsavedChanges {
-					Circle()
-						.fill(Color.orange)
-						.frame(width: 8, height: 8)
-						.help("Unsaved changes")
-				}
-			}
-
-			ToolbarSpacer()
-
-			ToolbarItemGroup {
 				Button("Analyze", systemImage: "cpu") {
 					appState.analyzeAll()
 				}

@@ -20,9 +20,9 @@ struct AetherContentView: View {
 				.frame(minWidth: 240)
 		} detail: {
 			DetailView()
-		}
-		.toolbar {
-			AetherToolbar()
+				.toolbar {
+					AetherToolbar()
+				}
 		}
 		.inspector(isPresented: $appState.isInspectorPresented) {
 			Inspector()
@@ -143,11 +143,11 @@ private struct DetailView: View {
 		VStack(spacing: 0) {
 			HSplitView {
 				DisassemblyView()
-					.frame(minWidth: 300)
+					.frame(minWidth: 240)
 
 				if appState.showDecompiler {
 					DecompilerView()
-						.frame(minWidth: 250)
+						.frame(minWidth: 240)
 				}
 			}
 
