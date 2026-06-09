@@ -17,7 +17,7 @@ nonisolated protocol DisassemblerPlugin : ~Copyable {
 nonisolated protocol DisassemblyContext: AnyObject {
 	var baseAddress: UInt64 { get }
 	var code: Data { get }
-	var address: UInt64 { get set }
+	var nextAddress: UInt64 { get set }
 	var mode: CpuMode { get set }
 	var bytes: Data { get set }
 	var instruction: DisassemblyInstruction { get set }

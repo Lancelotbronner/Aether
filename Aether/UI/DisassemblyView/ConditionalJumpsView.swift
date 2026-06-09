@@ -179,20 +179,22 @@ struct ConditionalJumpsView: View {
     }
 
     private func analyzeJumps() {
+		guard let currentFile = appState.currentFile else { return }
         jumps = []
 
         for insn in instructions {
             guard insn.type == .conditionalJump else { continue }
+			let bytes = currentFile.bytes(of: insn)
 
             // Get opcode from instruction bytes
-            guard let firstByte = insn.bytes.first else { continue }
+			guard let firstByte = bytes.first else { continue }
 
             let isLongJump = firstByte == 0x0F
             let opcodeToCheck: UInt8
 
             if isLongJump {
-                guard insn.bytes.count > 1 else { continue }
-                opcodeToCheck = insn.bytes[1]
+				guard bytes.count > 1 else { continue }
+                opcodeToCheck = bytes[1]
             } else {
                 opcodeToCheck = firstByte
             }

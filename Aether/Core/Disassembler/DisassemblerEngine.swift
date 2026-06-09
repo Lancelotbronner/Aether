@@ -12,7 +12,8 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	let architecture: Architecture
 	let baseAddress: UInt64
 	let code: Data
-	var address: UInt64
+	private var currentAddress: UInt64
+	var nextAddress: UInt64
 	var mode = CpuMode(rawValue: 0)
 	var byteRange: Range<Int>
 	var bytes: Data {
@@ -32,7 +33,8 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	init(for data: Data, at address: UInt64, for architecture: Architecture) {
 		self.code = data
 		baseAddress = address
-		self.address = address
+		currentAddress = address
+		nextAddress = address
 		byteRange = data.indices
 		lastInstructionByteRange = data.indices.prefix(0)
 		submitted.reserveCapacity(data.count)
@@ -40,16 +42,17 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	}
 
 	func submit() {
-		let bytes = code[lastInstructionBytes.count..<(code.count - bytes.count)]
-		let next = Instruction(instruction, with: bytes.span, at: address, for: architecture)
-		next.xrefsTo = xrefsTo
-		next.xrefsFrom = xrefsFrom
+		let bytes = UInt64(lastInstructionBytes.count)..<UInt64(code.count - bytes.count)
+		let next = Instruction(instruction, with: bytes, at: currentAddress, for: architecture)
 		submitted.append(next)
+
+		//TODO: register xrefs
 
 		xrefsTo.removeAll(keepingCapacity: true)
 		xrefsFrom.removeAll(keepingCapacity: true)
 		instruction = DisassemblyInstruction()
 		lastInstructionByteRange = 0..<byteRange.lowerBound
+		currentAddress = nextAddress
 	}
 
 	func xref(to address: UInt64) {
@@ -1239,7 +1242,7 @@ actor DisassemblerEngine {
 
             let size = 1 + operandSize
             let endOffset = min(offset + size, data.count)
-            let bytes = Array(data[offset..<endOffset])
+			let byteOffsets = UInt64(offset)..<UInt64(endOffset)
 
 			var result = DisassemblyInstruction()
 			if let target {
@@ -1247,7 +1250,7 @@ actor DisassemblerEngine {
 			}
 			let instruction = Instruction(
 				result,
-				with: bytes.span, at: address, for: .jvm)
+				with: byteOffsets, at: address, for: .jvm)
 //                Instruction(
 //					address: currentAddress,
 //                size: size,

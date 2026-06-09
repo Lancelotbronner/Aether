@@ -748,7 +748,7 @@ class Emulator {
 
         return Instruction(
 			DisassemblyInstruction(),
-			with: .init(),
+			with: 0..<1,
 			at: address,
 			for: architecture
         )

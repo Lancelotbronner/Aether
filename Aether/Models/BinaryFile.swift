@@ -54,6 +54,18 @@ nonisolated final class BinaryFile: Identifiable {
 		"Unnamed"
 	}
 
+	func bytes(of instruction: Instruction) -> Data {
+		let lowerBound = instruction.address - baseAddress
+		let upperBound = lowerBound + UInt64(instruction.addressRange.count)
+		return data[lowerBound..<upperBound]
+	}
+
+	static func hex(bytes: Span<UInt8>) -> String {
+		bytes.indices
+			.map { String(format: "%02X", bytes[$0]) }
+			.joined(separator: " ")
+	}
+
 	/// Find section containing address
 	func section(containing address: UInt64) -> Section? {
 		sections.first { $0.contains(address: address) }

@@ -14,7 +14,11 @@ final class AppState {
 
 	// MARK: - Navigation State
 
-	var selectedAddress: UInt64 = 0
+	var selectedAddress: UInt64 {
+		get { selectedAddressRange.lowerBound }
+		set { selectedAddressRange = newValue..<(newValue + 1) }
+	}
+	var selectedAddressRange: Range<UInt64> = 0..<0
 	var selectedFunction: Function?
 	var selectedSection: Section?
 
@@ -780,10 +784,12 @@ final class AppState {
 			selectedFunction = func_
 		}
 
-		// Set address after a short delay so the view has time to load data
-		DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-			self?.selectedAddress = address
-		}
+		selectedAddress = address
+	}
+
+	func select(_ range: Range<UInt64>) {
+		goToAddress(range.lowerBound)
+		selectedAddressRange = range
 	}
 
 	func selectFunction(_ function: Function) {

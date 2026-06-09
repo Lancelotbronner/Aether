@@ -150,6 +150,7 @@ class ExportService {
 
     func exportDisassembly(
         instructions: [Instruction],
+	of binary: BinaryFile,
         format: ExportFormat,
         to url: URL
     ) throws {
@@ -157,23 +158,23 @@ class ExportService {
 
         switch format {
         case .text:
-            content = exportAsText(instructions)
+            content = exportAsText(instructions, of: binary)
         case .html:
-            content = exportAsHTML(instructions)
+            content = exportAsHTML(instructions, of: binary)
         case .json:
-            content = try exportAsJSON(instructions)
+            content = try exportAsJSON(instructions, of: binary)
         }
 
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    private func exportAsText(_ instructions: [Instruction]) -> String {
+	private func exportAsText(_ instructions: [Instruction], of binary: BinaryFile) -> String {
         var output = ""
 
         for insn in instructions {
             let line = String(format: "%08llX  %-20s  %s %s",
                             insn.address,
-                            insn.hexString,
+							  BinaryFile.hex(bytes: binary.bytes(of: insn).span),
                             insn.mnemonic,
                             insn.operands)
             output += line + "\n"
@@ -182,7 +183,7 @@ class ExportService {
         return output
     }
 
-    private func exportAsHTML(_ instructions: [Instruction]) -> String {
+    private func exportAsHTML(_ instructions: [Instruction], of binary: BinaryFile) -> String {
         var output = """
         <!DOCTYPE html>
         <html>
@@ -212,7 +213,7 @@ class ExportService {
             output += """
             <div class="line">
                 <span class="address">\(String(format: "%08llX", insn.address))</span>
-                <span class="bytes">\(insn.hexString.padding(toLength: 24, withPad: " ", startingAt: 0))</span>
+                <span class="bytes">\(BinaryFile.hex(bytes: binary.bytes(of: insn).span).padding(toLength: 24, withPad: " ", startingAt: 0))</span>
                 <span class="mnemonic">\(insn.mnemonic.padding(toLength: 8, withPad: " ", startingAt: 0))</span>
                 <span class="operands">\(insn.operands)</span>
             </div>
@@ -227,7 +228,7 @@ class ExportService {
         return output
     }
 
-    private func exportAsJSON(_ instructions: [Instruction]) throws -> String {
+	private func exportAsJSON(_ instructions: [Instruction], of binary: BinaryFile) throws -> String {
         struct ExportInstruction: Encodable {
             let address: String
             let bytes: String
@@ -239,7 +240,7 @@ class ExportService {
         let exportData = instructions.map { insn in
             ExportInstruction(
                 address: String(format: "0x%llX", insn.address),
-                bytes: insn.hexString,
+                bytes: BinaryFile.hex(bytes: binary.bytes(of: insn).span),
                 mnemonic: insn.mnemonic,
                 operands: insn.operands,
                 type: insn.type

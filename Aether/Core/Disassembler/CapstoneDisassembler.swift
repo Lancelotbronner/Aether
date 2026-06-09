@@ -32,7 +32,8 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 	mutating func disassemble(_ context: any DisassemblyContext) throws {
 		while !context.bytes.isEmpty {
 			defer { context.submit() }
-			let disasm = try capstone.preprocess(context)
+			let disasmBox = try capstone.preprocess(context)
+			let disasm = disasmBox.pointee
 
 			var read = InlineArray<64, UInt16>(repeating: 0)
 			var write = InlineArray<64, UInt16>(repeating: 0)
@@ -110,7 +111,8 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 		let id = X86.InstructionId(rawValue: disasm.id)
 		let operands = unsafeBitCast(disasm.detail.x86.operands, to: InlineArray<8, X86.Operand>.self)
 
-		let lastOp = operands[max(0, Int(disasm.detail.x86.op_count)-1)]
+		let lastOpIndex = max(0, min(7, Int(disasm.detail.x86.op_count) - 1))
+		let lastOp = operands[lastOpIndex]
 		let targetBranch = UInt64(bitPattern: lastOp.imm)
 
 	operands:
@@ -153,25 +155,25 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 }
 
 nonisolated extension Capstone {
-	func preprocess(_ context: any DisassemblyContext) throws(CapstoneError) -> CapstoneInstruction {
+	func preprocess(_ context: any DisassemblyContext) throws(CapstoneError) -> CapstoneInstructionBox {
 		var tmp = context.bytes.span
-		let disasm = try disassemble(&tmp, at: &context.address).pointee
+		let disasm = try disassemble(&tmp, at: &context.nextAddress)
 		context.bytes = context.bytes.dropFirst(context.bytes.count - tmp.count)
 
-		context.instruction.assembly.mnemonic = withUnsafeBytes(of: disasm.mnemonic) {
+		context.instruction.assembly.mnemonic = withUnsafeBytes(of: disasm.pointee.mnemonic) {
 			String(cString: $0.assumingMemoryBound(to: CChar.self).baseAddress!)
 		}
-		context.instruction.assembly.operands = withUnsafeBytes(of: disasm.op_str) {
+		context.instruction.assembly.operands = withUnsafeBytes(of: disasm.pointee.op_str) {
 			String(cString: $0.assumingMemoryBound(to: CChar.self).baseAddress!)
 		}
 //		result.instruction.length = UInt8(disasm.size)
-		context.instruction.pcRegisterValue = disasm.address
+		context.instruction.pcRegisterValue = disasm.pointee.address
 
-		if disasm.illegal {
+		if disasm.pointee.illegal {
 			context.instruction.flags.insert(.illegal)
 		}
 
-		guard disasm.unsafeMutableDetailPointer != nil else {
+		guard disasm.pointee.unsafeMutableDetailPointer != nil else {
 			throw CapstoneError.CS_ERR_DETAIL
 		}
 

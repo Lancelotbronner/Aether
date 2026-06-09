@@ -3,26 +3,25 @@ import Foundation
 /// Represents a disassembled instruction
 @Observable
 nonisolated final class Instruction: Identifiable {
-	let address: UInt64
-	var size: Int { bytes.count }
-	let bytes: [UInt8]
+	var addressRange: Range<UInt64>
+	var address: UInt64 { addressRange.lowerBound }
+	var size: Int { addressRange.count }
 	let mnemonic: String
 	let operands: String
     let architecture: Architecture
 
     // Analysis metadata
     var comment: String?
-    var xrefsFrom: [UInt64] = []        // Instructions that reference this one
-    var xrefsTo: [UInt64] = []          // Addresses this instruction references
+//    var xrefsFrom: [UInt64] = []        // Instructions that reference this one
+//    var xrefsTo: [UInt64] = []          // Addresses this instruction references
 
     // Instruction classification
 	let kind: InstructionKind
 	var type: InstructionType { kind.type }
 	var branchTarget: UInt64? { kind.branchTarget }
 
-	init(_ result: DisassemblyInstruction, with bytes: Span<UInt8>, at address: UInt64, for arch: Architecture) {
-		self.address = address
-		self.bytes = bytes.indices.map { bytes[$0] }
+	init(_ result: DisassemblyInstruction, with bytes: Range<UInt64>, at address: UInt64, for arch: Architecture) {
+		addressRange = address..<(address + UInt64(bytes.count))
 		mnemonic = result.assembly.mnemonic
 		operands = result.assembly.operands
 		architecture = arch
@@ -35,11 +34,6 @@ nonisolated final class Instruction: Identifiable {
             return mnemonic
         }
         return "\(mnemonic) \(operands)"
-    }
-
-    /// Hex string of instruction bytes
-    var hexString: String {
-        bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
     }
 
     /// Is this a control flow instruction?
