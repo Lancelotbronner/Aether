@@ -6,93 +6,93 @@ import AetherKit
 /// Mach-O binary format loader
 nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
-    // MARK: - Protocol Implementation
+	// MARK: - Protocol Implementation
 
-    func canLoad(data: Data) -> Bool {
-        guard let magic = data.readUInt32LE(at: 0) else { return false }
-        return magic == MH_MAGIC || magic == MH_CIGAM ||
-               magic == MH_MAGIC_64 || magic == MH_CIGAM_64 ||
-               magic == FAT_MAGIC || magic == FAT_CIGAM
-    }
+	func canLoad(data: Data) -> Bool {
+		guard let magic = data.readUInt32LE(at: 0) else { return false }
+		return magic == MH_MAGIC || magic == MH_CIGAM ||
+		magic == MH_MAGIC_64 || magic == MH_CIGAM_64 ||
+		magic == FAT_MAGIC || magic == FAT_CIGAM
+	}
 
-    func load(data: Data) throws -> BinaryFile {
-        guard let magic = data.readUInt32LE(at: 0) else {
-            throw BinaryLoaderError.invalidHeader
-        }
+	func load(data: Data) throws -> BinaryFile {
+		guard let magic = data.readUInt32LE(at: 0) else {
+			throw BinaryLoaderError.invalidHeader
+		}
 
-        // Handle fat/universal binaries
-        if magic == FAT_MAGIC || magic == FAT_CIGAM {
-            return try loadFatBinary(data: data, swapped: magic == FAT_CIGAM)
-        }
+		// Handle fat/universal binaries
+		if magic == FAT_MAGIC || magic == FAT_CIGAM {
+			return try loadFatBinary(data: data, swapped: magic == FAT_CIGAM)
+		}
 
-        return try loadMachO(data: data, offset: 0)
-    }
+		return try loadMachO(data: data, offset: 0)
+	}
 
-    // MARK: - Fat Binary Loading
+	// MARK: - Fat Binary Loading
 
-    private func loadFatBinary(data: Data, swapped: Bool) throws -> BinaryFile {
-        // Fat header is ALWAYS big-endian, regardless of host architecture
-        guard let nfatArch = data.readUInt32BE(at: 4) else {
-            throw BinaryLoaderError.invalidHeader
-        }
+	private func loadFatBinary(data: Data, swapped: Bool) throws -> BinaryFile {
+		// Fat header is ALWAYS big-endian, regardless of host architecture
+		guard let nfatArch = data.readUInt32BE(at: 4) else {
+			throw BinaryLoaderError.invalidHeader
+		}
 
-        // Find the best architecture (prefer arm64, then x86_64)
-        var bestOffset: UInt32 = 0
-        var bestArch: UInt32 = 0
+		// Find the best architecture (prefer arm64, then x86_64)
+		var bestOffset: UInt32 = 0
+		var bestArch: UInt32 = 0
 
-        for i in 0..<nfatArch {
-            let archOffset = 8 + Int(i) * 20
-            // Fat arch entries are also big-endian
-            guard let cpuType = data.readUInt32BE(at: archOffset) else { continue }
-            guard let offset = data.readUInt32BE(at: archOffset + 8) else { continue }
+		for i in 0..<nfatArch {
+			let archOffset = 8 + Int(i) * 20
+			// Fat arch entries are also big-endian
+			guard let cpuType = data.readUInt32BE(at: archOffset) else { continue }
+			guard let offset = data.readUInt32BE(at: archOffset + 8) else { continue }
 
-            // Prefer ARM64, then x86_64
-            if cpuType == CPU_TYPE_ARM64 {
-                bestOffset = offset
-                bestArch = cpuType
-                break
-            } else if cpuType == CPU_TYPE_X86_64 && bestArch != CPU_TYPE_ARM64 {
-                bestOffset = offset
-                bestArch = cpuType
-            } else if bestOffset == 0 {
-                bestOffset = offset
-                bestArch = cpuType
-            }
-        }
+			// Prefer ARM64, then x86_64
+			if cpuType == CPU_TYPE_ARM64 {
+				bestOffset = offset
+				bestArch = cpuType
+				break
+			} else if cpuType == CPU_TYPE_X86_64 && bestArch != CPU_TYPE_ARM64 {
+				bestOffset = offset
+				bestArch = cpuType
+			} else if bestOffset == 0 {
+				bestOffset = offset
+				bestArch = cpuType
+			}
+		}
 
-        return try loadMachO(data: data, offset: Int(bestOffset))
-    }
+		return try loadMachO(data: data, offset: Int(bestOffset))
+	}
 
-    // MARK: - Mach-O Loading
+	// MARK: - Mach-O Loading
 
-    private func loadMachO(data: Data, offset: Int) throws -> BinaryFile {
-        guard let magic = data.readUInt32LE(at: offset) else {
-            throw BinaryLoaderError.invalidHeader
-        }
+	private func loadMachO(data: Data, offset: Int) throws -> BinaryFile {
+		guard let magic = data.readUInt32LE(at: offset) else {
+			throw BinaryLoaderError.invalidHeader
+		}
 
-        let is64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64
-        let swapped = magic == MH_CIGAM || magic == MH_CIGAM_64
+		let is64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64
+		let swapped = magic == MH_CIGAM || magic == MH_CIGAM_64
 
-        // Parse header
-        let header = try parseMachOHeader(data: data, offset: offset, is64Bit: is64Bit, swapped: swapped)
+		// Parse header
+		let header = try parseMachOHeader(data: data, offset: offset, is64Bit: is64Bit, swapped: swapped)
 
-        // Parse load commands
-        let headerSize = is64Bit ? 32 : 28
-        var cmdOffset = offset + headerSize
+		// Parse load commands
+		let headerSize = is64Bit ? 32 : 28
+		var cmdOffset = offset + headerSize
 
-        var segments: [Segment] = []
-        var sections: [Section] = []
-        var symbols: [Symbol] = []
-        var entryPoint: UInt64 = 0
+		var segments: [Segment] = []
+		var sections: [Section] = []
+		var symbols: [Symbol] = []
+		var entryPoint: UInt64 = 0
 
 		print("Parsing \(header.ncmds) commands")
 		for _ in 0..<header.ncmds {
-            guard let cmd = data.readUInt32LE(at: cmdOffset),
-                  let cmdSize = data.readUInt32LE(at: cmdOffset + 4) else {
-                break
-            }
+			guard let cmd = data.readUInt32LE(at: cmdOffset),
+				  let cmdSize = data.readUInt32LE(at: cmdOffset + 4) else {
+				break
+			}
 
-            switch cmd {
+			switch cmd {
 			case UInt32(bitPattern: LC_SEGMENT):
 				let (seg, sects) = try parseSegment32(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset)
 				segments.append(seg)
@@ -102,113 +102,113 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 			case UInt32(bitPattern: LC_SYMTAB):
 				try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset, into: &symbols)
 			case LC_MAIN:
-                if let entryOff = data.readUInt64LE(at: cmdOffset + 8) {
-                    // Find __TEXT segment to calculate entry point
-                    if let textSeg = segments.first(where: { $0.name == "__TEXT" }) {
-                        entryPoint = textSeg.address + entryOff
-                    }
-                }
+				if let entryOff = data.readUInt64LE(at: cmdOffset + 8) {
+					// Find __TEXT segment to calculate entry point
+					if let textSeg = segments.first(where: { $0.name == "__TEXT" }) {
+						entryPoint = textSeg.address + entryOff
+					}
+				}
 
-            case UInt32(bitPattern: LC_UNIXTHREAD):
-                // Parse thread state for entry point (older binaries)
-                entryPoint = try parseUnixThread(data: data, offset: cmdOffset, cpuType: header.cpuType)
+			case UInt32(bitPattern: LC_UNIXTHREAD):
+				// Parse thread state for entry point (older binaries)
+				entryPoint = try parseUnixThread(data: data, offset: cmdOffset, cpuType: header.cpuType)
 
-            default:
-                break
-            }
+			default:
+				break
+			}
 
-            cmdOffset += Int(cmdSize)
-        }
+			cmdOffset += Int(cmdSize)
+		}
 
-        // Determine base address (skip __PAGEZERO which has address 0)
-        let baseAddress = segments.first(where: { $0.name != "__PAGEZERO" && $0.address > 0 })?.address ?? segments.first?.address ?? 0
+		// Determine base address (skip __PAGEZERO which has address 0)
+		let baseAddress = segments.first(where: { $0.name != "__PAGEZERO" && $0.address > 0 })?.address ?? segments.first?.address ?? 0
 
-        return BinaryFile(
-            format: .machO,
-            architecture: mapCPUType(header.cpuType),
-            endianness: swapped ? .big : .little,
-            is64Bit: is64Bit,
-            fileSize: data.count,
-            entryPoint: entryPoint,
-            baseAddress: baseAddress,
-            sections: sections,
-            segments: segments,
-            symbols: symbols,
-            data: data
-        )
-    }
+		return BinaryFile(
+			format: .machO,
+			architecture: mapCPUType(header.cpuType),
+			endianness: swapped ? .big : .little,
+			is64Bit: is64Bit,
+			fileSize: data.count,
+			entryPoint: entryPoint,
+			baseAddress: baseAddress,
+			sections: sections,
+			segments: segments,
+			symbols: symbols,
+			data: data
+		)
+	}
 
-    // MARK: - Header Parsing
+	// MARK: - Header Parsing
 
-    private struct MachOHeader {
-        let magic: UInt32
-        let cpuType: UInt32
-        let cpuSubtype: UInt32
-        let fileType: UInt32
-        let ncmds: UInt32
-        let sizeOfCmds: UInt32
-        let flags: UInt32
-    }
+	private struct MachOHeader {
+		let magic: UInt32
+		let cpuType: UInt32
+		let cpuSubtype: UInt32
+		let fileType: UInt32
+		let ncmds: UInt32
+		let sizeOfCmds: UInt32
+		let flags: UInt32
+	}
 
-    private func parseMachOHeader(data: Data, offset: Int, is64Bit: Bool, swapped: Bool) throws -> MachOHeader {
-        guard let magic = data.readUInt32LE(at: offset),
-              let cpuType = data.readUInt32LE(at: offset + 4),
-              let cpuSubtype = data.readUInt32LE(at: offset + 8),
-              let fileType = data.readUInt32LE(at: offset + 12),
-              let ncmds = data.readUInt32LE(at: offset + 16),
-              let sizeOfCmds = data.readUInt32LE(at: offset + 20),
-              let flags = data.readUInt32LE(at: offset + 24) else {
-            throw BinaryLoaderError.invalidHeader
-        }
+	private func parseMachOHeader(data: Data, offset: Int, is64Bit: Bool, swapped: Bool) throws -> MachOHeader {
+		guard let magic = data.readUInt32LE(at: offset),
+			  let cpuType = data.readUInt32LE(at: offset + 4),
+			  let cpuSubtype = data.readUInt32LE(at: offset + 8),
+			  let fileType = data.readUInt32LE(at: offset + 12),
+			  let ncmds = data.readUInt32LE(at: offset + 16),
+			  let sizeOfCmds = data.readUInt32LE(at: offset + 20),
+			  let flags = data.readUInt32LE(at: offset + 24) else {
+			throw BinaryLoaderError.invalidHeader
+		}
 
-        return MachOHeader(
-            magic: magic,
-            cpuType: swapped ? cpuType.byteSwapped : cpuType,
-            cpuSubtype: swapped ? cpuSubtype.byteSwapped : cpuSubtype,
-            fileType: swapped ? fileType.byteSwapped : fileType,
-            ncmds: swapped ? ncmds.byteSwapped : ncmds,
-            sizeOfCmds: swapped ? sizeOfCmds.byteSwapped : sizeOfCmds,
-            flags: swapped ? flags.byteSwapped : flags
-        )
-    }
+		return MachOHeader(
+			magic: magic,
+			cpuType: swapped ? cpuType.byteSwapped : cpuType,
+			cpuSubtype: swapped ? cpuSubtype.byteSwapped : cpuSubtype,
+			fileType: swapped ? fileType.byteSwapped : fileType,
+			ncmds: swapped ? ncmds.byteSwapped : ncmds,
+			sizeOfCmds: swapped ? sizeOfCmds.byteSwapped : sizeOfCmds,
+			flags: swapped ? flags.byteSwapped : flags
+		)
+	}
 
-    // MARK: - Segment Parsing
+	// MARK: - Segment Parsing
 
-    private func parseSegment32(data: Data, offset: Int, binaryData: Data, binaryOffset: Int) throws -> (Segment, [Section]) {
-        let segNameData = data.subdata(in: (offset + 8)..<(offset + 24))
-        let segName = String(data: segNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
+	private func parseSegment32(data: Data, offset: Int, binaryData: Data, binaryOffset: Int) throws -> (Segment, [Section]) {
+		let segNameData = data.subdata(in: (offset + 8)..<(offset + 24))
+		let segName = String(data: segNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
 
-        guard let vmaddr = data.readUInt32LE(at: offset + 24),
-              let vmsize = data.readUInt32LE(at: offset + 28),
-              let fileoff = data.readUInt32LE(at: offset + 32),
-              let filesize = data.readUInt32LE(at: offset + 36),
-              let maxprot = data.readUInt32LE(at: offset + 40),
-              let initprot = data.readUInt32LE(at: offset + 44),
-              let nsects = data.readUInt32LE(at: offset + 48) else {
-            throw BinaryLoaderError.corruptedFile("Invalid segment")
-        }
+		guard let vmaddr = data.readUInt32LE(at: offset + 24),
+			  let vmsize = data.readUInt32LE(at: offset + 28),
+			  let fileoff = data.readUInt32LE(at: offset + 32),
+			  let filesize = data.readUInt32LE(at: offset + 36),
+			  let maxprot = data.readUInt32LE(at: offset + 40),
+			  let initprot = data.readUInt32LE(at: offset + 44),
+			  let nsects = data.readUInt32LE(at: offset + 48) else {
+			throw BinaryLoaderError.corruptedFile("Invalid segment")
+		}
 
-        let segment = Segment(
-            name: segName,
-            address: UInt64(vmaddr),
-            size: UInt64(vmsize),
-            fileOffset: UInt64(fileoff),
-            fileSize: UInt64(filesize),
-            maxProtection: maxprot,
-            initProtection: initprot
-        )
+		let segment = Segment(
+			name: segName,
+			address: UInt64(vmaddr),
+			size: UInt64(vmsize),
+			fileOffset: UInt64(fileoff),
+			fileSize: UInt64(filesize),
+			maxProtection: maxprot,
+			initProtection: initprot
+		)
 
-        var sections: [Section] = []
-        var sectOffset = offset + 56
+		var sections: [Section] = []
+		var sectOffset = offset + 56
 
-        for _ in 0..<nsects {
-            let section = try parseSection32(data: data, offset: sectOffset, segName: segName, binaryData: binaryData, binaryOffset: binaryOffset)
-            sections.append(section)
-            sectOffset += 68
-        }
+		for _ in 0..<nsects {
+			let section = try parseSection32(data: data, offset: sectOffset, segName: segName, binaryData: binaryData, binaryOffset: binaryOffset)
+			sections.append(section)
+			sectOffset += 68
+		}
 
-        return (segment, sections)
-    }
+		return (segment, sections)
+	}
 
 	private func parseSegment64(
 		data: Data,
@@ -242,40 +242,40 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		}
 	}
 
-    // MARK: - Section Parsing
+	// MARK: - Section Parsing
 
-    private func parseSection32(data: Data, offset: Int, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
-        let sectNameData = data.subdata(in: offset..<(offset + 16))
-        let sectName = String(data: sectNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
+	private func parseSection32(data: Data, offset: Int, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
+		let sectNameData = data.subdata(in: offset..<(offset + 16))
+		let sectName = String(data: sectNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
 
-        guard let addr = data.readUInt32LE(at: offset + 32),
-              let size = data.readUInt32LE(at: offset + 36),
-              let fileOffset = data.readUInt32LE(at: offset + 40),
-              let align = data.readUInt32LE(at: offset + 44),
-              let flags = data.readUInt32LE(at: offset + 52) else {
-            throw BinaryLoaderError.corruptedFile("Invalid section")
-        }
+		guard let addr = data.readUInt32LE(at: offset + 32),
+			  let size = data.readUInt32LE(at: offset + 36),
+			  let fileOffset = data.readUInt32LE(at: offset + 40),
+			  let align = data.readUInt32LE(at: offset + 44),
+			  let flags = data.readUInt32LE(at: offset + 52) else {
+			throw BinaryLoaderError.corruptedFile("Invalid section")
+		}
 
-        // Read section data
-        let sectionData: Data
-        if size > 0 && fileOffset > 0 {
-            let dataOffset = binaryOffset + Int(fileOffset)
-            sectionData = binaryData.subdata(in: dataOffset..<(dataOffset + Int(size)))
-        } else {
-            sectionData = Data()
-        }
+		// Read section data
+		let sectionData: Data
+		if size > 0 && fileOffset > 0 {
+			let dataOffset = binaryOffset + Int(fileOffset)
+			sectionData = binaryData.subdata(in: dataOffset..<(dataOffset + Int(size)))
+		} else {
+			sectionData = Data()
+		}
 
-        return Section(
-            name: sectName,
-            segmentName: segName,
-            address: UInt64(addr),
-            size: UInt64(size),
-            offset: fileOffset,
-            alignment: align,
-            flags: flags,
-            data: sectionData
-        )
-    }
+		return Section(
+			name: sectName,
+			segmentName: segName,
+			address: UInt64(addr),
+			size: UInt64(size),
+			offset: fileOffset,
+			alignment: align,
+			flags: flags,
+			data: sectionData
+		)
+	}
 
 	private func parseSection64(_ sect: section_64, data: Data, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
 		let sectionName = withUnsafeBytes(of: sect.sectname) {
@@ -364,49 +364,49 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 			binding: binding)
 	}
 
-    // MARK: - Thread State Parsing
+	// MARK: - Thread State Parsing
 
-    private func parseUnixThread(data: Data, offset: Int, cpuType: UInt32) throws -> UInt64 {
-        // Skip cmd and cmdsize (8 bytes), then flavor and count (8 bytes)
-        let stateOffset = offset + 16
+	private func parseUnixThread(data: Data, offset: Int, cpuType: UInt32) throws -> UInt64 {
+		// Skip cmd and cmdsize (8 bytes), then flavor and count (8 bytes)
+		let stateOffset = offset + 16
 
-        switch cpuType {
-        case UInt32(bitPattern: CPU_TYPE_X86_64):
-            // RIP is at offset 16*8 in x86_64 thread state
-            if let rip = data.readUInt64LE(at: stateOffset + 16 * 8) {
-                return rip
-            }
-        case UInt32(bitPattern: CPU_TYPE_ARM64):
-            // PC is at offset 32*8 in ARM64 thread state
-            if let pc = data.readUInt64LE(at: stateOffset + 32 * 8) {
-                return pc
-            }
-        case UInt32(bitPattern: CPU_TYPE_X86):
-            // EIP is at offset 10*4 in i386 thread state
-            if let eip = data.readUInt32LE(at: stateOffset + 10 * 4) {
-                return UInt64(eip)
-            }
-        default:
-            break
-        }
+		switch cpuType {
+		case UInt32(bitPattern: CPU_TYPE_X86_64):
+			// RIP is at offset 16*8 in x86_64 thread state
+			if let rip = data.readUInt64LE(at: stateOffset + 16 * 8) {
+				return rip
+			}
+		case UInt32(bitPattern: CPU_TYPE_ARM64):
+			// PC is at offset 32*8 in ARM64 thread state
+			if let pc = data.readUInt64LE(at: stateOffset + 32 * 8) {
+				return pc
+			}
+		case UInt32(bitPattern: CPU_TYPE_X86):
+			// EIP is at offset 10*4 in i386 thread state
+			if let eip = data.readUInt32LE(at: stateOffset + 10 * 4) {
+				return UInt64(eip)
+			}
+		default:
+			break
+		}
 
-        return 0
-    }
+		return 0
+	}
 
-    // MARK: - Helpers
+	// MARK: - Helpers
 
-    private func mapCPUType(_ cpuType: UInt32) -> Architecture {
-        switch cpuType {
-        case UInt32(bitPattern: CPU_TYPE_X86_64):
-            return .x86_64
-        case UInt32(bitPattern: CPU_TYPE_ARM64):
-            return .arm64
-        case UInt32(bitPattern: CPU_TYPE_X86):
-            return .i386
-        case UInt32(bitPattern: CPU_TYPE_ARM):
-            return .armv7
-        default:
-            return .unknown
-        }
-    }
+	private func mapCPUType(_ cpuType: UInt32) -> Architecture {
+		switch cpuType {
+		case UInt32(bitPattern: CPU_TYPE_X86_64):
+			return .x86_64
+		case UInt32(bitPattern: CPU_TYPE_ARM64):
+			return .arm64
+		case UInt32(bitPattern: CPU_TYPE_X86):
+			return .i386
+		case UInt32(bitPattern: CPU_TYPE_ARM):
+			return .armv7
+		default:
+			return .unknown
+		}
+	}
 }

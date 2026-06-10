@@ -146,7 +146,7 @@ private struct HexRow: View {
 						.onTapGesture { appState.goToAddress(byteAddress) }
 				}
 			}
-
+			
 			// ASCII representation
 			HStack(spacing: 0) {
 				ForEach(byteOffsets, id: \.self) { i in

@@ -65,7 +65,7 @@ enum SymbolType: String, Codable {
 	case section = "Section"
 	case file = "File"
 	case unknown = "Unknown"
-	
+
 	var icon: String {
 		switch self {
 		case .function: return "f.square"

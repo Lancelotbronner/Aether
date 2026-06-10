@@ -166,7 +166,7 @@ nonisolated extension Capstone {
 		context.instruction.assembly.operands = withUnsafeBytes(of: disasm.pointee.op_str) {
 			String(cString: $0.assumingMemoryBound(to: CChar.self).baseAddress!)
 		}
-//		result.instruction.length = UInt8(disasm.size)
+		//		result.instruction.length = UInt8(disasm.size)
 		context.instruction.pcRegisterValue = disasm.pointee.address
 
 		if disasm.pointee.illegal {
