@@ -15,11 +15,11 @@ nonisolated final class BinaryFile: Identifiable {
 	let baseAddress: UInt64
 
 	// Sections and segments
-	var sections: [Section]
-	var segments: [Segment]
+	var sections: [Section] = []
+	var segments: [Segment] = []
 
 	// Symbols
-	var symbols: [Symbol]
+	var symbols: [Symbol] = []
 
 	// Raw data
 	let data: Data

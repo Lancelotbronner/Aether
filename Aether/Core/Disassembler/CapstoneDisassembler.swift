@@ -30,7 +30,7 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 	}
 
 	mutating func disassemble(_ context: any DisassemblyContext) throws {
-		while !context.bytes.isEmpty {
+		while !context.remainingByteRange.isEmpty {
 			defer { context.submit() }
 			let disasmBox = try capstone.preprocess(context)
 			let disasm = disasmBox.pointee
@@ -156,9 +156,9 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 
 nonisolated extension Capstone {
 	func preprocess(_ context: any DisassemblyContext) throws(CapstoneError) -> CapstoneInstructionBox {
-		var tmp = context.bytes.span
+		var tmp = context.remainingBytes.span
 		let disasm = try disassemble(&tmp, at: &context.nextAddress)
-		context.bytes = context.bytes.dropFirst(context.bytes.count - tmp.count)
+		context.remainingByteRange.removeFirst(context.remainingBytes.count - tmp.count)
 
 		context.instruction.assembly.mnemonic = withUnsafeBytes(of: disasm.pointee.mnemonic) {
 			String(cString: $0.assumingMemoryBound(to: CChar.self).baseAddress!)

@@ -27,10 +27,6 @@ final class AppState {
 		set {
 			guard let selectedFunction else { return }
 			goToAddress(selectedFunction.startAddress)
-			// Decompile if decompiler view is visible
-			if showDecompiler {
-				decompileCurrentFunction()
-			}
 		}
 	}
 
@@ -49,7 +45,7 @@ final class AppState {
 	var showGoToAddress = false
 	var showSearch = false
 	var sidebarSelection: NavigatorTab = .functions
-	var isInspectorPresented = true
+	var isInspectorPresented = false
 
 	// MARK: - Advanced Analysis UI State
 	var showCallGraph = false
@@ -773,17 +769,16 @@ final class AppState {
 	// MARK: - Navigation
 
 	func goToAddress(_ address: UInt64) {
-		// First select the section so HexView loads the data
-		if let binary = currentFile,
-		   let section = binary.sections.first(where: { $0.contains(address: address) }) {
-			selectedSection = section
+		guard let currentFile else { return }
+		// Update section if necessary
+		if let selectedSection, selectedSection.contains(address: address) {} else {
+			self.selectedSection = currentFile.sections.first { $0.contains(address: address) }
 		}
-
-		// Find function containing this address
-		if let func_ = functions.first(where: { $0.contains(address: address) }) {
-			selectedFunction = func_
+		// Update function if necessary
+		if let selectedFunction, selectedFunction.contains(address: address) {} else {
+			self.selectedFunction = functions.first { $0.contains(address: address) }
 		}
-
+		// Update selection range
 		selectedAddress = address
 	}
 
@@ -1406,7 +1401,7 @@ final class AppState {
 			return []
 		}
 
-		let offset = Int(function.startAddress - section.address)
+		let offset = Int(function.startAddress - section.address) + section.data.startIndex
 		var size = Int(function.size)
 
 		// Handle invalid sizes
@@ -1421,7 +1416,7 @@ final class AppState {
 		let data = section.data[offset..<(offset + size)]
 
 		return await disassembler.disassemble(
-			data: Data(data),
+			data: data,
 			address: function.startAddress,
 			architecture: binary.architecture
 		)
@@ -1443,7 +1438,7 @@ final class AppState {
 		let data = section.data[offset..<(offset + size)]
 
 		return await disassembler.disassemble(
-			data: Data(data),
+			data: data,
 			address: start,
 			architecture: binary.architecture
 		)

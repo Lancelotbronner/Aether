@@ -38,23 +38,27 @@ struct HexView: View {
 			} else {
 				ScrollViewReader { proxy in
 					ScrollView {
-						LazyVStack(alignment: .leading, spacing: 0) {
-							// Column headers
-							HexHeaderRow(bytesPerRow: bytesPerRow)
-
-							// Data rows
-							ForEach(0..<rowCount, id: \.self) { rowIndex in
-								let start = rowIndex * bytesPerRow
-								let end = min(start + bytesPerRow, data.count)
-								HexRow(
-									data: data,
-									byteOffsets: start..<end,
-									baseAddress: baseAddress
-								)
+						LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+							SwiftUI::Section {
+								ForEach(0..<rowCount, id: \.self) { rowIndex in
+									let start = rowIndex * bytesPerRow
+									let end = min(start + bytesPerRow, data.count)
+									HexRow(
+										data: data,
+										byteOffsets: start..<end,
+										baseAddress: baseAddress
+									)
+								}
+							} header: {
+								HexHeader(bytesPerRow: bytesPerRow)
+									.padding(2)
+									.background(.windowBackground, in: .rect)
 							}
 						}
+						.scrollTargetLayout()
 						.padding(4)
 					}
+					.scrollTargetBehavior(.viewAligned)
 					.onChange(of: appState.selectedAddress) { _, newAddress in
 						let rowAddress = (newAddress / UInt64(bytesPerRow)) * UInt64(bytesPerRow)
 						withAnimation {
@@ -80,34 +84,28 @@ struct HexView: View {
 	}
 }
 
-// MARK: - Hex Header Row
-
-struct HexHeaderRow: View {
+private struct HexHeader: View {
 	let bytesPerRow: Int
 
 	var body: some View {
 		HStack(spacing: 16) {
-			// Address column
 			Text("Address")
-
-			// Byte columns
-			HStack(spacing: 4) {
+				.frame(width: 80, alignment: .leading)
+			HStack(spacing: 0) {
 				ForEach(0..<bytesPerRow, id: \.self) { i in
 					Text(String(format: "%02X", i))
+						.padding(2)
 				}
 			}
-
-			// ASCII column
 			Text("ASCII")
+			Spacer()
 		}
 		.monospaced()
 		.foregroundColor(.secondary)
 	}
 }
 
-// MARK: - Hex Row
-
-struct HexRow: View {
+private struct HexRow: View {
 	@Environment(AppState.self) private var appState
 	let data: Data
 	let byteOffsets: Range<Int>
@@ -118,7 +116,8 @@ struct HexRow: View {
 	}
 
 	private func byte(at offset: Int) -> UInt8 {
-		data[byteOffsets[offset]]
+		let i = byteOffsets[offset]
+		return data[data.startIndex + i]
 	}
 
 	var body: some View {
@@ -129,10 +128,8 @@ struct HexRow: View {
 				.foregroundColor(.addressColor)
 				.frame(width: 80, alignment: .leading)
 
-			//TODO: Assemble byte and ASCII strings instead
-
 			// Hex bytes
-			HStack(spacing: 4) {
+			HStack(spacing: 0) {
 				ForEach(byteOffsets, id: \.self) { i in
 					let byteAddress = baseAddress + UInt64(i)
 					let isHighlighted = appState.selectedAddressRange.contains(byteAddress)
@@ -142,21 +139,23 @@ struct HexRow: View {
 					case byte == 0: AnyShapeStyle(.tertiary)
 					default: AnyShapeStyle(.primary)
 					}
-
 					Text(String(format: "%02X", byte))
 						.foregroundStyle(tint)
+						.padding(2)
+						.contentShape(.rect)
 						.onTapGesture { appState.goToAddress(byteAddress) }
 				}
 			}
 
 			// ASCII representation
-			HStack(spacing: 4) {
+			HStack(spacing: 0) {
 				ForEach(byteOffsets, id: \.self) { i in
 					let byte = byte(at: i)
 					let isPrintable = isprint(Int32(byte)) != 0
 					let char = isPrintable ? Character(UnicodeScalar(byte)) : "."
 					Text(String(char))
 						.foregroundStyle(isPrintable ? .primary : .quaternary)
+					Text(verbatim: " ")
 				}
 			}
 		}

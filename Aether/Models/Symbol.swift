@@ -1,14 +1,15 @@
 import Foundation
 
 /// Represents a symbol in the binary
-@Observable
-nonisolated final class Symbol: Identifiable, Sendable {
+nonisolated struct Symbol: Identifiable, Sendable {
 	let name: String
 	let address: UInt64
 	let size: UInt64
 	let type: SymbolType
 	let binding: SymbolBinding
 	let section: String?
+
+	var id: UInt64 { address }
 
 	init(name: String, address: UInt64, size: UInt64, type: SymbolType, binding: SymbolBinding, section: String? = nil) {
 		self.name = name

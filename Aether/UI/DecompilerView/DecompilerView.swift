@@ -42,6 +42,9 @@ struct DecompilerView: View {
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+				.task {
+					appState.decompileCurrentFunction()
+				}
             } else {
                 ScrollView {
                     SyntaxHighlightedCode(

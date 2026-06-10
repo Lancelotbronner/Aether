@@ -1,5 +1,7 @@
 import Foundation
 import MachO
+import CoreAether
+import AetherKit
 
 /// Mach-O binary format loader
 nonisolated final class MachOLoader: BinaryLoaderProtocol {
@@ -83,6 +85,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
         var symbols: [Symbol] = []
         var entryPoint: UInt64 = 0
 
+		print("Parsing \(header.ncmds) commands")
 		for _ in 0..<header.ncmds {
             guard let cmd = data.readUInt32LE(at: cmdOffset),
                   let cmdSize = data.readUInt32LE(at: cmdOffset + 4) else {
@@ -91,20 +94,14 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
             switch cmd {
 			case UInt32(bitPattern: LC_SEGMENT):
-                let (seg, sects) = try parseSegment32(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset)
-                segments.append(seg)
-                sections.append(contentsOf: sects)
-
-            case UInt32(bitPattern: LC_SEGMENT_64):
-                let (seg, sects) = try parseSegment64(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset)
-                segments.append(seg)
-                sections.append(contentsOf: sects)
-
-            case UInt32(bitPattern: LC_SYMTAB):
-                let syms = try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset)
-                symbols.append(contentsOf: syms)
-
-            case LC_MAIN:
+				let (seg, sects) = try parseSegment32(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset)
+				segments.append(seg)
+				sections.append(contentsOf: sects)
+			case UInt32(bitPattern: LC_SEGMENT_64):
+				try parseSegment64(data: data, offset: cmdOffset, binaryData: data, binaryOffset: offset, into: &segments, into: &sections)
+			case UInt32(bitPattern: LC_SYMTAB):
+				try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset, into: &symbols)
+			case LC_MAIN:
                 if let entryOff = data.readUInt64LE(at: cmdOffset + 8) {
                     // Find __TEXT segment to calculate entry point
                     if let textSeg = segments.first(where: { $0.name == "__TEXT" }) {
@@ -213,41 +210,37 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
         return (segment, sections)
     }
 
-    private func parseSegment64(data: Data, offset: Int, binaryData: Data, binaryOffset: Int) throws -> (Segment, [Section]) {
-        let segNameData = data.subdata(in: (offset + 8)..<(offset + 24))
-        let segName = String(data: segNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
+	private func parseSegment64(
+		data: Data,
+		offset: Int,
+		binaryData: Data,
+		binaryOffset: Int,
+		into segments: inout [Segment],
+		into sections: inout [Section]
+	) throws {
+		let seg = data.bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: segment_command_64.self)
+		let name = withUnsafeBytes(of: seg.segname) {
+			String(cString: $0, maxLength: 16)
+		}
 
-        guard let vmaddr = data.readUInt64LE(at: offset + 24),
-              let vmsize = data.readUInt64LE(at: offset + 32),
-              let fileoff = data.readUInt64LE(at: offset + 40),
-              let filesize = data.readUInt64LE(at: offset + 48),
-              let maxprot = data.readUInt32LE(at: offset + 56),
-              let initprot = data.readUInt32LE(at: offset + 60),
-              let nsects = data.readUInt32LE(at: offset + 64) else {
-            throw BinaryLoaderError.corruptedFile("Invalid segment")
-        }
+		segments.append(Segment(
+			name: name,
+			address: seg.vmaddr,
+			size: seg.vmsize,
+			fileOffset: seg.fileoff,
+			fileSize: seg.filesize,
+			maxProtection: UInt32(bitPattern: seg.maxprot),
+			initProtection: UInt32(bitPattern: seg.initprot)
+		))
 
-        let segment = Segment(
-            name: segName,
-            address: vmaddr,
-            size: vmsize,
-            fileOffset: fileoff,
-            fileSize: filesize,
-            maxProtection: maxprot,
-            initProtection: initprot
-        )
-
-        var sections: [Section] = []
-        var sectOffset = offset + 72
-
-        for _ in 0..<nsects {
-            let section = try parseSection64(data: data, offset: sectOffset, segName: segName, binaryData: binaryData, binaryOffset: binaryOffset)
-            sections.append(section)
-            sectOffset += 80
-        }
-
-        return (segment, sections)
-    }
+		print("Parsing \(seg.nsects) sections in \(name)")
+		try data.dropFirst(offset + MemoryLayout<segment_command_64>.size).withUnsafeBytes { bytes in
+			for sect in bytes.bindMemory(to: section_64.self).prefix(Int(seg.nsects)) {
+				let section = try parseSection64(sect, data: data, segName: name, binaryData: binaryData, binaryOffset: binaryOffset)
+				sections.append(section)
+			}
+		}
+	}
 
     // MARK: - Section Parsing
 
@@ -284,116 +277,92 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
         )
     }
 
-    private func parseSection64(data: Data, offset: Int, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
-        let sectNameData = data.subdata(in: offset..<(offset + 16))
-        let sectName = String(data: sectNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
+	private func parseSection64(_ sect: section_64, data: Data, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
+		let sectionName = withUnsafeBytes(of: sect.sectname) {
+			String(cString: $0, maxLength: 16)
+		}
+		let segmentName = withUnsafeBytes(of: sect.segname) {
+			String(cString: $0, maxLength: 16)
+		}
 
-        guard let addr = data.readUInt64LE(at: offset + 32),
-              let size = data.readUInt64LE(at: offset + 40),
-              let fileOffset = data.readUInt32LE(at: offset + 48),
-              let align = data.readUInt32LE(at: offset + 52),
-              let flags = data.readUInt32LE(at: offset + 60) else {
-            throw BinaryLoaderError.corruptedFile("Invalid section")
-        }
+		let lowerBound = binaryOffset + Int(sect.offset)
+		let upperBound = lowerBound + Int(sect.size)
+		let data = binaryData[lowerBound..<upperBound]
 
-        // Read section data
-        let sectionData: Data
-        if size > 0 && fileOffset > 0 {
-            let dataOffset = binaryOffset + Int(fileOffset)
-            let endOffset = dataOffset + Int(size)
-            if endOffset <= binaryData.count {
-                sectionData = binaryData.subdata(in: dataOffset..<endOffset)
-            } else {
-                sectionData = Data()
-            }
-        } else {
-            sectionData = Data()
-        }
+		print("\t\(sectionName)")
+		return Section(
+			name: sectionName,
+			segmentName: segmentName,
+			address: sect.addr,
+			size: sect.size,
+			offset: sect.offset,
+			alignment: sect.align,
+			flags: sect.flags,
+			data: data
+		)
+	}
 
-        return Section(
-            name: sectName,
-            segmentName: segName,
-            address: addr,
-            size: size,
-            offset: fileOffset,
-            alignment: align,
-            flags: flags,
-            data: sectionData
-        )
-    }
+	// MARK: - Symbol Table Parsing
 
-    // MARK: - Symbol Table Parsing
+	private func parseSymtab(data: Data, offset: Int, is64Bit: Bool, binaryOffset: Int, into symbols: inout [Symbol]) throws {
+		let symtab = data.bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: symtab_command.self)
+		let strOffset = binaryOffset + Int(symtab.stroff)
+		symbols.reserveCapacity(symbols.count + Int(symtab.nsyms))
+		print("Parsing \(symtab.nsyms) symbols")
+		data
+			.dropFirst(binaryOffset + Int(symtab.symoff))
+			.withUnsafeBytes { b in
+				if is64Bit {
+					for sym in b.bindMemory(to: nlist_64.self).prefix(Int(symtab.nsyms)) {
+						let symbol = processSymbol(from: sym, with: data, strOffset: strOffset)
+						symbols.append(symbol)
+					}
+				} else {
+					for sym in b.bindMemory(to: nlist.self).prefix(Int(symtab.nsyms)) {
+						let nlist64 = nlist_64(
+							n_un: .init(n_strx: sym.n_un.n_strx),
+							n_type: sym.n_type,
+							n_sect: sym.n_sect,
+							n_desc: UInt16(bitPattern: sym.n_desc),
+							n_value: UInt64(sym.n_value))
+						let symbol = processSymbol(from: nlist64, with: data, strOffset: strOffset)
+						symbols.append(symbol)
+					}
+				}
+			}
+	}
 
-    private func parseSymtab(data: Data, offset: Int, is64Bit: Bool, binaryOffset: Int) throws -> [Symbol] {
-        guard let symoff = data.readUInt32LE(at: offset + 8),
-              let nsyms = data.readUInt32LE(at: offset + 12),
-              let stroff = data.readUInt32LE(at: offset + 16) else {
-            return []
-        }
+	private func processSymbol(
+		from sym: nlist_64,
+		with data: Data,
+		strOffset: Int,
+	) -> Symbol {
+		let name = sym.n_un.n_strx == 0 ? "" : data.readCString(at: strOffset + Int(sym.n_un.n_strx)) ?? ""
+		let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
+		let symType: SymbolType
+		let binding: SymbolBinding
+		let isExternal = n_type.n_ext
 
-        var symbols: [Symbol] = []
-        let nlistSize = is64Bit ? 16 : 12
+		switch n_type.n_type {
+		case .N_ABS:
+			symType = .function
+			binding = isExternal ? .global : .local
+		case .N_SECT:
+			// Check if this looks like a function (in __TEXT,__text)
+			symType = sym.n_sect == 1 ? .function : .data
+			binding = isExternal ? .global : .local
+		default:
+			symType = .unknown
+			binding = isExternal ? .external : .undefined
+		}
 
-        for i in 0..<nsyms {
-            let symOffset = binaryOffset + Int(symoff) + Int(i) * nlistSize
-
-            guard let strx = data.readUInt32LE(at: symOffset),
-                  let type = data.readUInt8(at: symOffset + 4),
-                  let sect = data.readUInt8(at: symOffset + 5) else {
-                continue
-            }
-
-            let value: UInt64
-            if is64Bit {
-                guard let val = data.readUInt64LE(at: symOffset + 8) else { continue }
-                value = val
-            } else {
-                guard let val = data.readUInt32LE(at: symOffset + 8) else { continue }
-                value = UInt64(val)
-            }
-
-            // Read symbol name
-            let nameOffset = binaryOffset + Int(stroff) + Int(strx)
-            let name = data.readCString(at: nameOffset) ?? ""
-
-            // Determine symbol type and binding
-            let symType: SymbolType
-            let binding: SymbolBinding
-
-            let N_TYPE: UInt8 = 0x0E
-            let N_EXT: UInt8 = 0x01
-            let N_UNDF: UInt8 = 0x00
-            let N_SECT: UInt8 = 0x0E
-
-            let typeField = type & N_TYPE
-            let isExternal = (type & N_EXT) != 0
-
-            if typeField == N_UNDF {
-                symType = .unknown
-                binding = isExternal ? .external : .undefined
-            } else if typeField == N_SECT {
-                // Check if this looks like a function (in __TEXT,__text)
-                symType = sect == 1 ? .function : .data
-                binding = isExternal ? .global : .local
-            } else {
-                symType = .unknown
-                binding = isExternal ? .global : .local
-            }
-
-            guard !name.isEmpty else { continue }
-
-            symbols.append(Symbol(
-                name: name,
-                address: value,
-                size: 0,
-                type: symType,
-                binding: binding,
-                section: nil
-            ))
-        }
-
-        return symbols
-    }
+		return Symbol(
+			name: name,
+			address: sym.n_value,
+			size: 0,
+			type: symType,
+			binding: binding)
+	}
 
     // MARK: - Thread State Parsing
 

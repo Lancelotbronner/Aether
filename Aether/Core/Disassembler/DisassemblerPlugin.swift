@@ -19,11 +19,17 @@ nonisolated protocol DisassemblyContext: AnyObject {
 	var code: Data { get }
 	var nextAddress: UInt64 { get set }
 	var mode: CpuMode { get set }
-	var bytes: Data { get set }
+	var remainingByteRange: Range<Int> { get set }
 	var instruction: DisassemblyInstruction { get set }
 
 	/// Submits the difference between the previous submit and the current state, resets ``instruction``, all calls now affect the next instruction.
 	func submit()
 	func xref(to address: UInt64)
 	func xref(from address: UInt64)
+}
+
+nonisolated extension DisassemblyContext {
+	var remainingBytes: Data {
+		code[remainingByteRange]
+	}
 }

@@ -1,14 +1,15 @@
 import Foundation
 
 /// Represents a disassembled instruction
-@Observable
-nonisolated final class Instruction: Identifiable {
+nonisolated struct Instruction: Identifiable {
 	var addressRange: Range<UInt64>
 	var address: UInt64 { addressRange.lowerBound }
 	var size: Int { addressRange.count }
 	let mnemonic: String
 	let operands: String
     let architecture: Architecture
+
+	var id: UInt64 { addressRange.lowerBound }
 
     // Analysis metadata
     var comment: String?

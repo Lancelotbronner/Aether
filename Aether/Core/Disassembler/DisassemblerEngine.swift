@@ -15,16 +15,8 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	private var currentAddress: UInt64
 	var nextAddress: UInt64
 	var mode = CpuMode(rawValue: 0)
-	var byteRange: Range<Int>
-	var bytes: Data {
-		get { code[byteRange] }
-		set { byteRange = newValue.indices }
-	}
+	var remainingByteRange: Range<Int>
 	var lastInstructionByteRange: Range<Int>
-	var lastInstructionBytes: Data {
-		get { code[lastInstructionByteRange] }
-		set { lastInstructionByteRange = newValue.indices }
-	}
 	var instruction = DisassemblyInstruction()
 	var xrefsTo: [UInt64] = []
 	var xrefsFrom: [UInt64] = []
@@ -35,14 +27,15 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 		baseAddress = address
 		currentAddress = address
 		nextAddress = address
-		byteRange = data.indices
+		remainingByteRange = data.indices
 		lastInstructionByteRange = data.indices.prefix(0)
 		submitted.reserveCapacity(data.count)
 		self.architecture = architecture
 	}
 
 	func submit() {
-		let bytes = UInt64(lastInstructionBytes.count)..<UInt64(code.count - bytes.count)
+		//FIXME: what the fuck is this
+		let bytes = UInt64(lastInstructionByteRange.lowerBound)..<UInt64(remainingByteRange.lowerBound)
 		let next = Instruction(instruction, with: bytes, at: currentAddress, for: architecture)
 		submitted.append(next)
 
@@ -51,7 +44,7 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 		xrefsTo.removeAll(keepingCapacity: true)
 		xrefsFrom.removeAll(keepingCapacity: true)
 		instruction = DisassemblyInstruction()
-		lastInstructionByteRange = 0..<byteRange.lowerBound
+		lastInstructionByteRange = remainingByteRange
 		currentAddress = nextAddress
 	}
 

@@ -143,11 +143,11 @@ private struct DetailView: View {
 		VStack(spacing: 0) {
 			HSplitView {
 				DisassemblyView()
-					.frame(minWidth: 240)
+					.frame(minWidth: 350)
 
 				if appState.showDecompiler {
 					DecompilerView()
-						.frame(minWidth: 240)
+						.frame(minWidth: 350)
 				}
 			}
 

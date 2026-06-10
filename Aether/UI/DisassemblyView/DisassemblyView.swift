@@ -98,7 +98,7 @@ struct DisassemblyView: View {
                                 let branchInfo = branches.first { $0.sourceAddress == insn.address }
                                 EnhancedInstructionRow(
                                     instruction: insn,
-                                    isSelected: insn.address == appState.selectedAddress,
+									isSelected: insn.addressRange.overlaps(appState.selectedAddressRange),
                                     branchInfo: branchInfo,
                                     allInstructions: instructions
                                 )
@@ -110,9 +110,11 @@ struct DisassemblyView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .onChange(of: appState.selectedAddress) { _, newAddress in
+                    .onChange(of: appState.selectedAddress) {
+						let selected = appState.selectedAddress
+						guard let insn = instructions.last(where: { $0.address <= selected }) else { return }
                         withAnimation {
-                            proxy.scrollTo(newAddress, anchor: .center)
+							proxy.scrollTo(insn.address, anchor: .center)
                         }
                     }
                 }

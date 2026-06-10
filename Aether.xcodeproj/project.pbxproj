@@ -7,13 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		730A70C82FD8F6F700BF2DA8 /* AetherKit in Frameworks */ = {isa = PBXBuildFile; productRef = 730A70C72FD8F6F700BF2DA8 /* AetherKit */; };
 		738117AD2FD1F685006D3ECB /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 738117AC2FD1F685006D3ECB /* Zip */; };
 		738119692FD27538006D3ECB /* CapstoneKit in Frameworks */ = {isa = PBXBuildFile; productRef = 738119682FD27538006D3ECB /* CapstoneKit */; };
+		73A61ACA2FD8E4810085AC24 /* CoreAether in Frameworks */ = {isa = PBXBuildFile; productRef = 73A61AC92FD8E4810085AC24 /* CoreAether */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		738116EB2FD1EA75006D3ECB /* Aether.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aether.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		738119662FD2752D006D3ECB /* capstone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = capstone; path = /Users/lancelot/Developer/Packages/capstone; sourceTree = "<absolute>"; };
+		738119732FD42354006D3ECB /* AetherKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AetherKit; sourceTree = "<group>"; };
+		73A61AC82FD8E3960085AC24 /* CoreAether */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = CoreAether; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -44,6 +48,8 @@
 			files = (
 				738119692FD27538006D3ECB /* CapstoneKit in Frameworks */,
 				738117AD2FD1F685006D3ECB /* Zip in Frameworks */,
+				730A70C82FD8F6F700BF2DA8 /* AetherKit in Frameworks */,
+				73A61ACA2FD8E4810085AC24 /* CoreAether in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,6 +59,8 @@
 		738116E22FD1EA75006D3ECB = {
 			isa = PBXGroup;
 			children = (
+				73A61AC82FD8E3960085AC24 /* CoreAether */,
+				738119732FD42354006D3ECB /* AetherKit */,
 				738119662FD2752D006D3ECB /* capstone */,
 				738116ED2FD1EA75006D3ECB /* Aether */,
 				738119672FD27538006D3ECB /* Frameworks */,
@@ -97,6 +105,8 @@
 			packageProductDependencies = (
 				738117AC2FD1F685006D3ECB /* Zip */,
 				738119682FD27538006D3ECB /* CapstoneKit */,
+				73A61AC92FD8E4810085AC24 /* CoreAether */,
+				730A70C72FD8F6F700BF2DA8 /* AetherKit */,
 			);
 			productName = Aether;
 			productReference = 738116EB2FD1EA75006D3ECB /* Aether.app */;
@@ -434,6 +444,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		730A70C72FD8F6F700BF2DA8 /* AetherKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AetherKit;
+		};
 		738117AC2FD1F685006D3ECB /* Zip */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 738117AB2FD1F685006D3ECB /* XCRemoteSwiftPackageReference "Zip" */;
@@ -442,6 +456,10 @@
 		738119682FD27538006D3ECB /* CapstoneKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CapstoneKit;
+		};
+		73A61AC92FD8E4810085AC24 /* CoreAether */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CoreAether;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
