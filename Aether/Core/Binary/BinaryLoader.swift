@@ -123,7 +123,7 @@ nonisolated extension Data {
 		return Int64(bitPattern: unsigned)
 	}
 
-	func readCString(at offset: Int, maxLength: Int = 256) -> String? {
+	func readCString(at offset: Int) -> String? {
 		guard offset >= 0, offset < count else { return nil }
 		return bytes.extracting(droppingFirst: offset).withUnsafeBytes {
 			String(cString: $0.bindMemory(to: CChar.self).baseAddress!)

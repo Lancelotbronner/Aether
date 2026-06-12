@@ -174,7 +174,7 @@ class ExportService {
 		for insn in instructions {
 			let line = String(format: "%08llX  %-20s  %s %s",
 							  insn.address,
-							  BinaryFile.hex(bytes: binary.bytes(of: insn).span),
+							  BinaryFile.hex(bytes: binary.span(in: insn.addressRange)),
 							  insn.mnemonic,
 							  insn.operands)
 			output += line + "\n"
@@ -213,7 +213,7 @@ class ExportService {
 			output += """
 			<div class="line">
 				<span class="address">\(String(format: "%08llX", insn.address))</span>
-				<span class="bytes">\(BinaryFile.hex(bytes: binary.bytes(of: insn).span).padding(toLength: 24, withPad: " ", startingAt: 0))</span>
+				<span class="bytes">\(BinaryFile.hex(bytes: binary.span(in: insn.addressRange)).padding(toLength: 24, withPad: " ", startingAt: 0))</span>
 				<span class="mnemonic">\(insn.mnemonic.padding(toLength: 8, withPad: " ", startingAt: 0))</span>
 				<span class="operands">\(insn.operands)</span>
 			</div>
@@ -240,7 +240,7 @@ class ExportService {
 		let exportData = instructions.map { insn in
 			ExportInstruction(
 				address: String(format: "0x%llX", insn.address),
-				bytes: BinaryFile.hex(bytes: binary.bytes(of: insn).span),
+				bytes: BinaryFile.hex(bytes: binary.span(in: insn.addressRange)),
 				mnemonic: insn.mnemonic,
 				operands: insn.operands,
 				type: insn.type

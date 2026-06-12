@@ -548,7 +548,7 @@ struct EnhancedInstructionRow: View {
 				.frame(width: 80, alignment: .leading)
 
 			// Bytes column
-			Text(BinaryFile.hex(bytes: appState.currentFile!.bytes(of: instruction).span))
+			Text(appState.currentFile!.format(hex: instruction.addressRange))
 				.font(.system(.caption2, design: .monospaced))
 				.foregroundColor(.secondary)
 				.frame(width: 100, alignment: .leading)

@@ -1409,7 +1409,7 @@ final class AppState {
 		for range in remaining.ranges {
 			// disassemble the range
 			var result = await disassembler.disassemble(
-				data: currentFile.bytes(in: range),
+				data: currentFile.data(in: range),
 				address: range.lowerBound,
 				architecture: currentFile.architecture
 			)

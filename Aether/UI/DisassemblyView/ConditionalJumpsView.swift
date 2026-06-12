@@ -184,7 +184,7 @@ struct ConditionalJumpsView: View {
 
 		for insn in instructions {
 			guard insn.type == .conditionalJump else { continue }
-			let bytes = currentFile.bytes(of: insn)
+			let bytes = currentFile.data(in: insn.addressRange)
 
 			// Get opcode from instruction bytes
 			guard let firstByte = bytes.first else { continue }

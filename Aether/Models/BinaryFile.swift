@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AetherKit
 
 /// Represents a loaded binary file
 @Observable
@@ -54,17 +55,58 @@ nonisolated final class BinaryFile: Identifiable {
 		"Unnamed"
 	}
 
-	func bytes(in range: Range<UInt64>) -> Data {
+	func load<T: BitwiseCopyable>(_ type: T.Type, at address: UInt64) -> T {
+		let byteOffset = Int(address - baseAddress)
+		return data.bytes.unsafeLoadUnaligned(fromByteOffset: byteOffset, as: T.self)
+	}
+
+	func ascii(at address: UInt64, maxLength: Int = .max) -> String {
+		String(cString: span(at: address), maxLength: maxLength, isKnownASCII: true)
+	}
+
+	func unicode(at address: UInt64, maxLength: Int = .max) -> String {
+		String(cString: span(at: address), maxLength: maxLength)
+	}
+
+	@_lifetime(borrow self)
+	func bytes(at address: UInt64) -> RawSpan {
+		span(at: address).bytes
+	}
+
+	@_lifetime(borrow self)
+	func span(at address: UInt64) -> Span<UInt8> {
+		let lowerBound = Int(address - baseAddress)
+		let span = data.span.extracting(lowerBound...)
+		return _overrideLifetime(span, borrowing: self)
+	}
+
+	@_lifetime(borrow self)
+	func bytes(in range: Range<UInt64>) -> RawSpan {
+		span(in: range).bytes
+	}
+
+	@_lifetime(borrow self)
+	func span(in range: Range<UInt64>) -> Span<UInt8> {
+		let lowerBound = Int(range.lowerBound - baseAddress)
+		let upperBound = lowerBound + range.count
+		let span = data.span.extracting(lowerBound..<upperBound)
+		return _overrideLifetime(span, borrowing: self)
+	}
+
+	func data(in range: Range<UInt64>) -> Data {
 		let lowerBound = range.lowerBound - baseAddress
 		let upperBound = lowerBound + UInt64(range.count)
 		return data[lowerBound..<upperBound]
 	}
 
-	func bytes(of instruction: Instruction) -> Data {
-		bytes(in: instruction.addressRange)
+	func format(hex range: Range<UInt64>) -> String {
+		let span = span(in: range)
+		return span.indices
+			.map { String(format: "%02X", span[$0]) }
+			.joined(separator: " ")
 	}
 
-	static func hex(bytes: Span<UInt8>) -> String {
+	static func hex(bytes: consuming Span<UInt8>) -> String {
 		bytes.indices
 			.map { String(format: "%02X", bytes[$0]) }
 			.joined(separator: " ")
