@@ -428,7 +428,7 @@ class Deobfuscator {
         return findings
     }
 
-    private func detectSubstitutionPattern(at index: Int, in instructions: [Instruction]) -> (length: Int, confidence: Double, description: String)? {
+    private func detectSubstitutionPattern(at index: Int, in instructions: ArraySlice<Instruction>) -> (length: Int, confidence: Double, description: String)? {
         guard index < instructions.count else { return nil }
 
         // Pattern: Multiple operations that could be simplified

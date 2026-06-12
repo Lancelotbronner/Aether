@@ -62,7 +62,8 @@ struct HexView: View {
 					.onChange(of: appState.selectedAddress) { _, newAddress in
 						let rowAddress = (newAddress / UInt64(bytesPerRow)) * UInt64(bytesPerRow)
 						withAnimation {
-							proxy.scrollTo(rowAddress, anchor: .center)
+							//FIXME: tries to build all views on its way, spends forever there
+//							proxy.scrollTo(rowAddress, anchor: .center)
 						}
 					}
 				}

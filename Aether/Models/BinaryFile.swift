@@ -54,10 +54,14 @@ nonisolated final class BinaryFile: Identifiable {
 		"Unnamed"
 	}
 
-	func bytes(of instruction: Instruction) -> Data {
-		let lowerBound = instruction.address - baseAddress
-		let upperBound = lowerBound + UInt64(instruction.addressRange.count)
+	func bytes(in range: Range<UInt64>) -> Data {
+		let lowerBound = range.lowerBound - baseAddress
+		let upperBound = lowerBound + UInt64(range.count)
 		return data[lowerBound..<upperBound]
+	}
+
+	func bytes(of instruction: Instruction) -> Data {
+		bytes(in: instruction.addressRange)
 	}
 
 	static func hex(bytes: Span<UInt8>) -> String {
@@ -139,6 +143,8 @@ nonisolated final class Section: Identifiable, Hashable, Sendable {
 	let alignment: UInt32
 	let flags: UInt32
 	let data: Data
+
+	var addressRange: Range<UInt64> { address..<(address + size) }
 
 	init(name: String, segmentName: String, address: UInt64, size: UInt64, offset: UInt32, alignment: UInt32, flags: UInt32, data: Data) {
 		self.name = name

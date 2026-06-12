@@ -82,7 +82,7 @@ struct BranchInfo: Identifiable {
 // MARK: - Branch Analyzer
 
 class BranchAnalyzer {
-	static func analyzeBranches(instructions: [Instruction]) -> [BranchInfo] {
+	static func analyzeBranches(instructions: ArraySlice<Instruction>) -> [BranchInfo] {
 		var branches: [BranchInfo] = []
 
 		for insn in instructions {
@@ -514,7 +514,7 @@ struct EnhancedInstructionRow: View {
 	let instruction: Instruction
 	let isSelected: Bool
 	let branchInfo: BranchInfo?
-	let allInstructions: [Instruction]
+	let allInstructions: ArraySlice<Instruction>
 	@Environment(AppState.self) private var appState
 	@State private var showTooltip = false
 	@State private var showEditSheet = false

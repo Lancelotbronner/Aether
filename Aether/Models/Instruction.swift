@@ -8,6 +8,8 @@ nonisolated struct Instruction: Identifiable {
 	let mnemonic: String
 	let operands: String
 	let architecture: Architecture
+	/// Offset of the start of this instruction in the pseudo-instruction list.
+	var pcode: Range<Int>
 
 	var id: UInt64 { addressRange.lowerBound }
 
@@ -21,12 +23,13 @@ nonisolated struct Instruction: Identifiable {
 	var type: InstructionType { kind.type }
 	var branchTarget: UInt64? { kind.branchTarget }
 
-	init(_ result: DisassemblyInstruction, with bytes: Range<UInt64>, at address: UInt64, for arch: Architecture) {
+	init(_ result: DisassemblyInstruction, with bytes: Range<UInt64>, at address: UInt64, for arch: Architecture, pcode: Range<Int> = 0..<0) {
 		addressRange = address..<(address + UInt64(bytes.count))
 		mnemonic = result.assembly.mnemonic
 		operands = result.assembly.operands
 		architecture = arch
 		kind = result.kind
+		self.pcode = pcode
 	}
 
 	/// Full instruction string

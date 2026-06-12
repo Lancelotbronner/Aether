@@ -20,7 +20,7 @@ class XRefAnalyzer {
                 data: section.data,
                 address: section.address,
                 architecture: binary.architecture
-            )
+			).instructions
 
             for insn in instructions {
                 // Call references

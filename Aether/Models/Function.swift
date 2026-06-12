@@ -6,6 +6,7 @@ nonisolated final class Function: Identifiable, Hashable {
 	var name: String
 	let startAddress: UInt64
 	var endAddress: UInt64
+	var addressRange: Range<UInt64> { startAddress..<endAddress }
 	var size: UInt64 { endAddress - startAddress }
 
 	// Analysis results
@@ -142,7 +143,7 @@ nonisolated final class Function: Identifiable, Hashable {
 nonisolated final class BasicBlock: Identifiable, Hashable {
 	let startAddress: UInt64
 	var endAddress: UInt64
-	var instructions: [Instruction] = []
+	var instructions: ArraySlice<Instruction> = []
 
 	// CFG edges
 	var successors: [UInt64] = []       // Addresses of successor blocks
@@ -151,7 +152,7 @@ nonisolated final class BasicBlock: Identifiable, Hashable {
 	// Block type
 	var type: BasicBlockType = .normal
 
-	init(startAddress: UInt64, endAddress: UInt64, instructions: [Instruction] = [], successors: [UInt64] = [], predecessors: [UInt64] = [], type: BasicBlockType = .normal) {
+	init(startAddress: UInt64, endAddress: UInt64, instructions: ArraySlice<Instruction> = [], successors: [UInt64] = [], predecessors: [UInt64] = [], type: BasicBlockType = .normal) {
 		self.startAddress = startAddress
 		self.endAddress = endAddress
 		self.instructions = instructions

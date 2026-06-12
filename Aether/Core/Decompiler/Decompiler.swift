@@ -11,7 +11,7 @@ nonisolated final class Decompiler {
 	private var cachedBinaryID: BinaryFile.ID?
 
 	/// Decompile a function to pseudo-C code
-	func decompile(function: Function, instructions: [Instruction], binary: BinaryFile) -> String {
+	func decompile(function: Function, instructions: ArraySlice<Instruction>, binary: BinaryFile) -> String {
 		self.binary = binary
 		self.variableNames = [:]
 		self.variableCounter = 0
@@ -106,7 +106,7 @@ nonisolated final class Decompiler {
 
 	// MARK: - Type Inference
 
-	private func inferReturnType(instructions: [Instruction], architecture: Architecture) -> String {
+	private func inferReturnType(instructions: ArraySlice<Instruction>, architecture: Architecture) -> String {
 		for insn in instructions.reversed() {
 			if insn.type == .return {
 				continue
@@ -136,7 +136,7 @@ nonisolated final class Decompiler {
 		return "void"
 	}
 
-	private func inferParameters(instructions: [Instruction], architecture: Architecture) -> [String] {
+	private func inferParameters(instructions: ArraySlice<Instruction>, architecture: Architecture) -> [String] {
 		var params: [String] = []
 		let argRegs = architecture.argumentRegisters
 
@@ -188,7 +188,7 @@ nonisolated final class Decompiler {
 		return "int64_t"
 	}
 
-	private func inferLocalVariables(instructions: [Instruction], architecture: Architecture) -> [DecompilerLocalVar] {
+	private func inferLocalVariables(instructions: ArraySlice<Instruction>, architecture: Architecture) -> [DecompilerLocalVar] {
 		var locals: [DecompilerLocalVar] = []
 		var seenOffsets = Set<Int>()
 
@@ -268,11 +268,11 @@ nonisolated final class Decompiler {
 
 	// MARK: - Instruction Decompilation
 
-	private func decompileInstructions(_ instructions: [Instruction], indent: Int, binary: BinaryFile) -> String {
+	private func decompileInstructions(_ instructions: ArraySlice<Instruction>, indent: Int, binary: BinaryFile) -> String {
 		var output = ""
 		let ind = String(repeating: "    ", count: indent)
 
-		var i = 0
+		var i = instructions.startIndex
 		while i < instructions.count {
 			let insn = instructions[i]
 

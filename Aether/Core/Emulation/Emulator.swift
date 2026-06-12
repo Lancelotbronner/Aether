@@ -291,7 +291,7 @@ class Emulator {
 				data: Data(bytes),
 				address: currentPC,
 				architecture: architecture
-			)
+			).instructions
 			instruction = instructions.first
 		} else {
 			instruction = decodeInstruction(bytes: bytes, address: currentPC)

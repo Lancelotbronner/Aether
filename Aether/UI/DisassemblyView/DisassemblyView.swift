@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DisassemblyView: View {
 	@Environment(AppState.self) private var appState
-	@State private var instructions: [Instruction] = []
+	@State private var instructions: ArraySlice<Instruction> = []
 	@State private var branches: [BranchInfo] = []
 	@State private var isLoading = false
 	@State private var maxInstructions = 500  // Limit to prevent freezing
@@ -13,64 +13,12 @@ struct DisassemblyView: View {
 	var body: some View {
 		@Bindable var appState = appState
 		VStack(spacing: 0) {
-			// Header
-			HStack {
-				Image(systemName: "chevron.left.forwardslash.chevron.right")
-					.foregroundColor(.accent)
-				Text("Disassembly")
-					.font(.headline)
-
-				Spacer()
-
-				// Branch stats
-				if !branches.isEmpty {
-					HStack(spacing: 8) {
-						Label("\(branches.filter { $0.type == .conditionalForward || $0.type == .conditionalBackward }.count)", systemImage: "arrow.triangle.branch")
-							.font(.caption)
-							.foregroundColor(.green)
-
-						Label("\(branches.filter { $0.type == .conditionalBackward || $0.type == .unconditionalBackward }.count)", systemImage: "arrow.counterclockwise")
-							.font(.caption)
-							.foregroundColor(.red)
-					}
-				}
-
-				// Toggle branch arrows
-				Button {
-					showBranchArrows.toggle()
-				} label: {
-					Image(systemName: showBranchArrows ? "arrow.triangle.branch" : "arrow.triangle.branch")
-						.foregroundColor(showBranchArrows ? .accent : .secondary)
-				}
-				.buttonStyle(.plain)
-				.help("Toggle branch arrows")
-
-				// Show jump table
-				Button {
-					showJumpTable = true
-				} label: {
-					Image(systemName: "tablecells")
-						.foregroundColor(.secondary)
-				}
-				.buttonStyle(.plain)
-				.help("Show jump table")
-				.disabled(branches.isEmpty)
-
-				// Conditional jumps patcher
-				Button {
-					showConditionalJumps = true
-				} label: {
-					Image(systemName: "arrow.triangle.swap")
-						.foregroundColor(.orange)
-				}
-				.buttonStyle(.plain)
-				.help("Patch conditional jumps")
-				.disabled(instructions.isEmpty)
-
-			}
-			.padding(.horizontal, 12)
-			.padding(.vertical, 8)
-			.background(Color.sidebar)
+			DisassemblyHeader(
+				showBranchArrows: $showBranchArrows,
+				showJumpTable: $showJumpTable,
+				showConditionalJumps: $showConditionalJumps,
+				branches: branches,
+				instructions: instructions)
 
 			Divider()
 
@@ -142,16 +90,10 @@ struct DisassemblyView: View {
 	}
 
 	private func loadInstructions() {
-		guard appState.currentFile != nil else {
-			instructions = []
-			branches = []
-			return
-		}
-
 		isLoading = true
 
 		Task {
-			var result: [Instruction] = []
+			var result: ArraySlice<Instruction> = []
 
 			if let function = appState.selectedFunction {
 				result = await appState.disassembleFunction(function)
@@ -160,17 +102,83 @@ struct DisassemblyView: View {
 			}
 
 			// Limit instructions to prevent UI freeze
-			if result.count > maxInstructions {
-				instructions = Array(result.prefix(maxInstructions))
-			} else {
-				instructions = result
-			}
+			result = result.prefix(maxInstructions)
+			instructions = result
 
 			// Analyze branches
 			branches = BranchAnalyzer.analyzeBranches(instructions: instructions)
 
 			isLoading = false
 		}
+	}
+}
+
+private struct DisassemblyHeader: View {
+	@Binding var showBranchArrows: Bool
+	@Binding var showJumpTable: Bool
+	@Binding var showConditionalJumps: Bool
+	let branches: [BranchInfo]
+	let instructions: ArraySlice<Instruction>
+
+	var body: some View {
+		// Header
+		HStack {
+			Image(systemName: "chevron.left.forwardslash.chevron.right")
+				.foregroundColor(.accent)
+			Text("Disassembly")
+				.font(.headline)
+
+			Spacer()
+
+			// Branch stats
+			if !branches.isEmpty {
+				HStack(spacing: 8) {
+					Label("\(branches.filter { $0.type == .conditionalForward || $0.type == .conditionalBackward }.count)", systemImage: "arrow.triangle.branch")
+						.font(.caption)
+						.foregroundColor(.green)
+
+					Label("\(branches.filter { $0.type == .conditionalBackward || $0.type == .unconditionalBackward }.count)", systemImage: "arrow.counterclockwise")
+						.font(.caption)
+						.foregroundColor(.red)
+				}
+			}
+
+			// Toggle branch arrows
+			Button {
+				showBranchArrows.toggle()
+			} label: {
+				Image(systemName: showBranchArrows ? "arrow.triangle.branch" : "arrow.triangle.branch")
+					.foregroundColor(showBranchArrows ? .accent : .secondary)
+			}
+			.buttonStyle(.plain)
+			.help("Toggle branch arrows")
+
+			// Show jump table
+			Button {
+				showJumpTable = true
+			} label: {
+				Image(systemName: "tablecells")
+					.foregroundColor(.secondary)
+			}
+			.buttonStyle(.plain)
+			.help("Show jump table")
+			.disabled(branches.isEmpty)
+
+			// Conditional jumps patcher
+			Button {
+				showConditionalJumps = true
+			} label: {
+				Image(systemName: "arrow.triangle.swap")
+					.foregroundColor(.orange)
+			}
+			.buttonStyle(.plain)
+			.help("Patch conditional jumps")
+			.disabled(instructions.isEmpty)
+
+		}
+		.padding(.horizontal, 12)
+		.padding(.vertical, 8)
+		.background(Color.sidebar)
 	}
 }
 

@@ -14,3 +14,13 @@ nonisolated public extension String {
 		self.init(copying: utf8)
 	}
 }
+
+nonisolated public extension Range {
+	mutating func advance(by offset: Bound) where Bound: AdditiveArithmetic {
+		self = advanced(by: offset)
+	}
+
+	func advanced(by offset: Bound) -> Range where Bound: AdditiveArithmetic {
+		Range(uncheckedBounds: (lowerBound + offset, upperBound + offset))
+	}
+}

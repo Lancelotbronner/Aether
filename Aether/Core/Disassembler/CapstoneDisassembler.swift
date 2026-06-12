@@ -174,7 +174,7 @@ nonisolated extension Capstone {
 		}
 
 		guard disasm.pointee.unsafeMutableDetailPointer != nil else {
-			throw CapstoneError.CS_ERR_DETAIL
+			throw CapstoneError.detail
 		}
 
 		return disasm

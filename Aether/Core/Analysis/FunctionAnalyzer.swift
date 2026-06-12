@@ -36,7 +36,7 @@ class FunctionAnalyzer {
                 data: section.data,
                 address: section.address,
                 architecture: binary.architecture
-            )
+			).instructions
 
             // Find call targets
             for insn in instructions {
@@ -204,7 +204,7 @@ class FunctionAnalyzer {
             data: Data(data),
             address: function.startAddress,
             architecture: architecture
-        )
+		).instructions
 
         // Find the last return instruction
         var lastReturn: UInt64 = function.startAddress
@@ -247,7 +247,7 @@ class FunctionAnalyzer {
             data: Data(data),
             address: function.startAddress,
             architecture: binary.architecture
-        )
+		).instructions
 
         guard !instructions.isEmpty else {
             return []
@@ -289,7 +289,7 @@ class FunctionAnalyzer {
             )
 
             // Collect instructions for this block
-            block.instructions = instructions.filter {
+			block.instructions = instructions[...].filter {
                 $0.address >= leaderAddr && $0.address < endAddr
             }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
+import AetherKit
 
 @Observable
 final class AppState {
@@ -119,7 +120,7 @@ final class AppState {
 	var strings: [StringReference] = []
 	var imports: [Symbol] = []
 	var exports: [Symbol] = []
-	var symbols: [Symbol] = []
+	var symbols: [Symbol] { currentFile?.symbols ?? [] }
 	var xrefs: [CrossReference] = []
 
 	// MARK: - Lookup Caches (for O(1) access)
@@ -128,7 +129,6 @@ final class AppState {
 	@ObservationIgnored var functionsByAddress: [UInt64: Function] = [:]
 
 	// MARK: - Disassembly Cache
-	var disassemblyCache: [UInt64: [Instruction]] = [:]
 	var decompilerOutput: String = ""
 
 	// MARK: - Patching State
@@ -229,7 +229,7 @@ final class AppState {
 		let loader = binaryLoader
 		let strAnalyzer = stringAnalyzer
 
-		let task = Task { @concurrent () -> (BinaryFile, [Symbol], [Symbol], [Symbol], [Function], [UInt64: Symbol], [String: Symbol], [UInt64: Function], [StringReference]) in
+		let task = Task { @concurrent () -> (BinaryFile, [Symbol], [Symbol], [Function], [UInt64: Symbol], [String: Symbol], [UInt64: Function], [StringReference]) in
 			// Load binary (synchronous, no deadlock)
 			let binary = try loader.load(from: data)
 
@@ -272,7 +272,7 @@ final class AppState {
 			// Extract strings
 //			let strings = strAnalyzer.analyze(binary: binary)
 
-			return (binary, imports, exports, symbols, functions, symbolsByAddress, symbolsByName, functionsByAddress, /*strings*/[])
+			return (binary, imports, exports, functions, symbolsByAddress, symbolsByName, functionsByAddress, /*strings*/[])
 		}
 
 		loadTask = Task {
@@ -287,13 +287,12 @@ final class AppState {
 				loadingMessage = "Finalizing..."
 				loadingProgress = 0.9
 
-				let (binary, imports, exports, symbols, functions, symbolsByAddress, symbolsByName, functionsByAddress, strings) = result
+				let (binary, imports, exports, functions, symbolsByAddress, symbolsByName, functionsByAddress, strings) = result
 
 				self.currentFile = binary
 				self.selectedSection = binary.sections.first { $0.containsCode }
 				self.imports = imports
 				self.exports = exports
-				self.symbols = symbols
 				self.functions = functions
 				self.symbolsByAddress = symbolsByAddress
 				self.symbolsByName = symbolsByName
@@ -444,7 +443,6 @@ final class AppState {
 		loadingProgress = 0.9
 		self.imports = binary.symbols.filter { $0.isImport }
 		self.exports = binary.symbols.filter { $0.isExport }
-		self.symbols = binary.symbols
 
 		loadingProgress = 1.0
 		loadingMessage = "Analysis complete"
@@ -570,7 +568,7 @@ final class AppState {
 		}
 	}
 
-	private func buildBasicBlocks(from instructions: [Instruction], function: Function) -> [BasicBlock] {
+	private func buildBasicBlocks(from instructions: ArraySlice<Instruction>, function: Function) -> [BasicBlock] {
 		guard !instructions.isEmpty else { return [] }
 
 		var blocks: [BasicBlock] = []
@@ -605,7 +603,7 @@ final class AppState {
 			}
 
 			if startIdx < endIdx {
-				let blockInsns = Array(instructions[startIdx..<endIdx])
+				let blockInsns = instructions[startIdx..<endIdx]
 				let endAddr = blockInsns.last.map { $0.address + UInt64($0.size) } ?? leaderAddr
 				let bb = BasicBlock(startAddress: leaderAddr, endAddress: endAddr, instructions: blockInsns)
 				blocks.append(bb)
@@ -615,7 +613,7 @@ final class AppState {
 		return blocks
 	}
 
-	private func generatePseudoCodeFromInstructions(_ instructions: [Instruction], function: Function, binary: BinaryFile) -> String {
+	private func generatePseudoCodeFromInstructions(_ instructions: ArraySlice<Instruction>, function: Function, binary: BinaryFile) -> String {
 		var output = "// Function: \(function.displayName)\n"
 		output += "// Address: 0x\(String(format: "%llX", function.startAddress))\n"
 		output += "// Size: \(function.size) bytes\n\n"
@@ -1311,7 +1309,7 @@ final class AppState {
 			hasUnsavedChanges = true
 
 			// Clear cache for affected section
-			disassemblyCache.removeAll()
+			clearDisassemblyCache(in: address..<(address + UInt64(newBytes.count)))
 		} catch {
 			errorMessage = error.localizedDescription
 			showError = true
@@ -1326,7 +1324,7 @@ final class AppState {
 			try patcher.applyPatch(patch)
 			patches = patcher.getAllPatches()
 			hasUnsavedChanges = true
-			disassemblyCache.removeAll()
+			clearDisassemblyCache(in: address..<(address + UInt64(size)))
 		} catch {
 			errorMessage = error.localizedDescription
 			showError = true
@@ -1340,7 +1338,7 @@ final class AppState {
 			try patcher.revertPatch(patch)
 			patches = patcher.getAllPatches()
 			hasUnsavedChanges = patches.contains { $0.isApplied }
-			disassemblyCache.removeAll()
+			clearDisassemblyCache(in: patch.address..<(patch.address + UInt64(patch.newBytes.count)))
 		} catch {
 			errorMessage = error.localizedDescription
 			showError = true
@@ -1378,70 +1376,74 @@ final class AppState {
 
 	// MARK: - Disassembly
 
-	func disassemble(section: Section) async -> [Instruction] {
-		guard let binary = currentFile else { return [] }
+	@ObservationIgnored var disassembled = RangeSet<UInt64>()
+	@ObservationIgnored var instructionMap: [UInt64: Int] = [:]
+	@ObservationIgnored var instructions: [Instruction] = []
+	@ObservationIgnored var pcode: [Pcode] = []
 
-		if let cached = disassemblyCache[section.address] {
-			return cached
-		}
-
-		let instructions = await disassembler.disassemble(
-			data: section.data,
-			address: section.address,
-			architecture: binary.architecture
-		)
-
-		disassemblyCache[section.address] = instructions
-		return instructions
+	func instruction(at address: UInt64) -> Instruction? {
+		instructionMap[address].map { instructions[$0] }
 	}
 
-	func disassembleFunction(_ function: Function) async -> [Instruction] {
-		guard let binary = currentFile,
-			  let section = binary.sections.first(where: { $0.contains(address: function.startAddress) }) else {
-			return []
-		}
-
-		let offset = Int(function.startAddress - section.address) + section.data.startIndex
-		var size = Int(function.size)
-
-		// Handle invalid sizes
-		if size <= 0 {
-			size = min(4096, section.data.count - offset)
-		}
-
-		guard offset >= 0, size > 0, offset + size <= section.data.count else {
-			return []
-		}
-
-		let data = section.data[offset..<(offset + size)]
-
-		return await disassembler.disassemble(
-			data: data,
-			address: function.startAddress,
-			architecture: binary.architecture
-		)
+	func clearDisassemblyCache(in range: Range<UInt64>) {
+		let lowerBoundI = instructionMap[range.lowerBound, default: 0]
+		let upperBoundI = instructionMap[range.upperBound, default: 0]
+		let lowerBoundP = instructions[lowerBoundI].pcode.lowerBound
+		let upperBoundP = instructions[upperBoundI].pcode.upperBound
+		instructions.removeSubrange(lowerBoundI..<upperBoundI)
+		pcode.removeSubrange(lowerBoundP..<upperBoundP)
 	}
 
-	func disassembleRange(start: UInt64, end: UInt64) async -> [Instruction] {
-		guard let binary = currentFile,
-			  let section = binary.sections.first(where: { $0.contains(address: start) }) else {
-			return []
+	func instructions(in range: Range<UInt64>) -> ArraySlice<Instruction> {
+		let lowerBound = instructionMap[range.lowerBound, default: 0]
+		let slice = instructions[lowerBound...].prefix(range.count)
+		return slice
+	}
+
+	private func disassembleIfNecessary(_ addresses: Range<UInt64>) async {
+		guard let currentFile else { return }
+		// The address ranges that haven't been disassembled yet
+		let requestedSet = RangeSet(addresses)
+		let remaining = requestedSet.subtracting(disassembled)
+		disassembled.formUnion(requestedSet)
+		for range in remaining.ranges {
+			// disassemble the range
+			var result = await disassembler.disassemble(
+				data: currentFile.bytes(in: range),
+				address: range.lowerBound,
+				architecture: currentFile.architecture
+			)
+			guard !result.instructions.isEmpty else { continue }
+			instructionMap.reserveCapacity(instructionMap.count + result.instructions.count)
+			// locate the insertion index in order to remain sorted
+			let instructionsIndex = instructions.lastIndex { $0.address < range.lowerBound } ?? 0
+			let pcodesIndex = instructions.isEmpty ? 0 : instructions[instructionsIndex].pcode.lowerBound
+			// patch the pcode offsets
+			for i in result.instructions.indices {
+				result.instructions[i].pcode.advance(by: pcodesIndex)
+				for addr in result.instructions[i].addressRange {
+					instructionMap[addr] = instructionsIndex + i
+				}
+			}
+			// cache the disassembly
+			instructions.insert(contentsOf: result.instructions, at: instructionsIndex)
+			pcode.insert(contentsOf: result.pcode, at: pcodesIndex)
 		}
+	}
 
-		let offset = Int(start - section.address)
-		let size = Int(end - start)
+	func disassemble(section: Section) async -> ArraySlice<Instruction> {
+		await disassembleIfNecessary(section.addressRange)
+		return instructions(in: section.addressRange)
+	}
 
-		guard offset >= 0, offset + size <= section.data.count else {
-			return []
-		}
+	func disassembleFunction(_ function: Function) async -> ArraySlice<Instruction> {
+		await disassembleIfNecessary(function.addressRange)
+		return instructions(in: function.addressRange)
+	}
 
-		let data = section.data[offset..<(offset + size)]
-
-		return await disassembler.disassemble(
-			data: data,
-			address: start,
-			architecture: binary.architecture
-		)
+	func disassembleRange(start: UInt64, end: UInt64) async -> ArraySlice<Instruction> {
+		await disassembleIfNecessary(start..<end)
+		return instructions(in: start..<end)
 	}
 
 	// MARK: - Rename Functions/Symbols

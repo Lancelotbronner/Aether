@@ -1,5 +1,6 @@
 import Foundation
 import capstone
+import AetherKit
 
 nonisolated final class Rc<T: ~Copyable> {
 	var value: T
@@ -21,6 +22,9 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	var xrefsTo: [UInt64] = []
 	var xrefsFrom: [UInt64] = []
 	var submitted: [Instruction] = []
+	/// Pseudo-instructions.
+	var pcode: [Pcode] = []
+	var pcodeIndex = 0
 
 	init(for data: Data, at address: UInt64, for architecture: Architecture) {
 		self.code = data
@@ -34,9 +38,8 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	}
 
 	func submit() {
-		//FIXME: what the fuck is this
 		let bytes = UInt64(lastInstructionByteRange.lowerBound)..<UInt64(remainingByteRange.lowerBound)
-		let next = Instruction(instruction, with: bytes, at: currentAddress, for: architecture)
+		let next = Instruction(instruction, with: bytes, at: currentAddress, for: architecture, pcode: pcodeIndex..<pcode.count)
 		submitted.append(next)
 
 		//TODO: register xrefs
@@ -46,6 +49,11 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 		instruction = DisassemblyInstruction()
 		lastInstructionByteRange = remainingByteRange
 		currentAddress = nextAddress
+		pcodeIndex = pcode.count
+	}
+
+	func submit(_ instr: Pcode) {
+		pcode.append(instr)
 	}
 
 	func xref(to address: UInt64) {
@@ -55,6 +63,11 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	func xref(from address: UInt64) {
 		xrefsFrom.append(address)
 	}
+}
+
+struct DisassemblyResult {
+	var instructions: [Instruction]
+	var pcode: [Pcode]
 }
 
 /// Main disassembly engine
@@ -69,7 +82,7 @@ actor DisassemblerEngine {
 		data: Data,
 		address: UInt64,
 		architecture: Architecture
-	) -> [Instruction] {
+	) -> DisassemblyResult {
 		if let arch = architecture.capstoneArch {
 			if !Self.capstone.keys.contains(arch) {
 				Self.capstone[arch] = Rc(try! CapstoneDisassembler(arch, mode: architecture.capstoneMode))
@@ -82,8 +95,9 @@ actor DisassemblerEngine {
 				context.instruction.assembly.mnemonic = "error"
 				context.instruction.assembly.operands = String(describing: error)
 			}
-			return context.submitted
+			return DisassemblyResult(instructions: context.submitted, pcode: context.pcode)
 		}
+		let instructions: [Instruction]
 		switch architecture {
 			//        case .x86_64:
 			//            return disassembleX86_64(data: data, address: address)
@@ -94,10 +108,11 @@ actor DisassemblerEngine {
 			//        case .armv7:
 			//            return disassembleARM(data: data, address: address)
 		case .jvm:
-			return disassembleJVM(data: data, address: address)
+			instructions = disassembleJVM(data: data, address: address)
 		default:
-			return []
+			instructions = []
 		}
+		return DisassemblyResult(instructions: instructions, pcode: [])
 	}
 
 	/*

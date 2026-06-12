@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AetherKit
 
 nonisolated protocol DisassemblerPlugin : ~Copyable {
 	init?(for binary: BinaryFile) throws
@@ -26,6 +27,10 @@ nonisolated protocol DisassemblyContext: AnyObject {
 	func submit()
 	func xref(to address: UInt64)
 	func xref(from address: UInt64)
+	
+	/// Submits a pseudo-instruction for analysis.
+	/// - Parameter pcode: The pseudo-instruction to add.
+	func submit(_ pcode: Pcode)
 }
 
 nonisolated extension DisassemblyContext {
