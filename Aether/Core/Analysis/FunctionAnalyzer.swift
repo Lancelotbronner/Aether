@@ -32,7 +32,7 @@ class FunctionAnalyzer {
 
         // 3. Scan code sections for function prologues and call targets
         for section in binary.sections where section.containsCode {
-            let instructions = await disassembler.disassemble(
+			let instructions = await disassembler.disassemble(
                 data: section.data,
                 address: section.address,
                 architecture: binary.architecture

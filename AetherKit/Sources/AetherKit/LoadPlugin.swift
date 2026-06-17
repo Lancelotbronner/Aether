@@ -23,6 +23,8 @@ public protocol LoadContext {
 	func submit(_ section: SectionDescriptor)
 }
 
+//TODO: Load context should provide access to `any Binary` on which you can edit sections, segments, procedures, etc.
+
 public struct EntryDescriptor {
 	public var address: UInt64
 	public var mode: CpuMode?

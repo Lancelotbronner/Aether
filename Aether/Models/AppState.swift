@@ -39,6 +39,18 @@ final class AppState {
 		}
 	}
 
+	@ObservationIgnored
+	var selectedInstruction: Instruction? {
+		_read {
+			let selected = instructions(in: selectedAddressRange)
+			if selected.count == 1 {
+				yield selected[selected.startIndex]
+			} else {
+				yield nil
+			}
+		}
+	}
+
 	// MARK: - UI State
 	var showCFG = false
 	var showDecompiler = true
@@ -1377,7 +1389,7 @@ final class AppState {
 	// MARK: - Disassembly
 
 	@ObservationIgnored var disassembled = RangeSet<UInt64>()
-	@ObservationIgnored var instructionMap: [UInt64: Int] = [:]
+	var instructionMap: [UInt64: Int] = [:]
 	@ObservationIgnored var instructions: [Instruction] = []
 	@ObservationIgnored var pcode: [Pcode] = []
 
@@ -1395,9 +1407,16 @@ final class AppState {
 	}
 
 	func instructions(in range: Range<UInt64>) -> ArraySlice<Instruction> {
-		let lowerBound = instructionMap[range.lowerBound, default: 0]
-		let slice = instructions[lowerBound...].prefix(range.count)
-		return slice
+		guard let lowerBound = instructionMap[range.lowerBound] else { return [] }
+		var upperBound = lowerBound
+		var remaining = range.count
+		while upperBound < instructions.endIndex {
+			let c = instructions[upperBound].addressRange.count
+			guard remaining - c >= 0 else { break }
+			remaining -= c
+			upperBound += 1
+		}
+		return instructions[lowerBound..<upperBound]
 	}
 
 	private func disassembleIfNecessary(_ addresses: Range<UInt64>) async {

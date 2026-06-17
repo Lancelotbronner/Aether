@@ -22,8 +22,11 @@ nonisolated final class BinaryFile: Identifiable {
 	// Symbols
 	var symbols: [Symbol] = []
 
-	// Raw data
+	// Data
 	let data: Data
+	//TODO: should be a RigidArray<DisassembledByte>
+//	var disassembly: ContiguousArray<DisassembledByte>
+//	var disassemblyCount: Int
 
 	init(
 		format: BinaryFormat,
@@ -49,6 +52,8 @@ nonisolated final class BinaryFile: Identifiable {
 		self.segments = segments
 		self.symbols = symbols
 		self.data = data
+//		disassembly = ContiguousArray(repeating: .undefined, count: data.count)
+//		disassemblyCount = data.count
 	}
 
 	var name: String {
@@ -134,6 +139,11 @@ nonisolated final class BinaryFile: Identifiable {
 		}
 		return String(data: data[address..<UInt64(r)], encoding: .utf8)
 	}
+}
+
+nonisolated struct DisassemblyCollection {
+	let disassembly: ContiguousArray<DisassembledByte>
+	let count: Int
 }
 
 /// Binary segment (e.g., __TEXT, __DATA)
