@@ -5,9 +5,10 @@
 //  Created by Christophe Bronner on 2026-06-04.
 //
 
+import Foundation
 import capstone
 import CapstoneKit
-import Foundation
+import AetherKit
 
 nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 	let capstone: Capstone
@@ -148,6 +149,9 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 		}
 
 		switch id {
+		case .X86_INS_RET:
+			let rip = Varnode(at: 0x288, in: .reg, size: 8)
+			context.submit(.ret(IndirectGotoOp(goto: rip)))
 		default:
 			break
 		}

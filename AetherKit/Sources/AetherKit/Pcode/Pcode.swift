@@ -83,8 +83,8 @@ public struct CopyOp {
 	public var fromAddress: Address
 	public var toAddress: Address
 	public var size: UInt32
-	public var fromSpace: AddressSpace
-	public var toSpace: AddressSpace
+	public var fromSpace: AddressSpaceId
+	public var toSpace: AddressSpaceId
 
 	public var src: Varnode {
 		Varnode(at: fromAddress, in: fromSpace, size: size)
@@ -101,9 +101,9 @@ public struct LoadOp {
 	public var dstAddress: Address
 	public var dataSize: UInt32
 	public var ptrSize: UInt8
-	public var ptrSpace: AddressSpace
-	public var dstSpace: AddressSpace
-	public var dataSpace: AddressSpace
+	public var ptrSpace: AddressSpaceId
+	public var dstSpace: AddressSpaceId
+	public var dataSpace: AddressSpaceId
 
 	public var srcPtr: Varnode {
 		Varnode(at: ptrAddress, in: ptrSpace, size: ptrSize)
@@ -124,9 +124,9 @@ public struct StoreOp {
 	public var ptrAddress: Address
 	public var dataSize: UInt32
 	public var ptrSize: UInt8
-	public var srcSpace: AddressSpace
-	public var ptrSpace: AddressSpace
-	public var dataSpace: AddressSpace
+	public var srcSpace: AddressSpaceId
+	public var ptrSpace: AddressSpaceId
+	public var dataSpace: AddressSpaceId
 
 	public var dstPtr: Varnode {
 		Varnode(at: ptrAddress, in: ptrSpace, size: ptrSize)
@@ -146,7 +146,7 @@ public struct GotoOp {
 	public var address: Address
 	/// The pseudo-instruction offset to jump to, allows jumping to the middle of an instruction's pcode representation.
 	public var offset: UInt32
-	public var space: AddressSpace
+	public var space: AddressSpaceId
 
 	public var toPcode: Pcode { .goto(self) }
 
@@ -160,10 +160,19 @@ public struct IndirectGotoOp {
 	/// The pseudo-instruction offset to jump to, allows jumping to the middle of an instruction's pcode representation.
 	public var offset: UInt32
 	public var ptrSize: UInt8
-	public var ptrSpace: AddressSpace
-	public var targetSpace: AddressSpace
+	public var ptrSpace: AddressSpaceId
+	public var targetSpace: AddressSpaceId
 
 	public var toPcode: Pcode { .igoto(self) }
+
+	@inlinable
+	public init(goto ptr: Varnode, in space: AddressSpaceId = .mem, at offset: UInt32 = 0) {
+		ptrAddress = ptr.offset
+		self.offset = offset
+		ptrSize = UInt8(ptr.size)
+		ptrSpace = ptr.space
+		targetSpace = space
+	}
 
 	public var ptr: Varnode {
 		Varnode(at: ptrAddress, in: ptrSpace, size: ptrSize)
@@ -179,9 +188,9 @@ public struct BranchOp {
 	public var targetAddress: Address
 	/// The pseudo-instruction offset to jump to, allows jumping to the middle of an instruction's pcode representation.
 	public var targetOffset: UInt32
-	public var targetSpace: AddressSpace
+	public var targetSpace: AddressSpaceId
 	public var condAddress: Address
-	public var condSpace: AddressSpace
+	public var condSpace: AddressSpaceId
 
 	public var toPcode: Pcode { .branch(self) }
 
@@ -199,8 +208,8 @@ public struct ExtendOp {
 	public var outAddress: Address
 	public var inSize: UInt32
 	public var outSize: UInt32
-	public var inSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var inSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var `in`: Varnode {
 		Varnode(at: inAddress, in: inSpace, size: inSize)
@@ -217,9 +226,9 @@ public struct ConcatOp {
 	public var outAddress: Address
 	public var lhsSize: UInt32
 	public var rhsSize: UInt32
-	public var lhsSpace: AddressSpace
-	public var rhsSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var lhsSpace: AddressSpaceId
+	public var rhsSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var lhs: Varnode {
 		Varnode(at: lhsAddress, in: lhsSpace, size: lhsSize)
@@ -239,9 +248,9 @@ public struct CompareOp {
 	public var rhsAddress: Address
 	public var outAddress: Address
 	public var size: UInt32
-	public var lhsSpace: AddressSpace
-	public var rhsSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var lhsSpace: AddressSpaceId
+	public var rhsSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var lhs: Varnode {
 		Varnode(at: lhsAddress, in: lhsSpace, size: size)
@@ -259,8 +268,8 @@ public struct CompareOp {
 public struct UnaryLogicOp {
 	public var inAddress: Address
 	public var outAddress: Address
-	public var inSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var inSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var `in`: Varnode {
 		Varnode(at: inAddress, in: inSpace, size: 1)
@@ -275,9 +284,9 @@ public struct BinaryLogicOp {
 	public var lhsAddress: Address
 	public var rhsAddress: Address
 	public var outAddress: Address
-	public var lhsSpace: AddressSpace
-	public var rhsSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var lhsSpace: AddressSpaceId
+	public var rhsSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var lhs: Varnode {
 		Varnode(at: lhsAddress, in: lhsSpace, size: 1)
@@ -296,8 +305,8 @@ public struct UnaryOp {
 	public var inAddress: Address
 	public var outAddress: Address
 	public var size: UInt32
-	public var inSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var inSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var `in`: Varnode {
 		Varnode(at: inAddress, in: inSpace, size: size)
@@ -313,9 +322,9 @@ public struct BinaryOp {
 	public var rhsAddress: Address
 	public var outAddress: Address
 	public var size: UInt32
-	public var lhsSpace: AddressSpace
-	public var rhsSpace: AddressSpace
-	public var outSpace: AddressSpace
+	public var lhsSpace: AddressSpaceId
+	public var rhsSpace: AddressSpaceId
+	public var outSpace: AddressSpaceId
 
 	public var lhs: Varnode {
 		Varnode(at: lhsAddress, in: lhsSpace, size: size)

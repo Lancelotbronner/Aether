@@ -18,6 +18,7 @@
 		738119662FD2752D006D3ECB /* capstone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = capstone; path = /Users/lancelot/Developer/Packages/capstone; sourceTree = "<absolute>"; };
 		738119732FD42354006D3ECB /* AetherKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AetherKit; sourceTree = "<group>"; };
 		73A61AC82FD8E3960085AC24 /* CoreAether */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = CoreAether; sourceTree = "<group>"; };
+		73D64E742FE730EC00A89596 /* swift-sleigh */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-sleigh"; path = "../swift-sleigh"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -61,6 +62,7 @@
 			children = (
 				73A61AC82FD8E3960085AC24 /* CoreAether */,
 				738119732FD42354006D3ECB /* AetherKit */,
+				73D64E742FE730EC00A89596 /* swift-sleigh */,
 				738119662FD2752D006D3ECB /* capstone */,
 				738116ED2FD1EA75006D3ECB /* Aether */,
 				738119672FD27538006D3ECB /* Frameworks */,
@@ -120,7 +122,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					738116EA2FD1EA75006D3ECB = {
 						CreatedOnToolsVersion = 26.5;
@@ -205,6 +207,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = ULLNL4MHTP;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -229,6 +232,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_SWIFT_FLAGS = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -268,6 +272,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = ULLNL4MHTP;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -285,6 +290,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_SWIFT_FLAGS = "";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -296,6 +302,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = ULLNL4MHTP;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -352,6 +359,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = ULLNL4MHTP;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
