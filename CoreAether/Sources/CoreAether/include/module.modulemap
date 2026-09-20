@@ -1,0 +1,4 @@
+module CoreAether {
+	umbrella "CoreAether"
+	export *
+}

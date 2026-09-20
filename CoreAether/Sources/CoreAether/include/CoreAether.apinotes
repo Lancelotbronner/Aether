@@ -1,0 +1,4 @@
+Name: CoreAether
+Tags:
+- Name: x86_64_modrm
+  SwiftConformsTo: Swift.BitwiseCopyable

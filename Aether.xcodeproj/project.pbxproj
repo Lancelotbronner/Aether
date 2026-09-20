@@ -14,6 +14,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7362B2D42FF1B6DF006E9B50 /* NOTES.md */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NOTES.md; sourceTree = "<group>"; };
 		738116EB2FD1EA75006D3ECB /* Aether.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aether.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		738119662FD2752D006D3ECB /* capstone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = capstone; path = /Users/lancelot/Developer/Packages/capstone; sourceTree = "<absolute>"; };
 		738119732FD42354006D3ECB /* AetherKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AetherKit; sourceTree = "<group>"; };
@@ -60,6 +61,7 @@
 		738116E22FD1EA75006D3ECB = {
 			isa = PBXGroup;
 			children = (
+				7362B2D42FF1B6DF006E9B50 /* NOTES.md */,
 				73A61AC82FD8E3960085AC24 /* CoreAether */,
 				738119732FD42354006D3ECB /* AetherKit */,
 				73D64E742FE730EC00A89596 /* swift-sleigh */,
