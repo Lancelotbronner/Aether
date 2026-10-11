@@ -26,6 +26,7 @@
     },
   ],
   "files": [
+    { "path": "AGENTS.md" },
     { "path": "CoreAether" },
     { "path": "AetherKit" },
     {

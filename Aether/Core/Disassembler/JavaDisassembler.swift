@@ -1,10 +1,3 @@
-//
-//  JavaDisassembler.swift
-//  Aether
-//
-//  Created by Christophe Bronner on 2026-10-11.
-//
-
 import Foundation
 
 extension DisassemblerEngine {

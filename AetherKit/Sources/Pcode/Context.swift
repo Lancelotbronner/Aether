@@ -1,10 +1,3 @@
-//
-//  Context.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-06-21.
-//
-
 public struct ContextVariable: Sendable {
 	public let from: Varnode
 	public let mask: ContiguousMask<UInt64>

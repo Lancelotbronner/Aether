@@ -1,10 +1,3 @@
-//
-//  Size.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-10-11.
-//
-
 public struct Size<Value: UnsignedInteger & Sendable>: Sendable {
 	public var bits: Value
 

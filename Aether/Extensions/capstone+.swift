@@ -1,10 +1,3 @@
-//
-//  x86.swift
-//  Aether
-//
-//  Created by Christophe Bronner on 2026-06-07.
-//
-
 import capstone
 
 nonisolated extension X86.InstructionId {

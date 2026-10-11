@@ -1,10 +1,3 @@
-//
-//  Swift+.swift
-//  Aether
-//
-//  Created by Christophe Bronner on 2026-06-09.
-//
-
 nonisolated public extension String {
 	@inlinable
 	init(cString buffer: UnsafeRawBufferPointer, maxLength: Int = .max, isKnownASCII: Bool = false) {

@@ -1,10 +1,3 @@
-//
-//  Disassembly.swift
-//  Aether
-//
-//  Created by Christophe Bronner on 2026-06-12.
-//
-
 import AetherKit
 
 nonisolated struct Disassembly: RandomAccessCollection {

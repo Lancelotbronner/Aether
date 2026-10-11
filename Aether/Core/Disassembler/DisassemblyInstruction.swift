@@ -1,10 +1,3 @@
-//
-//  DisassemblyInstruction.swift
-//  Aether
-//
-//  Created by Christophe Bronner on 2026-06-04.
-//
-
 nonisolated struct DisassemblyInstruction {
 	/// The kind of instruction this is
 	var kind = InstructionKind.other

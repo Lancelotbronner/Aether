@@ -1,10 +1,3 @@
-//
-//  ContiguousMask.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-10-11.
-//
-
 public struct ContiguousMask<Value: FixedWidthInteger & Sendable>: Sendable {
 	public var bits: Value
 	

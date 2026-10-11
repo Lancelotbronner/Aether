@@ -1,10 +1,3 @@
-//
-//  FridaScriptView.swift
-//  Aether
-//
-//  Frida script generation UI
-//
-
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers

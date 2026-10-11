@@ -1,10 +1,3 @@
-//
-//  Varnode.swift
-//  Aether
-//
-//  Created by Christophe Bronner on 2026-06-10.
-//
-
 public struct Varnode: Hashable, Comparable, Sendable {
 	public var offset: Offset
 	public var size: UInt32

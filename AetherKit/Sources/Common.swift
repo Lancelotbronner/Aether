@@ -1,10 +1,3 @@
-//
-//  Common.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-06-06.
-//
-
 public typealias UserInfo = [String: any Codable & Sendable]
 
 public struct ArchitectureId: RawRepresentable, Sendable {

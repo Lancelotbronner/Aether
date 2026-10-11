@@ -1,10 +1,3 @@
-//
-//  AetherPlugin.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-06-06.
-//
-
 public protocol AetherPlugin {
 	init(using services: any AetherServices)
 }

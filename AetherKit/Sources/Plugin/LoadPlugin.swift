@@ -1,10 +1,3 @@
-//
-//  LoadPlugin.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-06-06.
-//
-
 import Foundation
 
 public typealias LoadPlugin = @concurrent (any LoadContext) async throws -> Void

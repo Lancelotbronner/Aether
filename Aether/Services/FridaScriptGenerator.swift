@@ -1,10 +1,3 @@
-//
-//  FridaScriptGenerator.swift
-//  Aether
-//
-//  Frida script generator for iOS and macOS dynamic instrumentation
-//
-
 import Foundation
 
 // MARK: - Enums

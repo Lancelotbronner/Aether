@@ -1,10 +1,3 @@
-//
-//  mach-o.h
-//  CoreAether
-//
-//  Created by Christophe Bronner on 2026-06-09.
-//
-
 #include <stdbool.h>
 
 /**
