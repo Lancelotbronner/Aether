@@ -12,7 +12,6 @@ struct CallGraphView: View {
 	@State private var offset: CGSize = .zero
 	@State private var selectedNode: CallGraphNode?
 	@State private var searchText: String = ""
-	@State private var showSettings: Bool = false
 	@State private var maxDepth: Int = 3
 	@State private var showExternalCalls: Bool = true
 	@State private var layoutStyle: LayoutStyle = .hierarchical

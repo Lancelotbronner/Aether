@@ -1,10 +1,3 @@
-//
-//  Cow.swift
-//  AetherKit
-//
-//  Created by Christophe Bronner on 2026-06-12.
-//
-
 @propertyWrapper
 public struct Cow<T: Copyable> {
 	@usableFromInline var _storage: Storage
