@@ -1,6 +1,6 @@
 import Foundation
-import capstone
 import AetherKit
+import capstone
 
 nonisolated final class Rc<T: ~Copyable> {
 	var value: T

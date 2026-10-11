@@ -5,15 +5,15 @@ struct X86_64 : ~Escapable {
 	var context = x86_64_context()
 	var assembly = ""
 	var data: RawSpan
-	let context: DisassemblerContext
+	let disassembler: DisassemblerContext
 
 	@_lifetime(copy data)
 	init(
 		_ data: RawSpan,
-		context: DisassemblerContext
+		in context: DisassemblerContext
 	) {
 		self.data = data
-		self.context = context
+		disassembler = context
 	}
 
 	mutating func token<T: BitwiseCopyable>(_ type: T.Type = T.self) throws(DisassemblyError) -> T {

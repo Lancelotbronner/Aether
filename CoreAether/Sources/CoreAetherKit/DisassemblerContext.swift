@@ -14,7 +14,7 @@ public final class DisassemblerContext {
 	var instructions: [Instruction] = []
 	var pcode: [Int] = []
 
-	func next(using disassembler: some Disassembler) {
+	func next(using disassembler: inout some Disassembler) throws(DisassemblyError) {
 		// only if data is not empty
 		disassembler.assembly = ""
 		try disassembler.instruction()
