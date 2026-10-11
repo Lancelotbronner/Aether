@@ -5,20 +5,11 @@ import PackageDescription
 let package = Package(
 	name: "CoreAether",
 	products: [
-		.library(name: "CoreAether", targets: ["CoreAether", "CoreAetherKit"]),
+		.library(name: "CoreAether", targets: ["CoreAether"]),
 	],
 	targets: [
-		.target(
-			name: "CoreAether",
-		),
-		.target(
-			name: "CoreAetherKit",
-			dependencies: ["CoreAether"],
-			swiftSettings: [
-				.enableExperimentalFeature("Lifetimes"),
-			]
-		),
-		.testTarget(name: "Tests", dependencies: ["CoreAetherKit"]),
+		.target(name: "CoreAether"),
+		.testTarget(name: "Tests", dependencies: ["CoreAether"]),
 	],
 	swiftLanguageModes: [.v6],
 	cLanguageStandard: .c2x

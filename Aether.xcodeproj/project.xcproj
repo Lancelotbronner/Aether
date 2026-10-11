@@ -26,12 +26,9 @@
     },
   ],
   "files": [
-    { "path": "NOTES.md" },
     { "path": "CoreAether" },
     { "path": "AetherKit" },
-    { "path": "<PROJECT>/../swift-sleigh" },
     { "path": "/Users/lancelot/Developer/Packages/capstone" },
-    { "kind": "folder", "path": "Processors" },
     {
       "kind": "folder",
       "path": "Aether",
