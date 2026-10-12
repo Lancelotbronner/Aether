@@ -77,7 +77,7 @@ nonisolated final class Decompiler {
 		}
 	}
 
-	private func scanForStrings(in section: Section) {
+	private func scanForStrings(in section: _Section) {
 		var offset = 0
 		while offset < section.data.count {
 			var bytes: [UInt8] = []

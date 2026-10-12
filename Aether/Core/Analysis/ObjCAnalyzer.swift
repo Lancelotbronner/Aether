@@ -155,7 +155,7 @@ class ObjCAnalyzer {
 
     // MARK: - Parsing
 
-    private func parseClassList(_ section: Section, binary: BinaryFile) -> [ObjCClass] {
+    private func parseClassList(_ section: _Section, binary: BinaryFile) -> [ObjCClass] {
         var classes: [ObjCClass] = []
         let pointerSize = binary.architecture.pointerSize
         let data = section.data
@@ -427,17 +427,17 @@ class ObjCAnalyzer {
         return ivars
     }
 
-    private func parseCategoryList(_ section: Section, binary: BinaryFile) -> [ObjCCategory] {
+    private func parseCategoryList(_ section: _Section, binary: BinaryFile) -> [ObjCCategory] {
         // Similar to class list parsing
         return []
     }
 
-    private func parseProtocolList(_ section: Section, binary: BinaryFile) -> [ObjCProtocol] {
+    private func parseProtocolList(_ section: _Section, binary: BinaryFile) -> [ObjCProtocol] {
         // Similar to class list parsing
         return []
     }
 
-    private func parseSelectorRefs(_ section: Section, binary: BinaryFile) -> [ObjCSelector] {
+    private func parseSelectorRefs(_ section: _Section, binary: BinaryFile) -> [ObjCSelector] {
         var selectors: [ObjCSelector] = []
         let pointerSize = binary.architecture.pointerSize
         let data = section.data
@@ -463,7 +463,7 @@ class ObjCAnalyzer {
         return selectors
     }
 
-    private func parseClassRefs(_ section: Section, binary: BinaryFile) -> [UInt64: String] {
+    private func parseClassRefs(_ section: _Section, binary: BinaryFile) -> [UInt64: String] {
         var refs: [UInt64: String] = [:]
         // Would need to follow class pointers to get names
         return refs

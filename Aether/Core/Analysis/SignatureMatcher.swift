@@ -146,7 +146,7 @@ class SignatureMatcher {
     }
 
     /// Scan a single section
-    private func scanSection(_ section: Section, binary: BinaryFile) -> [Match] {
+    private func scanSection(_ section: _Section, binary: BinaryFile) -> [Match] {
         var matches: [Match] = []
 
         for signature in signatures {

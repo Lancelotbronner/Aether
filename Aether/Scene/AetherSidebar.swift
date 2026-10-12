@@ -18,7 +18,6 @@ struct AetherSidebar: View {
 
 		SidebarTab(tab: appState.sidebarSelection)
 			.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-			.listStyle(.plain)
 			.scrollContentBackground(.hidden)
 	}
 }
@@ -73,7 +72,7 @@ private struct SidebarTab: View {
 		case .symbols:
 			SymbolsListView()
 		case .sections:
-			SectionsListView()
+			ProgramNavigator()
 		}
 	}
 }

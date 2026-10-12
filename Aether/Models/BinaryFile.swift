@@ -16,7 +16,7 @@ nonisolated final class BinaryFile: Identifiable {
 	let baseAddress: UInt64
 
 	// Sections and segments
-	var sections: [Section] = []
+	var sections: [_Section] = []
 	var segments: [Segment] = []
 
 	// Symbols
@@ -36,7 +36,7 @@ nonisolated final class BinaryFile: Identifiable {
 		fileSize: Int,
 		entryPoint: UInt64,
 		baseAddress: UInt64,
-		sections: [Section],
+		sections: [_Section],
 		segments: [Segment],
 		symbols: [Symbol],
 		data: Data
@@ -118,7 +118,7 @@ nonisolated final class BinaryFile: Identifiable {
 	}
 
 	/// Find section containing address
-	func section(containing address: UInt64) -> Section? {
+	func section(containing address: UInt64) -> _Section? {
 		sections.first { $0.contains(address: address) }
 	}
 
@@ -186,7 +186,7 @@ nonisolated final class Segment: Identifiable, Sendable {
 
 /// Binary section (e.g., __text, __data)
 @Observable
-nonisolated final class Section: Identifiable, Hashable, Sendable {
+nonisolated final class _Section: Identifiable, Hashable, Sendable {
 	let name: String
 	let segmentName: String
 	let address: UInt64
@@ -231,7 +231,7 @@ nonisolated final class Section: Identifiable, Hashable, Sendable {
 		addr >= address && addr < (address + size)
 	}
 
-	static func == (lhs: Section, rhs: Section) -> Bool {
+	static func == (lhs: _Section, rhs: _Section) -> Bool {
 		lhs === rhs
 	}
 

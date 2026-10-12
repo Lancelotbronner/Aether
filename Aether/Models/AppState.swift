@@ -22,7 +22,7 @@ final class AppState {
 	}
 	var selectedAddressRange: Range<UInt64> = 0..<0
 	var selectedFunction: Function?
-	var selectedSection: Section?
+	var selectedSection: _Section?
 
 	var functionNavigator: Function? {
 		get { selectedFunction }
@@ -32,7 +32,7 @@ final class AppState {
 		}
 	}
 
-	var sectionNavigator: Section? {
+	var sectionNavigator: _Section? {
 		get { selectedSection }
 		set {
 			guard let selectedSection else { return }
@@ -1473,7 +1473,7 @@ final class AppState {
 		}
 	}
 
-	func disassemble(section: Section) async -> ArraySlice<Instruction> {
+	func disassemble(section: _Section) async -> ArraySlice<Instruction> {
 		await disassembleIfNecessary(section.addressRange)
 		return instructions(in: section.addressRange)
 	}

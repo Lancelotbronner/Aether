@@ -223,7 +223,7 @@ class DWARFParser {
 
     // MARK: - Section Finding
 
-    private func findDWARFSection(_ binary: BinaryFile, name: String, altName: String) -> Section? {
+    private func findDWARFSection(_ binary: BinaryFile, name: String, altName: String) -> _Section? {
         return binary.sections.first { $0.name == name || $0.name == altName }
     }
 

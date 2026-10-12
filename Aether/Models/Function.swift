@@ -182,7 +182,7 @@ enum BasicBlockType: String, Codable {
 }
 
 /// Function argument
-struct FunctionArgument: Identifiable {
+struct FunctionArgument: Codable, Identifiable {
 	let id = UUID()
 	var name: String
 	var type: String
@@ -191,7 +191,7 @@ struct FunctionArgument: Identifiable {
 }
 
 /// Local variable
-struct LocalVariable: Identifiable {
+struct LocalVariable: Codable, Identifiable {
 	let id = UUID()
 	var name: String
 	var type: String

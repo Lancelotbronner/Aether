@@ -91,9 +91,9 @@ nonisolated extension Data {
 		readUInt16LE(at: offset)?.byteSwapped
 	}
 
-	func readUInt32LE(at offset: Int) -> UInt32? {
+	func readUInt32LE(at offset: some FixedWidthInteger) -> UInt32? {
 		guard offset >= 0, offset + 4 <= count else { return nil }
-		return bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: UInt32.self)
+		return bytes.unsafeLoadUnaligned(fromByteOffset: Int(offset), as: UInt32.self)
 	}
 
 	func readUInt32BE(at offset: Int) -> UInt32? {

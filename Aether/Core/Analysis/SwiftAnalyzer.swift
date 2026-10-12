@@ -177,7 +177,7 @@ class SwiftAnalyzer {
 
     // MARK: - Parsing
 
-    private func parseTypeMetadata(_ section: Section, binary: BinaryFile) -> [SwiftType] {
+    private func parseTypeMetadata(_ section: _Section, binary: BinaryFile) -> [SwiftType] {
         var types: [SwiftType] = []
 
         // Swift 5 type metadata records are relative pointers
@@ -244,7 +244,7 @@ class SwiftAnalyzer {
         )
     }
 
-    private func parseProtocols(_ section: Section, binary: BinaryFile) -> [SwiftProtocol] {
+    private func parseProtocols(_ section: _Section, binary: BinaryFile) -> [SwiftProtocol] {
         var protocols: [SwiftProtocol] = []
 
         let data = section.data
@@ -285,7 +285,7 @@ class SwiftAnalyzer {
         )
     }
 
-    private func parseConformances(_ section: Section, binary: BinaryFile) -> [SwiftWitnessTable] {
+    private func parseConformances(_ section: _Section, binary: BinaryFile) -> [SwiftWitnessTable] {
         var tables: [SwiftWitnessTable] = []
 
         let data = section.data
@@ -319,7 +319,7 @@ class SwiftAnalyzer {
         return tables
     }
 
-    private func enrichTypesWithFields(_ types: inout [SwiftType], from section: Section, binary: BinaryFile) {
+    private func enrichTypesWithFields(_ types: inout [SwiftType], from section: _Section, binary: BinaryFile) {
         // Parse field descriptors and match to types
         let data = section.data
         var offset = 0
@@ -381,7 +381,7 @@ class SwiftAnalyzer {
         }
     }
 
-    private func parseReflectionStrings(_ section: Section) -> [String] {
+    private func parseReflectionStrings(_ section: _Section) -> [String] {
         var strings: [String] = []
         let data = section.data
         var offset = 0

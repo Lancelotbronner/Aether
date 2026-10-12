@@ -49,7 +49,7 @@ nonisolated final class StringAnalyzer {
 
     // MARK: - String Extraction
 
-    private func extractStrings(from section: Section) -> [StringReference] {
+    private func extractStrings(from section: _Section) -> [StringReference] {
         var strings: [StringReference] = []
         let data = section.data
 

@@ -186,7 +186,7 @@ class FunctionAnalyzer {
 
     private func findFunctionEnd(
         function: Function,
-        section: Section,
+        section: _Section,
         disassembler: DisassemblerEngine,
         architecture: Architecture
     ) async -> UInt64 {

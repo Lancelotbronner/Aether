@@ -269,7 +269,7 @@ nonisolated final class ELFLoader: BinaryLoaderProtocol {
 		stringTableIndex: Int,
 		is64Bit: Bool,
 		littleEndian: Bool
-	) throws -> ([Section], Data) {
+	) throws -> ([_Section], Data) {
 		let read32: (Int) -> UInt32? = { off in
 			littleEndian ? data.readUInt32LE(at: off) : data.readUInt32BE(at: off)
 		}
@@ -300,7 +300,7 @@ nonisolated final class ELFLoader: BinaryLoaderProtocol {
 
 		let stringTable = data.subdata(in: Int(strTabFileOffset)..<Int(strTabFileOffset + strTabSize))
 
-		var sections: [Section] = []
+		var sections: [_Section] = []
 
 		for i in 0..<count {
 			let shOffset = offset + i * entrySize
@@ -356,7 +356,7 @@ nonisolated final class ELFLoader: BinaryLoaderProtocol {
 			let flags = UInt32(shFlags & 0xFFFFFFFF)
 			let isExec = (shFlags & SHF_EXECINSTR) != 0
 
-			sections.append(Section(
+			sections.append(_Section(
 				name: name,
 				segmentName: "",
 				address: addr,
@@ -375,7 +375,7 @@ nonisolated final class ELFLoader: BinaryLoaderProtocol {
 
 	private func parseSymbols(
 		data: Data,
-		sections: [Section],
+		sections: [_Section],
 		is64Bit: Bool,
 		littleEndian: Bool
 	) throws -> [Symbol] {
@@ -396,7 +396,7 @@ nonisolated final class ELFLoader: BinaryLoaderProtocol {
 			guard section.name == ".symtab" || section.name == ".dynsym" else { continue }
 
 			// Find associated string table
-			let strTabSection: Section?
+			let strTabSection: _Section?
 			if section.name == ".symtab" {
 				strTabSection = sections.first { $0.name == ".strtab" }
 			} else {

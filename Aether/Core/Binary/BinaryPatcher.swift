@@ -372,7 +372,7 @@ class BinaryDiffer {
 		)
 	}
 
-	private func diffSections(old: Section, new: Section) -> [Difference] {
+	private func diffSections(old: _Section, new: _Section) -> [Difference] {
 		var differences: [Difference] = []
 
 		let minSize = min(old.data.count, new.data.count)

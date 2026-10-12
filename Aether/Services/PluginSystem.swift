@@ -430,7 +430,7 @@ class CryptoDetector: AnalysisPlugin {
         return AnalysisResult(findings: findings, metadata: [:])
     }
 
-    private func findConstantSequence(in section: Section, values: [UInt32]) -> UInt64? {
+    private func findConstantSequence(in section: _Section, values: [UInt32]) -> UInt64? {
         let data = section.data
         guard data.count >= values.count * 4 else { return nil }
 

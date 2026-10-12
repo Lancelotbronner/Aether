@@ -25,57 +25,57 @@ struct AetherContentView: View {
 		.modifier(GoToAddressSheetModifier())
 		.modifier(SearchSheetModifier())
 		.modifier(CallGraphModifier())
-		.sheet(isPresented: $appState.showCryptoDetection) {
-			CryptoDetectionView()
-		}
-		.sheet(isPresented: $appState.showDeobfuscation) {
-			DeobfuscationView()
-		}
-		.sheet(isPresented: $appState.showTypeRecovery) {
-			TypeRecoveryView()
-		}
-		.sheet(isPresented: $appState.showIdiomRecognition) {
-			IdiomRecognitionView()
-		}
-		.sheet(isPresented: $appState.showPseudoCode) {
-			PseudoCodeView()
-		}
-		.sheet(isPresented: $appState.showExportSheet) {
-			ExportSheetView()
-		}
-		.sheet(isPresented: $appState.showSecurityAnalysis) {
-			SecurityAnalysisView(
-				result: appState.securityAnalysisResult,
-				isLoading: appState.isAnalyzingWithAI,
-				error: appState.securityAnalysisError
-			)
-		}
-		.sheet(isPresented: $appState.showFridaScript) {
-			FridaScriptView()
-		}
-		.sheet(isPresented: $appState.showAIChat) {
-			AIChatView()
-		}
-		.sheet(isPresented: $appState.showExplainCode) {
-			ExplainCodeView()
-		}
-		.sheet(isPresented: $appState.showAIRename) {
-			AIRenameView()
-		}
-		.sheet(isPresented: $appState.showMalwareDashboard) {
-			MalwareDashboardView()
-		}
-		.sheet(isPresented: $appState.showImportExportBrowser) {
-			ImportExportBrowserView()
-		}
-		.sheet(isPresented: $appState.showEntropyView) {
-			EntropyView()
-		}
-		.sheet(isPresented: $appState.showMalwareFlow) {
-			MalwareFlowView()
-		}
+//		.sheet(isPresented: $appState.showCryptoDetection) {
+//			CryptoDetectionView()
+//		}
+//		.sheet(isPresented: $appState.showDeobfuscation) {
+//			DeobfuscationView()
+//		}
+//		.sheet(isPresented: $appState.showTypeRecovery) {
+//			TypeRecoveryView()
+//		}
+//		.sheet(isPresented: $appState.showIdiomRecognition) {
+//			IdiomRecognitionView()
+//		}
+//		.sheet(isPresented: $appState.showPseudoCode) {
+//			PseudoCodeView()
+//		}
+//		.sheet(isPresented: $appState.showExportSheet) {
+//			ExportSheetView()
+//		}
+//		.sheet(isPresented: $appState.showSecurityAnalysis) {
+//			SecurityAnalysisView(
+//				result: appState.securityAnalysisResult,
+//				isLoading: appState.isAnalyzingWithAI,
+//				error: appState.securityAnalysisError
+//			)
+//		}
+//		.sheet(isPresented: $appState.showFridaScript) {
+//			FridaScriptView()
+//		}
+//		.sheet(isPresented: $appState.showAIChat) {
+//			AIChatView()
+//		}
+//		.sheet(isPresented: $appState.showExplainCode) {
+//			ExplainCodeView()
+//		}
+//		.sheet(isPresented: $appState.showAIRename) {
+//			AIRenameView()
+//		}
+//		.sheet(isPresented: $appState.showMalwareDashboard) {
+//			MalwareDashboardView()
+//		}
+//		.sheet(isPresented: $appState.showImportExportBrowser) {
+//			ImportExportBrowserView()
+//		}
+//		.sheet(isPresented: $appState.showEntropyView) {
+//			EntropyView()
+//		}
+//		.sheet(isPresented: $appState.showMalwareFlow) {
+//			MalwareFlowView()
+//		}
 		.modifier(LoadOnDropModifier())
-		.modifier(OverlayModifier())
+//		.modifier(OverlayModifier())
 		.alert("Error", isPresented: $appState.showError) {
 			Button("OK") {
 				appState.showError = false
@@ -121,6 +121,7 @@ private struct DetailView: View {
 }
 
 private struct LoadOnDropModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
 	@State private var isTargeted = false
 
 	func body(content: Content) -> some View {
@@ -211,50 +212,6 @@ private struct CallGraphModifier: ViewModifier {
 		@Bindable var appState = appState
 		content.sheet(isPresented: $appState.showCallGraph) {
 			CallGraphWindowView()
-		}
-	}
-}
-
-private struct GoToAddressSheetViewModifier: ViewModifier {
-	@Environment(AppState.self) private var appState
-
-	func body(content: Content) -> some View {
-		@Bindable var appState = appState
-		content.sheet(isPresented: $appState.showGoToAddress) {
-			GoToAddressSheet()
-		}
-	}
-}
-
-private struct GoToAddressSheetViewModifier: ViewModifier {
-	@Environment(AppState.self) private var appState
-
-	func body(content: Content) -> some View {
-		@Bindable var appState = appState
-		content.sheet(isPresented: $appState.showGoToAddress) {
-			GoToAddressSheet()
-		}
-	}
-}
-
-private struct GoToAddressSheetViewModifier: ViewModifier {
-	@Environment(AppState.self) private var appState
-
-	func body(content: Content) -> some View {
-		@Bindable var appState = appState
-		content.sheet(isPresented: $appState.showGoToAddress) {
-			GoToAddressSheet()
-		}
-	}
-}
-
-private struct GoToAddressSheetViewModifier: ViewModifier {
-	@Environment(AppState.self) private var appState
-
-	func body(content: Content) -> some View {
-		@Bindable var appState = appState
-		content.sheet(isPresented: $appState.showGoToAddress) {
-			GoToAddressSheet()
 		}
 	}
 }

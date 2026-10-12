@@ -204,7 +204,7 @@ class AdvancedCryptoDetector {
     }
 
     /// Scan section for constant tables
-    private func scanForConstants(in section: Section) -> [CryptoFinding] {
+    private func scanForConstants(in section: _Section) -> [CryptoFinding] {
         var findings: [CryptoFinding] = []
         let data = section.data
 
@@ -333,7 +333,7 @@ class AdvancedCryptoDetector {
     }
 
     /// Scan for crypto-related strings
-    private func scanForStrings(in section: Section) -> [CryptoFinding] {
+    private func scanForStrings(in section: _Section) -> [CryptoFinding] {
         var findings: [CryptoFinding] = []
 
         let cryptoStrings: [(String, CryptoAlgorithm)] = [
@@ -384,7 +384,7 @@ class AdvancedCryptoDetector {
     }
 
     /// Scan code for algorithmic patterns
-    private func scanCodePatterns(in section: Section, binary: BinaryFile) -> [CryptoFinding] {
+    private func scanCodePatterns(in section: _Section, binary: BinaryFile) -> [CryptoFinding] {
         var findings: [CryptoFinding] = []
 
         // Look for rotation operations (common in crypto)
@@ -539,7 +539,7 @@ class CryptoVulnerabilityDetector {
         return []
     }
 
-    private func checkForECBMode(in section: Section) -> [Vulnerability] {
+    private func checkForECBMode(in section: _Section) -> [Vulnerability] {
         // Look for crypto operations without IV setup
         return []
     }

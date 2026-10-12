@@ -13,7 +13,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.lancelotbronner.aether.project</string>
+				<string>com.lancelotbronner.aetherproj</string>
 			</array>
 		</dict>
 	</array>
@@ -22,12 +22,12 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>public.json</string>
+				<string>com.apple.package</string>
 			</array>
 			<key>UTTypeIcons</key>
 			<dict/>
 			<key>UTTypeIdentifier</key>
-			<string>com.lancelotbronner.aether.project</string>
+			<string>com.lancelotbronner.aetherproj</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

@@ -44,7 +44,7 @@ nonisolated final class PELoader: BinaryLoaderProtocol {
 		let data: Data
 		let imageBase: UInt64
 		let is64Bit: Bool
-		let sections: [Section]
+		let sections: [_Section]
 		let dataDirectories: [DataDirectory]
 		let entryPointRVA: UInt32
 	}
@@ -219,7 +219,7 @@ nonisolated final class PELoader: BinaryLoaderProtocol {
 
 	// MARK: - RVA to File Offset
 
-	private func rvaToFileOffset(rva: UInt32, sections: [Section], imageBase: UInt64) -> Int? {
+	private func rvaToFileOffset(rva: UInt32, sections: [_Section], imageBase: UInt64) -> Int? {
 		for section in sections {
 			let sectionRVA = UInt32(section.address - imageBase)
 			let sectionSize = UInt32(section.size)
@@ -238,8 +238,8 @@ nonisolated final class PELoader: BinaryLoaderProtocol {
 		offset: Int,
 		count: Int,
 		imageBase: UInt64
-	) throws -> ([Section], [Segment]) {
-		var sections: [Section] = []
+	) throws -> ([_Section], [Segment]) {
+		var sections: [_Section] = []
 		var segments: [Segment] = []
 
 		for i in 0..<count {
@@ -281,7 +281,7 @@ nonisolated final class PELoader: BinaryLoaderProtocol {
 			(characteristics & IMAGE_SCN_MEM_EXECUTE) != 0
 			let flags: UInt32 = isCode ? 0x80000000 : 0
 
-			sections.append(Section(
+			sections.append(_Section(
 				name: name,
 				segmentName: "",
 				address: addr,

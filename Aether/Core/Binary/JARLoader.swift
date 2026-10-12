@@ -191,7 +191,7 @@ nonisolated final class JARLoader: BinaryLoaderProtocol {
 		// Find all class files
 		var classes: [JavaClass] = []
 		var symbols: [Symbol] = []
-		var sections: [Section] = []
+		var sections: [_Section] = []
 		var baseAddress: UInt64 = 0x10000
 		var manifest: [String: String] = [:]
 
@@ -239,7 +239,7 @@ nonisolated final class JARLoader: BinaryLoaderProtocol {
 
 			// Create a section for the class
 			let className = entry.path.replacingOccurrences(of: "/", with: ".").replacingOccurrences(of: ".class", with: "")
-			sections.append(Section(
+			sections.append(_Section(
 				name: className,
 				segmentName: "CLASSES",
 				address: classAddress,
@@ -309,7 +309,7 @@ nonisolated final class JARLoader: BinaryLoaderProtocol {
 			methodOffset += max(codeSize, 0x10)
 		}
 
-		let section = Section(
+		let section = _Section(
 			name: javaClass.thisClass.replacingOccurrences(of: "/", with: "."),
 			segmentName: "CLASS",
 			address: baseAddress,

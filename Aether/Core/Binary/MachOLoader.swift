@@ -29,6 +29,15 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		return try loadMachO(data: data, offset: 0)
 	}
 
+	static func load(_ model: BinaryModel) throws {
+		// Handle fat/universal binaries
+//		if magic == FAT_MAGIC || magic == FAT_CIGAM {
+//			return try loadFatBinary(data: model.embedded, swapped: magic == FAT_CIGAM)
+//		}
+
+		return try machO(for: model)
+	}
+
 	// MARK: - Fat Binary Loading
 
 	private func loadFatBinary(data: Data, swapped: Bool) throws -> BinaryFile {
@@ -66,6 +75,98 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 	// MARK: - Mach-O Loading
 
+	static func machO(for model: BinaryModel) throws {
+		var bytes = model.embedded.bytes
+		let header = bytes.unsafeLoad(as: mach_header_64.self)
+
+		let is64Bit = header.magic == MH_MAGIC_64 || header.magic == MH_CIGAM_64
+		let swapped = header.magic == MH_CIGAM || header.magic == MH_CIGAM_64
+		model.endian = swapped ? .big : .little
+
+		let start = ContinuousClock.now
+		var log = "Mach-O: \(bytes.byteCount) bytes, \(is64Bit ? "64-bit" : "32-bit")\(swapped ? ", byte-swapped" : "")\n"
+
+		if !is64Bit {
+			fatalError("32-bit files aren't supported")
+		}
+
+		bytes = bytes.extracting(droppingFirst: MemoryLayout<mach_header_64>.size)
+
+		log += "Parsing \(header.ncmds) load commands\n"
+		for _ in 0..<header.ncmds {
+			let item = bytes.unsafeLoad(as: load_command.self)
+
+			switch item.cmd {
+			case UInt32(bitPattern: LC_SEGMENT_64):
+				let command = bytes.unsafeLoad(as: segment_command_64.self)
+				let segment = SegmentModel(in: model)
+				model.segments.append(segment)
+
+				segment.name = withUnsafeBytes(of: command.segname) {
+					String(cString: $0, maxLength: 16)
+				}
+				segment.address = command.vmaddr
+				segment.size = command.vmsize
+				segment.fileOffset = command.fileoff
+				segment.fileSize = command.filesize
+				segment.initProtection = UInt32(bitPattern: command.initprot)
+				segment.maxProtection = UInt32(bitPattern: command.maxprot)
+
+				log += "Parsing \(command.nsects) sections in \(segment.name)\n"
+
+				var sectionBytes = bytes.extracting(droppingFirst: MemoryLayout<segment_command_64>.size)
+				sectionBytes = sectionBytes.extracting(droppingLast: sectionBytes.byteCount % MemoryLayout<section_64>.size)
+				let sections = Span<section_64>(_bytes: sectionBytes)
+					.extracting(first: Int(command.nsects))
+
+				for item in sections {
+					let section = SectionModel(in: segment, of: model)
+					segment.sections.append(section)
+					model.sections.append(section)
+
+					section.name = withUnsafeBytes(of: item.sectname) {
+						String(cString: $0, maxLength: 16)
+					}
+					section.segmentName = withUnsafeBytes(of: item.segname) {
+						String(cString: $0, maxLength: 16)
+					}
+					section.address =  UInt64(item.offset)
+					section.size =  UInt64(item.size)
+					section.alignment = item.align
+					section.flags = item.flags
+
+					log += "\t\(section.segmentName),\(section.name)\n"
+				}
+//			case UInt32(bitPattern: LC_SYMTAB):
+//				try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset, into: &symbols)
+			case LC_MAIN:
+				let command = bytes.unsafeLoad(as: entry_point_command.self)
+				let address = model.segments.first { $0.name == "__TEXT" }?.address ?? 0
+				model.entryPoint = address + command.entryoff
+				model.stackSize = command.stacksize
+
+//			case UInt32(bitPattern: LC_UNIXTHREAD):
+				// Parse thread state for entry point (older binaries)
+//				entryPoint = try parseUnixThread(data: data, offset: cmdOffset, cpuType: header.cpuType)
+
+			default:
+				break
+			}
+
+			bytes = bytes.extracting(droppingFirst: Int(item.cmdsize))
+		}
+		log += "Parsed \(model.segments.count) segments, \(model.sections.count) sections, \(model.symbols.count) symbols in \(start.duration(to: .now).logDescription)"
+		Logger.app.info("\(log)")
+
+		// Determine base address (skip __PAGEZERO which has address 0)
+		let baseAddress = model.segments.first(where: { $0.name != "__PAGEZERO" && $0.address > 0 })?.address ?? model.segments.first?.address ?? 0
+		model.baseAddress = baseAddress
+
+		model.format = .machO
+		model.is64 = is64Bit
+		model.architecture = mapCPUType(UInt32(header.cputype))
+	}
+
 	private func loadMachO(data: Data, offset: Int) throws -> BinaryFile {
 		guard let magic = data.readUInt32LE(at: offset) else {
 			throw BinaryLoaderError.invalidHeader
@@ -84,7 +185,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		var cmdOffset = offset + headerSize
 
 		var segments: [Segment] = []
-		var sections: [Section] = []
+		var sections: [_Section] = []
 		var symbols: [Symbol] = []
 		var entryPoint: UInt64 = 0
 
@@ -129,7 +230,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 		return BinaryFile(
 			format: .machO,
-			architecture: mapCPUType(header.cpuType),
+			architecture: Self.mapCPUType(header.cpuType),
 			endianness: swapped ? .big : .little,
 			is64Bit: is64Bit,
 			fileSize: data.count,
@@ -178,7 +279,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 	// MARK: - Segment Parsing
 
-	private func parseSegment32(data: Data, offset: Int, binaryData: Data, binaryOffset: Int) throws -> (Segment, [Section]) {
+	private func parseSegment32(data: Data, offset: Int, binaryData: Data, binaryOffset: Int) throws -> (Segment, [_Section]) {
 		let segNameData = data.subdata(in: (offset + 8)..<(offset + 24))
 		let segName = String(data: segNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
 
@@ -202,7 +303,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 			initProtection: initprot
 		)
 
-		var sections: [Section] = []
+		var sections: [_Section] = []
 		var sectOffset = offset + 56
 
 		for _ in 0..<nsects {
@@ -220,7 +321,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		binaryData: Data,
 		binaryOffset: Int,
 		into segments: inout [Segment],
-		into sections: inout [Section]
+		into sections: inout [_Section]
 	) throws {
 		let seg = data.bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: segment_command_64.self)
 		let name = withUnsafeBytes(of: seg.segname) {
@@ -248,7 +349,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 	// MARK: - Section Parsing
 
-	private func parseSection32(data: Data, offset: Int, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
+	private func parseSection32(data: Data, offset: Int, segName: String, binaryData: Data, binaryOffset: Int) throws -> _Section {
 		let sectNameData = data.subdata(in: offset..<(offset + 16))
 		let sectName = String(data: sectNameData, encoding: .utf8)?.trimmingCharacters(in: .init(charactersIn: "\0")) ?? ""
 
@@ -269,7 +370,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 			sectionData = Data()
 		}
 
-		return Section(
+		return _Section(
 			name: sectName,
 			segmentName: segName,
 			address: UInt64(addr),
@@ -281,7 +382,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		)
 	}
 
-	private func parseSection64(_ sect: section_64, data: Data, segName: String, binaryData: Data, binaryOffset: Int) throws -> Section {
+	private func parseSection64(_ sect: section_64, data: Data, segName: String, binaryData: Data, binaryOffset: Int) throws -> _Section {
 		let sectionName = withUnsafeBytes(of: sect.sectname) {
 			String(cString: $0, maxLength: 16)
 		}
@@ -294,7 +395,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		let data = binaryData[lowerBound..<upperBound]
 
 		Logger.app.debug("    \(segmentName),\(sectionName)")
-		return Section(
+		return _Section(
 			name: sectionName,
 			segmentName: segmentName,
 			address: sect.addr,
@@ -401,7 +502,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 	// MARK: - Helpers
 
-	private func mapCPUType(_ cpuType: UInt32) -> Architecture {
+	private static func mapCPUType(_ cpuType: UInt32) -> Architecture {
 		switch cpuType {
 		case UInt32(bitPattern: CPU_TYPE_X86_64):
 			return .x86_64

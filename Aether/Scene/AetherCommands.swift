@@ -1,27 +1,45 @@
 import SwiftUI
+import SwiftData
+import OSLog
 import UniformTypeIdentifiers
+import AetherKit
 
 struct AetherCommands: Commands {
+	@FocusedValue(\.modelContext) private var modelContext
 	@FocusedValue(AppState.self) private var appState
+	@State private var isImportingBinary = false
 
 	var body: some Commands {
 		CommandGroup(after: .newItem) {
-			Button("Open Binary...") {
-				appState?.openFile()
-			}
-			.keyboardShortcut("o", modifiers: .command)
-
-			Button("Open Project...") {
-				appState?.openProject()
+			Button("Import Binary...") {
+				isImportingBinary = true
 			}
 			.keyboardShortcut("o", modifiers: [.command, .shift])
+			.disabled(modelContext == nil)
+			.fileImporter(isPresented: $isImportingBinary, allowedContentTypes: [.executable]) { result in
+				do {
+					let url = try result.get()
+					guard let modelContext else { return }
+
+					url.startAccessingSecurityScopedResource()
+					defer { url.stopAccessingSecurityScopedResource() }
+
+					let binary = BinaryModel()
+					binary.embedded = try Data(contentsOf: url, options: .mappedIfSafe)
+					binary.fileURL = url
+					binary.name = url.lastPathComponent
+					modelContext.insert(binary)
+				} catch {
+					Logger.app.error("failed to import binary: \(error)")
+				}
+			}
 
 			Divider()
 
 			Button("Save Binary As...") {
 				appState?.saveFileAs()
 			}
-			.keyboardShortcut("s", modifiers: .command)
+			.keyboardShortcut("s", modifiers: [.command, .shift, .option])
 			.disabled(appState?.currentFile == nil)
 
 			Button("Save Project As...") {
