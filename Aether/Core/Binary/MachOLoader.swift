@@ -1,6 +1,7 @@
 import Foundation
 import MachO
 import CoreAether
+import OSLog
 import AetherKit
 
 /// Mach-O binary format loader
@@ -72,6 +73,8 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 		let is64Bit = magic == MH_MAGIC_64 || magic == MH_CIGAM_64
 		let swapped = magic == MH_CIGAM || magic == MH_CIGAM_64
+		let start = ContinuousClock.now
+		Logger.app.info("Mach-O: \(data.count) bytes, \(is64Bit ? "64-bit" : "32-bit")\(swapped ? ", byte-swapped" : "")")
 
 		// Parse header
 		let header = try parseMachOHeader(data: data, offset: offset, is64Bit: is64Bit, swapped: swapped)
@@ -85,7 +88,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		var symbols: [Symbol] = []
 		var entryPoint: UInt64 = 0
 
-		print("Parsing \(header.ncmds) commands")
+		Logger.app.debug("Parsing \(header.ncmds) load commands")
 		for _ in 0..<header.ncmds {
 			guard let cmd = data.readUInt32LE(at: cmdOffset),
 				  let cmdSize = data.readUInt32LE(at: cmdOffset + 4) else {
@@ -119,6 +122,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 			cmdOffset += Int(cmdSize)
 		}
+		Logger.app.info("Parsed \(segments.count) segments, \(sections.count) sections, \(symbols.count) symbols in \(start.duration(to: .now).logDescription)")
 
 		// Determine base address (skip __PAGEZERO which has address 0)
 		let baseAddress = segments.first(where: { $0.name != "__PAGEZERO" && $0.address > 0 })?.address ?? segments.first?.address ?? 0
@@ -233,7 +237,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 			initProtection: UInt32(bitPattern: seg.initprot)
 		))
 
-		print("Parsing \(seg.nsects) sections in \(name)")
+		Logger.app.debug("Parsing \(seg.nsects) sections in \(name)")
 		try data.dropFirst(offset + MemoryLayout<segment_command_64>.size).withUnsafeBytes { bytes in
 			for sect in bytes.bindMemory(to: section_64.self).prefix(Int(seg.nsects)) {
 				let section = try parseSection64(sect, data: data, segName: name, binaryData: binaryData, binaryOffset: binaryOffset)
@@ -289,7 +293,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		let upperBound = lowerBound + Int(sect.size)
 		let data = binaryData[lowerBound..<upperBound]
 
-		print("\t\(sectionName)")
+		Logger.app.debug("    \(segmentName),\(sectionName)")
 		return Section(
 			name: sectionName,
 			segmentName: segmentName,
@@ -308,7 +312,8 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		let symtab = data.bytes.unsafeLoadUnaligned(fromByteOffset: offset, as: symtab_command.self)
 		let strOffset = binaryOffset + Int(symtab.stroff)
 		symbols.reserveCapacity(symbols.count + Int(symtab.nsyms))
-		print("Parsing \(symtab.nsyms) symbols")
+		let start = ContinuousClock.now
+		Logger.app.debug("Parsing \(symtab.nsyms) symbols")
 		data
 			.dropFirst(binaryOffset + Int(symtab.symoff))
 			.withUnsafeBytes { b in
@@ -330,6 +335,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 					}
 				}
 			}
+		Logger.app.info("Parsed \(symtab.nsyms) symbols in \(start.duration(to: .now).logDescription)")
 	}
 
 	private func processSymbol(

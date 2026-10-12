@@ -1,5 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import OSLog
+import AetherKit
 
 struct AetherContentView: View {
 	@Environment(\.undoManager) private var undoManager
@@ -105,22 +107,30 @@ struct AetherContentView: View {
 	}
 
 	private func handleDrop(providers: [NSItemProvider]) -> Bool {
-		print(">>> handleDrop called with \(providers.count) providers")
+		Logger.app.debug("handleDrop: \(providers.count) provider(s)")
 		guard let provider = providers.first else {
-			print(">>> No provider found")
+			Logger.app.debug("handleDrop: no provider")
 			return false
 		}
 
-		print(">>> Loading URL from provider...")
 		_ = provider.loadObject(ofClass: URL.self) { url, error in
-			if let url = url {
-				print(">>> Got URL: \(url.path)")
-				Task { @MainActor in
-					let data = try Data(contentsOf: url)
-					await appState.loadFile(data: data)
+			if let url {
+				Logger.app.info("Drop: loading \(url.lastPathComponent)")
+				Task {
+					do {
+						// Read off the main actor so large files don't freeze the UI
+						let start = ContinuousClock.now
+						let data = try await Task.detached(priority: .userInitiated) {
+							try Data(contentsOf: url)
+						}.value
+						Logger.app.info("Drop: read \(data.count) bytes in \(start.duration(to: .now).logDescription)")
+						await appState.loadFile(data: data)
+					} catch {
+						Logger.app.error("Drop: failed to read \(url.lastPathComponent): \(error.localizedDescription)")
+					}
 				}
-			} else if let error = error {
-				print(">>> Drop error: \(error)")
+			} else if let error {
+				Logger.app.error("Drop: \(error.localizedDescription)")
 			}
 		}
 

@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
+import OSLog
 import AetherKit
 
 @Observable
@@ -172,7 +173,6 @@ final class AppState {
 	// MARK: - File Operations
 
 	func openFile() {
-		print(">>> openFile() called!")
 		let panel = NSOpenPanel()
 		panel.allowsMultipleSelection = false
 		panel.canChooseDirectories = false
@@ -180,13 +180,23 @@ final class AppState {
 		panel.message = "Select a binary file to analyze"
 
 		let result = panel.runModal()
-		print(">>> Panel result: \(result == .OK ? "OK" : "Cancel")")
+		Logger.app.info("File picker: \(result == .OK ? "OK" : "cancelled")")
+		guard result == .OK, let url = panel.url else { return }
 
-		if result == .OK, let url = panel.url {
-			print(">>> Selected file: \(url.path)")
-			Task {
-				let data = try Data(contentsOf: url)
+		Logger.app.info("Opening \(url.lastPathComponent)")
+		Task {
+			do {
+				// Read off the main actor so large files don't freeze the UI
+				let start = ContinuousClock.now
+				let data = try await Task.detached(priority: .userInitiated) {
+					try Data(contentsOf: url)
+				}.value
+				Logger.app.info("Read \(data.count) bytes in \(start.duration(to: .now).logDescription)")
 				await loadFile(data: data)
+			} catch {
+				Logger.app.error("Failed to read \(url.lastPathComponent): \(error.localizedDescription)")
+				errorMessage = error.localizedDescription
+				showError = true
 			}
 		}
 	}
@@ -238,16 +248,22 @@ final class AppState {
 		loadingMessage = "Loading file..."
 		errorMessage = nil
 
+		let loadStart = ContinuousClock.now
+		Logger.app.info("loadFile: starting (\(data.count) bytes)")
+
 		let loader = binaryLoader
 		let strAnalyzer = stringAnalyzer
 
 		let task = Task { @concurrent () -> (BinaryFile, [Symbol], [Symbol], [Function], [UInt64: Symbol], [String: Symbol], [UInt64: Function], [StringReference]) in
 			// Load binary (synchronous, no deadlock)
+			let parseStart = ContinuousClock.now
 			let binary = try loader.load(from: data)
+			Logger.app.info("Parsed binary in \(parseStart.duration(to: .now).logDescription)")
 
 			try Task.checkCancellation()
 
 			// Process symbols
+			let postProcessStart = ContinuousClock.now
 			let imports = binary.symbols.filter { $0.isImport }
 			let exports = binary.symbols.filter { $0.isExport }
 			let symbols = binary.symbols
@@ -278,6 +294,7 @@ final class AppState {
 					dict[func_.startAddress] = func_
 				}
 			}
+			Logger.app.info("Processed \(symbols.count) symbols into \(imports.count) imports, \(exports.count) exports, \(functions.count) functions in \(postProcessStart.duration(to: .now).logDescription)")
 
 			try Task.checkCancellation()
 
@@ -318,12 +335,14 @@ final class AppState {
 				loadingProgress = 1.0
 				loadingMessage = "Ready"
 				isLoading = false
+				Logger.app.info("Loaded \(binary.architecture.rawValue) binary: \(binary.symbols.count) symbols, \(functions.count) functions, \(binary.sections.count) sections in \(loadStart.duration(to: .now).logDescription)")
 
 			} catch is CancellationError {
+				Logger.app.info("loadFile cancelled after \(loadStart.duration(to: .now).logDescription)")
 				isLoading = false
 				loadingMessage = "Cancelled"
 			} catch {
-				print("ERROR: \(error)")
+				Logger.app.error("loadFile failed after \(loadStart.duration(to: .now).logDescription): \(error.localizedDescription)")
 				errorMessage = error.localizedDescription
 				showError = true
 				loadingMessage = "Error: \(error.localizedDescription)"

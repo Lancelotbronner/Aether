@@ -1,5 +1,7 @@
 import Foundation
 import Combine
+import OSLog
+import AetherKit
 
 // MARK: - Plugin Protocol
 
@@ -78,7 +80,7 @@ class PluginContext: ObservableObject {
 
     /// Log message to console
     func log(_ message: String) {
-        print("[Plugin] \(message)")
+        Logger.app.info("[Plugin] \(message)")
     }
 
     /// Show notification to user
