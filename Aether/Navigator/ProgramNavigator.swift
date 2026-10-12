@@ -10,15 +10,18 @@ struct ProgramNavigator: View {
 
 	var body: some View {
 		@Bindable var appState = appState
-		List(binaries) { binary in
+		List(binaries, selection: $appState.programNavigatorSelection) { binary in
 			ProgramRow(model: binary)
+				.tag(ProgramNavigatorSelection.program(binary))
 				.listRowSeparator(.hidden)
 				.contextMenu {
 					Button("Load...") {
-						do {
-							try MachOLoader.load(binary)
-						} catch {
-							Logger.app.error("Failed to load \(binary.name) binary: \(error)")
+						Task { @concurrent in
+							do {
+								try await MachOLoader.load(binary)
+							} catch {
+								Logger.app.error("Failed to load \(binary.name) binary: \(error)")
+							}
 						}
 					}
 					Button("Delete") {
@@ -26,7 +29,27 @@ struct ProgramNavigator: View {
 					}
 				}
 		}
+		.onChange(of: appState.programNavigatorSelection) {
+			guard appState.programNavigatorSelection.count == 1 else { return }
+			switch appState.programNavigatorSelection.first! {
+			case let .program(model):
+				appState.selectedBinary = model
+			case let .segment(model):
+				appState.selectedBinary = model.binary
+				appState.selectedSegment = model
+			case let .section(model):
+				appState.selectedBinary = model.binary
+				appState.selectedSegment = model.segment
+				appState.selectedSection = model
+			}
+		}
 	}
+}
+
+enum ProgramNavigatorSelection: Hashable {
+	case program(BinaryModel)
+	case segment(SegmentModel)
+	case section(SectionModel)
 }
 
 private struct ProgramRow: View {
@@ -39,6 +62,7 @@ private struct ProgramRow: View {
 			DisclosureGroup {
 				ForEach(model.segments) { segment in
 					SegmentRow(model: segment)
+						.tag(ProgramNavigatorSelection.segment(segment))
 						.listRowSeparator(.hidden)
 				}
 			} label: {
@@ -67,6 +91,7 @@ private struct SegmentRow: View {
 			DisclosureGroup {
 				ForEach(model.sections) { section in
 					SectionRow(model: section)
+						.tag(ProgramNavigatorSelection.section(section))
 						.listRowSeparator(.hidden)
 				}
 			} label: {

@@ -1,28 +1,31 @@
 import SwiftUI
+import SwiftData
 
 struct FunctionsTab: View {
 	@Environment(AppState.self) private var appState
 	@State private var searchText = ""
 
-	var filteredFunctions: [Function] {
-		if searchText.isEmpty {
-			return appState.functions
-		}
-		return appState.functions.filter {
-			$0.name.localizedCaseInsensitiveContains(searchText) ||
-			$0.shortDisplayName.localizedCaseInsensitiveContains(searchText)
-		}
-	}
+	@Query private var procedures: [ProcedureModel]
+
+//	var filteredFunctions: [Function] {
+//		if searchText.isEmpty {
+//			return appState.functions
+//		}
+//		return appState.functions.filter {
+//			$0.name.localizedCaseInsensitiveContains(searchText) ||
+//			$0.shortDisplayName.localizedCaseInsensitiveContains(searchText)
+//		}
+//	}
 
 	var body: some View {
 		@Bindable var appState = appState
 		VStack(alignment: .leading) {
 			TextField("Search", text: $searchText, prompt: Text("Filter"))
 			
-			List(filteredFunctions, selection: $appState.functionNavigator) { func_ in
+			List(procedures, selection: $appState.selectedFunction) { func_ in
 				FunctionRow(function: func_, isSelected: appState.selectedFunction == func_)
 					.tag(func_)
-					.id(func_.startAddress)
+					.id(func_.symbol.address)
 					.listRowSeparator(.hidden)
 			}
 		}
@@ -30,14 +33,14 @@ struct FunctionsTab: View {
 }
 
 struct FunctionRow: View {
-	let function: Function
+	let function: ProcedureModel
 	let isSelected: Bool
 	@Environment(AppState.self) private var appState
 	@State private var showRenameSheet = false
 	@State private var newName = ""
 
 	var displayName: String {
-		appState.renamedFunctions[function.startAddress] ?? function.shortDisplayName
+		appState.renamedFunctions[function.symbol.address] ?? function.shortDisplayName
 	}
 
 	var body: some View {
@@ -45,11 +48,11 @@ struct FunctionRow: View {
 			Label(displayName, systemImage: function.isLeaf ? "leaf" : "function")
 				.font(.caption)
 			HStack(alignment: .firstTextBaseline) {
-				Text("0x\(String(function.startAddress, radix: 16))")
+				Text("0x\(String(function.symbol.address, radix: 16))")
 					.font(.caption2)
 					.foregroundColor(.secondary)
 				Spacer()
-				Text(Int64(function.size), format: .byteCount(style: .memory))
+				Text(Int64(function.symbol.size), format: .byteCount(style: .memory))
 					.font(.caption2)
 					.foregroundColor(.secondary)
 			}
@@ -63,7 +66,7 @@ struct FunctionRow: View {
 			}
 
 			Button("Go to address") {
-				appState.goToAddress(function.startAddress)
+				appState.goToAddress(function.symbol.address)
 			}
 
 			Divider()
@@ -75,7 +78,7 @@ struct FunctionRow: View {
 
 			Button("Copy address") {
 				NSPasteboard.general.clearContents()
-				NSPasteboard.general.setString(String(format: "0x%llX", function.startAddress), forType: .string)
+				NSPasteboard.general.setString(String(format: "0x%llX", function.symbol.address), forType: .string)
 			}
 		}
 		.sheet(isPresented: $showRenameSheet) {
@@ -84,7 +87,7 @@ struct FunctionRow: View {
 				currentName: displayName,
 				newName: $newName,
 				onSave: { name in
-					appState.renameFunction(at: function.startAddress, to: name)
+					appState.renameFunction(at: function.symbol.address, to: name)
 				}
 			)
 		}

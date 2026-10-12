@@ -18,7 +18,7 @@ struct CFGView: View {
 			defer: false
 		)
 
-		let functionName = appState.selectedFunction?.name ?? "CFG"
+		let functionName = appState.selectedFunction?.symbol.name ?? "CFG"
 		window.title = "Control Flow Graph - \(functionName)"
 		window.center()
 		window.setFrameAutosaveName("CFGWindow")
@@ -47,7 +47,7 @@ struct CFGView: View {
 					.font(.headline)
 
 				if let function = appState.selectedFunction {
-					Text("- \(function.name)")
+					Text("- \(function.symbol.name)")
 						.font(.subheadline)
 						.foregroundColor(.secondary)
 						.lineLimit(1)
@@ -107,59 +107,59 @@ struct CFGView: View {
 			Divider()
 
 			// Graph content
-			if let function = appState.selectedFunction, !function.basicBlocks.isEmpty {
-				GeometryReader { geometry in
-					ZStack {
-						// Edges
-						ForEach(function.basicBlocks) { block in
-							ForEach(block.successors, id: \.self) { successor in
-								if let startPos = nodePositions[block.startAddress],
-								   let endPos = nodePositions[successor] {
-									EdgeView(
-										from: startPos,
-										to: endPos,
-										isConditional: block.type == .conditional
-									)
-								}
-							}
-						}
-
-						// Nodes
-						ForEach(function.basicBlocks) { block in
-							if let position = nodePositions[block.startAddress] {
-								CFGNodeView(block: block, isSelected: appState.selectedAddress >= block.startAddress && appState.selectedAddress < block.endAddress)
-									.position(position)
-									.onTapGesture {
-										appState.goToAddress(block.startAddress)
-									}
-							}
-						}
-					}
-					.scaleEffect(scale)
-					.offset(offset)
-					.gesture(
-						DragGesture()
-							.onChanged { value in
-								offset = CGSize(
-									width: offset.width + value.translation.width / scale,
-									height: offset.height + value.translation.height / scale
-								)
-							}
-					)
-					.gesture(
-						MagnificationGesture()
-							.onChanged { value in
-								scale = min(max(0.25, scale * value), 2.0)
-							}
-					)
-					.onAppear {
-						layoutGraph(in: geometry.size, blocks: function.basicBlocks)
-					}
-					.onChange(of: function.basicBlocks) { _, newBlocks in
-						layoutGraph(in: geometry.size, blocks: newBlocks)
-					}
-				}
-				.clipped()
+			if let function = appState.selectedFunction, !function.blocks.isEmpty {
+//				GeometryReader { geometry in
+//					ZStack {
+//						// Edges
+//						ForEach(function.blocks) { block in
+//							ForEach(block.successors, id: \.self) { successor in
+//								if let startPos = nodePositions[block.startAddress],
+//								   let endPos = nodePositions[successor] {
+//									EdgeView(
+//										from: startPos,
+//										to: endPos,
+//										isConditional: block.type == .conditional
+//									)
+//								}
+//							}
+//						}
+//
+//						// Nodes
+//						ForEach(function.basicBlocks) { block in
+//							if let position = nodePositions[block.startAddress] {
+//								CFGNodeView(block: block, isSelected: appState.selectedAddress >= block.startAddress && appState.selectedAddress < block.endAddress)
+//									.position(position)
+//									.onTapGesture {
+//										appState.goToAddress(block.startAddress)
+//									}
+//							}
+//						}
+//					}
+//					.scaleEffect(scale)
+//					.offset(offset)
+//					.gesture(
+//						DragGesture()
+//							.onChanged { value in
+//								offset = CGSize(
+//									width: offset.width + value.translation.width / scale,
+//									height: offset.height + value.translation.height / scale
+//								)
+//							}
+//					)
+//					.gesture(
+//						MagnificationGesture()
+//							.onChanged { value in
+//								scale = min(max(0.25, scale * value), 2.0)
+//							}
+//					)
+//					.onAppear {
+//						layoutGraph(in: geometry.size, blocks: function.basicBlocks)
+//					}
+//					.onChange(of: function.basicBlocks) { _, newBlocks in
+//						layoutGraph(in: geometry.size, blocks: newBlocks)
+//					}
+//				}
+//				.clipped()
 			} else {
 				ContentUnavailableView("No CFG Available", systemImage: "point.3.connected.trianglepath.dotted", description: Text("Select a function to view its control flow graph"))
 					.frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -71,7 +71,7 @@ struct HexView: View {
 		}
 		.onChange(of: appState.selectedSection, initial: true) {
 			if let section = appState.selectedSection {
-				data = section.data
+				data = section.binary.data
 				baseAddress = section.address
 			} else {
 				data = Data()

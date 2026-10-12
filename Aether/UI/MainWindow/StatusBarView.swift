@@ -60,19 +60,19 @@ struct StatusBarView: View {
 				HStack(spacing: 16) {
 					StatBadge(
 						icon: "function",
-						value: appState.functions.count,
+						value: 0,
 						label: "functions"
 					)
 
 					StatBadge(
 						icon: "text.quote",
-						value: appState.strings.count,
+						value: 0,
 						label: "strings"
 					)
 
 					StatBadge(
 						icon: "tag",
-						value: appState.symbols.count,
+						value: 0,
 						label: "symbols"
 					)
 				}
@@ -105,7 +105,8 @@ struct StatusBarView: View {
 
 	private var statusText: String {
 		if appState.isLoading {
-			return appState.loadingMessage
+//			return appState.loadingMessage
+			return "Loading"
 		} else if appState.currentFile != nil {
 			return "Ready"
 		} else {

@@ -25,8 +25,8 @@ struct ImportExportBrowserView: View {
 
             // Tabs
             Picker("View", selection: $selectedTab) {
-                Text("Imports (\(appState.imports.count))").tag(0)
-                Text("Exports (\(appState.exports.count))").tag(1)
+//                Text("Imports (\(appState.imports.count))").tag(0)
+//                Text("Exports (\(appState.exports.count))").tag(1)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
@@ -55,13 +55,15 @@ struct ImportExportBrowserView: View {
     }
 
     private var filteredImports: [Symbol] {
-        if searchText.isEmpty { return appState.imports }
-        return appState.imports.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+//        if searchText.isEmpty { return appState.imports }
+//        return appState.imports.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+		[]
     }
 
     private var filteredExports: [Symbol] {
-        if searchText.isEmpty { return appState.exports }
-        return appState.exports.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+//        if searchText.isEmpty { return appState.exports }
+//        return appState.exports.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+		[]
     }
 }
 

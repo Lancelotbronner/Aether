@@ -82,44 +82,47 @@ class ScriptingEngine: ObservableObject {
 
         // Get functions
         let getFunctions: @convention(block) () -> [[String: Any]] = { [weak self] in
-            guard let functions = self?.appState?.functions else { return [] }
-            return functions.map { func_ in
-                [
-                    "name": func_.displayName,
-                    "startAddress": String(format: "0x%llX", func_.startAddress),
-                    "endAddress": String(format: "0x%llX", func_.endAddress),
-                    "size": func_.size,
-                    "isLeaf": func_.isLeaf
-                ]
-            }
+//            guard let functions = self?.appState?.functions else { return [] }
+//            return functions.map { func_ in
+//                [
+//                    "name": func_.displayName,
+//                    "startAddress": String(format: "0x%llX", func_.startAddress),
+//                    "endAddress": String(format: "0x%llX", func_.endAddress),
+//                    "size": func_.size,
+//                    "isLeaf": func_.isLeaf
+//                ]
+//            }
+			[]
         }
         context.setObject(getFunctions, forKeyedSubscript: "getFunctions" as NSString)
 
         // Get strings
         let getStrings: @convention(block) () -> [[String: Any]] = { [weak self] in
-            guard let strings = self?.appState?.strings else { return [] }
-            return strings.map { str in
-                [
-                    "address": String(format: "0x%llX", str.address),
-                    "value": str.value,
-                    "encoding": str.encoding.rawValue
-                ]
-            }
+//            guard let strings = self?.appState?.strings else { return [] }
+//            return strings.map { str in
+//                [
+//                    "address": String(format: "0x%llX", str.address),
+//                    "value": str.value,
+//                    "encoding": str.encoding.rawValue
+//                ]
+//            }
+			[]
         }
         context.setObject(getStrings, forKeyedSubscript: "getStrings" as NSString)
 
         // Get symbols
         let getSymbols: @convention(block) () -> [[String: Any]] = { [weak self] in
-            guard let symbols = self?.appState?.symbols else { return [] }
-            return symbols.map { sym in
-                [
-                    "name": sym.displayName,
-                    "address": String(format: "0x%llX", sym.address),
-                    "type": sym.type.rawValue,
-                    "isImport": sym.isImport,
-                    "isExport": sym.isExport
-                ]
-            }
+//            guard let symbols = self?.appState?.symbols else { return [] }
+//            return symbols.map { sym in
+//                [
+//                    "name": sym.displayName,
+//                    "address": String(format: "0x%llX", sym.address),
+//                    "type": sym.type.rawValue,
+//                    "isImport": sym.isImport,
+//                    "isExport": sym.isExport
+//                ]
+//            }
+			[]
         }
         context.setObject(getSymbols, forKeyedSubscript: "getSymbols" as NSString)
 
@@ -152,12 +155,12 @@ class ScriptingEngine: ObservableObject {
         // Rename function
         let renameFunction: @convention(block) (String, String) -> Bool = { [weak self] addressStr, newName in
             let address = UInt64(addressStr.replacingOccurrences(of: "0x", with: ""), radix: 16) ?? 0
-            if let index = self?.appState?.functions.firstIndex(where: { $0.startAddress == address }) {
-                Task { @MainActor in
-                    self?.appState?.functions[index].name = newName
-                }
-                return true
-            }
+//            if let index = self?.appState?.functions.firstIndex(where: { $0.startAddress == address }) {
+//                Task { @MainActor in
+//                    self?.appState?.functions[index].name = newName
+//                }
+//                return true
+//            }
             return false
         }
         context.setObject(renameFunction, forKeyedSubscript: "renameFunction" as NSString)

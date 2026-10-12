@@ -25,7 +25,7 @@ struct AetherCommands: Commands {
 					defer { url.stopAccessingSecurityScopedResource() }
 
 					let binary = BinaryModel()
-					binary.embedded = try Data(contentsOf: url, options: .mappedIfSafe)
+					binary.data = try Data(contentsOf: url, options: .mappedIfSafe)
 					binary.fileURL = url
 					binary.name = url.lastPathComponent
 					modelContext.insert(binary)
@@ -33,41 +33,19 @@ struct AetherCommands: Commands {
 					Logger.app.error("failed to import binary: \(error)")
 				}
 			}
-
-			Divider()
-
-			Button("Save Binary As...") {
-				appState?.saveFileAs()
-			}
-			.keyboardShortcut("s", modifiers: [.command, .shift, .option])
-			.disabled(appState?.currentFile == nil)
-
-			Button("Save Project As...") {
-				appState?.saveProjectAs()
-			}
-			.keyboardShortcut("s", modifiers: [.command, .shift])
-			.disabled(appState?.currentFile == nil)
-
-			Divider()
-
-			Button("Close") {
-				appState?.closeFile()
-			}
-			.keyboardShortcut("w", modifiers: .command)
-			.disabled(appState?.currentFile == nil)
 		}
 		CommandMenu("Analysis") {
 			Button("Analyze All") {
 				appState?.analyzeAll()
 			}
 			.keyboardShortcut("a", modifiers: [.command, .shift])
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Find Functions") {
 				appState?.findFunctions()
 			}
 			.keyboardShortcut("f", modifiers: [.command, .shift])
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Divider()
 
@@ -95,12 +73,12 @@ struct AetherCommands: Commands {
 				appState?.showCallGraph = true
 			}
 			.keyboardShortcut("G", modifiers: .command)
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Crypto Detection") {
 				appState?.runCryptoDetection()
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Deobfuscation Analysis") {
 				appState?.runDeobfuscation()
@@ -130,49 +108,49 @@ struct AetherCommands: Commands {
 			Button("Export to IDA Python...") {
 				appState?.showExportSheet = true
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export to Ghidra XML...") {
 				exportWithFormat(.ghidraXML)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export to Radare2...") {
 				exportWithFormat(.radare2)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export to Binary Ninja...") {
 				exportWithFormat(.binaryNinja)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Divider()
 
 			Button("Export to JSON...") {
 				exportWithFormat(.json)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export to CSV...") {
 				exportWithFormat(.csv)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export to HTML Report...") {
 				exportWithFormat(.html)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export to Markdown...") {
 				exportWithFormat(.markdown)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 
 			Button("Export C Header...") {
 				exportWithFormat(.cHeader)
 			}
-			.disabled(appState?.currentFile == nil)
+			.disabled(appState?.selectedBinary == nil)
 		}
 		CommandMenu("Navigate") {
 			Button("Go to Address...") {
@@ -191,7 +169,7 @@ struct AetherCommands: Commands {
 		guard let appState else { return }
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.data]
-		panel.nameFieldStringValue = "\(appState.currentFile?.name ?? "export").\(format.fileExtension)"
+		panel.nameFieldStringValue = "\(appState.selectedBinary?.name ?? "export").\(format.fileExtension)"
 
 		if panel.runModal() == .OK, let url = panel.url {
 			appState.exportTo(format: format, url: url)

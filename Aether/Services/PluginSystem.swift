@@ -53,12 +53,12 @@ class PluginContext: ObservableObject {
 
     /// Get all functions
     var functions: [Function] {
-        appState?.functions ?? []
+        /*appState?.functions ??*/ []
     }
 
     /// Get all symbols
     var symbols: [Symbol] {
-        appState?.symbols ?? []
+        /*appState?.symbols ??*/ []
     }
 
     /// Navigate to address
@@ -73,9 +73,9 @@ class PluginContext: ObservableObject {
 
     /// Rename function
     func renameFunction(at address: UInt64, to name: String) {
-        if let index = appState?.functions.firstIndex(where: { $0.startAddress == address }) {
-            appState?.functions[index].name = name
-        }
+//        if let index = appState?.functions.firstIndex(where: { $0.startAddress == address }) {
+//            appState?.functions[index].name = name
+//        }
     }
 
     /// Log message to console

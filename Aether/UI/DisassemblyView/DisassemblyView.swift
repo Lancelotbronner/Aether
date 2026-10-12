@@ -90,26 +90,26 @@ struct DisassemblyView: View {
 	}
 
 	private func loadInstructions() {
-		isLoading = true
-
-		Task {
-			var result: ArraySlice<Instruction> = []
-
-			if let function = appState.selectedFunction {
-				result = await appState.disassembleFunction(function)
-			} else if let section = appState.selectedSection, section.containsCode {
-				result = await appState.disassemble(section: section)
-			}
-
-			// Limit instructions to prevent UI freeze
-			result = result.prefix(maxInstructions)
-			instructions = result
-
-			// Analyze branches
-			branches = BranchAnalyzer.analyzeBranches(instructions: instructions)
-
-			isLoading = false
-		}
+//		isLoading = true
+//
+//		Task {
+//			var result: ArraySlice<Instruction> = []
+//
+//			if let function = appState.selectedFunction {
+//				result = await appState.disassembleFunction(function)
+//			} else if let section = appState.selectedSection, section.containsCode {
+//				result = await appState.disassemble(section: section)
+//			}
+//
+//			// Limit instructions to prevent UI freeze
+//			result = result.prefix(maxInstructions)
+//			instructions = result
+//
+//			// Analyze branches
+//			branches = BranchAnalyzer.analyzeBranches(instructions: instructions)
+//
+//			isLoading = false
+//		}
 	}
 }
 

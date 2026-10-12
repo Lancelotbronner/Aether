@@ -29,7 +29,8 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		return try loadMachO(data: data, offset: 0)
 	}
 
-	static func load(_ model: BinaryModel) throws {
+	@concurrent
+	static func load(_ model: BinaryModel) async throws {
 		// Handle fat/universal binaries
 //		if magic == FAT_MAGIC || magic == FAT_CIGAM {
 //			return try loadFatBinary(data: model.embedded, swapped: magic == FAT_CIGAM)
@@ -76,7 +77,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 	// MARK: - Mach-O Loading
 
 	static func machO(for model: BinaryModel) throws {
-		var bytes = model.embedded.bytes
+		var bytes = model.data.bytes
 		let header = bytes.unsafeLoad(as: mach_header_64.self)
 
 		let is64Bit = header.magic == MH_MAGIC_64 || header.magic == MH_CIGAM_64
@@ -130,15 +131,66 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 					section.segmentName = withUnsafeBytes(of: item.segname) {
 						String(cString: $0, maxLength: 16)
 					}
-					section.address =  UInt64(item.offset)
+					section.address =  UInt64(item.addr)
 					section.size =  UInt64(item.size)
+					section.offset = item.offset
 					section.alignment = item.align
 					section.flags = item.flags
 
 					log += "\t\(section.segmentName),\(section.name)\n"
 				}
-//			case UInt32(bitPattern: LC_SYMTAB):
-//				try parseSymtab(data: data, offset: cmdOffset, is64Bit: is64Bit, binaryOffset: offset, into: &symbols)
+			case UInt32(bitPattern: LC_SYMTAB):
+				let command = bytes.unsafeLoad(as: symtab_command.self)
+				let strings = bytes.extracting(droppingFirst: Int(command.stroff))
+
+				model.symbols.reserveCapacity(model.symbols.count + Int(command.nsyms))
+
+				let start = ContinuousClock.now
+				log += "Parsing \(command.nsyms) symbols\n"
+
+				//FIXME: MachO's nlist_64 doesn't conform to BitwiseCopyable, wait until fixed by Apple
+				 var symbolBytes = bytes.extracting(droppingFirst: Int(command.symoff))
+				 symbolBytes = symbolBytes.extracting(droppingLast: symbolBytes.byteCount % MemoryLayout<nlist_64>.size)
+				// let symbols = Span<nlist_64>(_bytes: symbolBytes)
+
+				for _ in 0..<command.nsyms {
+					let sym = symbolBytes.unsafeLoad(as: nlist_64.self)
+					symbolBytes = symbolBytes.extracting(droppingFirst: MemoryLayout<nlist_64>.size)
+
+					let symbol = SymbolModel(in: model)
+					model.symbols.append(symbol)
+
+					symbol.address = sym.n_value
+
+					symbol.name = sym.n_un.n_strx == 0 ? "" : strings
+						.extracting(droppingFirst: Int(sym.n_un.n_strx))
+						.fromCString
+
+					let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
+					let isExternal = n_type.n_ext
+
+					switch n_type.n_type {
+					case .N_ABS:
+						symbol.type = .function
+						symbol.binding = isExternal ? .global : .local
+					case .N_SECT:
+						// Check if this looks like a function (in __TEXT,__text)
+						symbol.type = sym.n_sect == 1 ? .function : .data
+						symbol.binding = isExternal ? .global : .local
+					default:
+						symbol.type = .unknown
+						symbol.binding = isExternal ? .external : .undefined
+					}
+
+					symbol.refresh()
+
+					if symbol.type == .function && symbol.address != 0 {
+						let procedure = ProcedureModel(is: symbol, in: model)
+						model.procedures.append(procedure)
+					}
+				}
+
+				log += "Parsed \(command.nsyms) symbols in \(start.duration(to: .now).logDescription)\n"
 			case LC_MAIN:
 				let command = bytes.unsafeLoad(as: entry_point_command.self)
 				let address = model.segments.first { $0.name == "__TEXT" }?.address ?? 0

@@ -47,7 +47,7 @@ struct AIChatView: View {
             if let binary = appState.currentFile {
                 HStack(spacing: 12) {
                     Label(binary.name, systemImage: "doc.fill")
-                    Label("\(appState.functions.count) functions", systemImage: "function")
+                    Label("\(0) functions", systemImage: "function")
                     if let function = appState.selectedFunction {
                         Label(function.shortDisplayName, systemImage: "target")
                     }

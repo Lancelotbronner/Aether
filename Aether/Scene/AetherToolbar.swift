@@ -170,7 +170,7 @@ struct AetherToolbar: ToolbarContent {
 				} label: {
 					Label("Hook Multiple Functions", systemImage: "list.bullet")
 				}
-				.disabled(appState.functions.isEmpty)
+				.disabled(/*appState.functions.isEmpty*/ true)
 
 				Divider()
 

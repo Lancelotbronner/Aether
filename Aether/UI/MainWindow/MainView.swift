@@ -224,31 +224,31 @@ struct SearchSheet: View {
 
 		let query = searchText.lowercased()
 
-		switch searchType {
-		case .symbols:
-			results = appState.symbols
-				.filter { $0.name.lowercased().contains(query) }
-				.prefix(50)
-				.map { SearchResult(name: $0.displayName, address: $0.address, type: "Symbol") }
-
-		case .strings:
-			results = appState.strings
-				.filter { $0.value.lowercased().contains(query) }
-				.prefix(50)
-				.map { SearchResult(name: $0.value, address: $0.address, type: "String") }
-
-		case .functions:
-			results = appState.functions
-				.filter { $0.name.lowercased().contains(query) || $0.shortDisplayName.lowercased().contains(query) }
-				.prefix(50)
-				.map { SearchResult(name: $0.shortDisplayName, address: $0.startAddress, type: "Function") }
-
-		case .addresses:
-			if let addr = UInt64(query.replacingOccurrences(of: "0x", with: ""), radix: 16) {
-				results = [SearchResult(name: String(format: "0x%llX", addr), address: addr, type: "Address")]
-			} else {
-				results = []
-			}
-		}
+//		switch searchType {
+//		case .symbols:
+//			results = appState.symbols
+//				.filter { $0.name.lowercased().contains(query) }
+//				.prefix(50)
+//				.map { SearchResult(name: $0.displayName, address: $0.address, type: "Symbol") }
+//
+//		case .strings:
+//			results = appState.strings
+//				.filter { $0.value.lowercased().contains(query) }
+//				.prefix(50)
+//				.map { SearchResult(name: $0.value, address: $0.address, type: "String") }
+//
+//		case .functions:
+//			results = appState.functions
+//				.filter { $0.name.lowercased().contains(query) || $0.shortDisplayName.lowercased().contains(query) }
+//				.prefix(50)
+//				.map { SearchResult(name: $0.shortDisplayName, address: $0.startAddress, type: "Function") }
+//
+//		case .addresses:
+//			if let addr = UInt64(query.replacingOccurrences(of: "0x", with: ""), radix: 16) {
+//				results = [SearchResult(name: String(format: "0x%llX", addr), address: addr, type: "Address")]
+//			} else {
+//				results = []
+//			}
+//		}
 	}
 }

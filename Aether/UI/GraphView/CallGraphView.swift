@@ -45,10 +45,10 @@ struct CallGraphView: View {
 		.background(Color.background)
 		.onAppear {
 			if let binary = appState.currentFile {
-				viewModel.buildGraph(from: appState.functions, binary: binary)
+				viewModel.buildGraph(from: [], binary: binary)
 			}
 		}
-		.onChange(of: appState.functions) { _, newFunctions in
+		.onChange(of: [Function]()) { _, newFunctions in
 			if let binary = appState.currentFile {
 				viewModel.buildGraph(from: newFunctions, binary: binary)
 			}

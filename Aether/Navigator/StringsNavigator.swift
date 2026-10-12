@@ -1,23 +1,26 @@
 import SwiftUI
+import SwiftData
 
 struct StringsListView: View {
 	@Environment(AppState.self) private var appState
 	@State private var searchText = ""
 
-	var filteredStrings: [StringReference] {
-		if searchText.isEmpty {
-			return appState.strings
-		}
-		return appState.strings.filter {
-			$0.value.localizedCaseInsensitiveContains(searchText)
-		}
-	}
+	@Query private var strings: [StringModel]
+
+//	var filteredStrings: [StringReference] {
+//		if searchText.isEmpty {
+//			return appState.strings
+//		}
+//		return appState.strings.filter {
+//			$0.value.localizedCaseInsensitiveContains(searchText)
+//		}
+//	}
 
 	var body: some View {
 		VStack(alignment: .leading) {
 			TextField("Search", text: $searchText, prompt: Text("Filter"))
 			
-			List(filteredStrings) { str in
+			List(strings) { str in
 				Button {
 					appState.goToAddress(str.address)
 				} label: {

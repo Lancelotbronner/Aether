@@ -16,6 +16,14 @@ nonisolated public extension String {
 	}
 }
 
+nonisolated public extension RawSpan {
+	var fromCString: String {
+		withUnsafeBytes {
+			String(cString: $0.bindMemory(to: CChar.self).baseAddress!)
+		}
+	}
+}
+
 nonisolated public extension Range {
 	mutating func advance(by offset: Bound) where Bound: AdditiveArithmetic {
 		self = advanced(by: offset)

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import AetherKit
 
 extension Array<any PersistentModel.Type> {
 	static let project: [any PersistentModel.Type] = [
@@ -30,7 +31,7 @@ extension Schema {
 	var baseAddress: UInt64 = 0
 
 	@Attribute(.externalStorage)
-	var embedded = Data()
+	var data = Data()
 
 	@Relationship(deleteRule: .cascade, inverse: \SegmentModel.binary)
 	var segments: [SegmentModel] = []
@@ -57,6 +58,86 @@ extension Schema {
 	var bookmarks: [BookmarkModel] = []
 
 	init() {}
+
+	func load<T: BitwiseCopyable>(_ type: T.Type, at address: UInt64) -> T {
+		let byteOffset = Int(address - baseAddress)
+		return data.bytes.unsafeLoadUnaligned(fromByteOffset: byteOffset, as: T.self)
+	}
+
+	func ascii(at address: UInt64, maxLength: Int = .max) -> String {
+		String(cString: span(at: address), maxLength: maxLength, isKnownASCII: true)
+	}
+
+	func unicode(at address: UInt64, maxLength: Int = .max) -> String {
+		String(cString: span(at: address), maxLength: maxLength)
+	}
+
+	@_lifetime(borrow self)
+	func bytes(at address: UInt64) -> RawSpan {
+		span(at: address).bytes
+	}
+
+	@_lifetime(borrow self)
+	func span(at address: UInt64) -> Span<UInt8> {
+		let lowerBound = Int(address - baseAddress)
+		let span = data.span.extracting(lowerBound...)
+		return _overrideLifetime(span, borrowing: self)
+	}
+
+	@_lifetime(borrow self)
+	func bytes(in range: Range<UInt64>) -> RawSpan {
+		span(in: range).bytes
+	}
+
+	@_lifetime(borrow self)
+	func span(in range: Range<UInt64>) -> Span<UInt8> {
+		let lowerBound = Int(range.lowerBound - baseAddress)
+		let upperBound = lowerBound + range.count
+		let span = data.span.extracting(lowerBound..<upperBound)
+		return _overrideLifetime(span, borrowing: self)
+	}
+
+	func data(in range: Range<UInt64>) -> Data {
+		let lowerBound = range.lowerBound - baseAddress
+		let upperBound = lowerBound + UInt64(range.count)
+		return data[lowerBound..<upperBound]
+	}
+
+	func format(hex range: Range<UInt64>) -> String {
+		let span = span(in: range)
+		return span.indices
+			.map { String(format: "%02X", span[$0]) }
+			.joined(separator: " ")
+	}
+
+	static func hex(bytes: consuming Span<UInt8>) -> String {
+		bytes.indices
+			.map { String(format: "%02X", bytes[$0]) }
+			.joined(separator: " ")
+	}
+
+	/// Find section containing address
+	func section(containing address: UInt64) -> SectionModel? {
+		sections.first { $0.contains(address: address) }
+	}
+
+	/// Find segment containing address
+	func segment(containing address: UInt64) -> SegmentModel? {
+		segments.first { $0.contains(address: address) }
+	}
+
+	func read(at address: UInt64, count: Int) -> Data? {
+		data[address..<(address + UInt64(count))]
+	}
+
+	/// Read null-terminated string at address
+	func readString(at address: UInt64, maxLength: Int = 1024) -> String? {
+		var r = Int(address)
+		while data[r] != 0 {
+			r += 1
+		}
+		return String(data: data[address..<UInt64(r)], encoding: .utf8)
+	}
 }
 
 /// Binary segment (e.g., `__TEXT`, `__DATA`)
@@ -99,7 +180,7 @@ extension Schema {
 /// Binary section (e.g., `__text`, `__data`)
 @Model nonisolated final class SectionModel {
 	#Unique<SectionModel>([\.binary, \.address])
-	
+
 	var binary: BinaryModel
 	var segment: SegmentModel
 	var name = "Untitled"
@@ -142,29 +223,40 @@ extension Schema {
 
 /// Represents a symbol in the binary
 @Model nonisolated final class SymbolModel {
+	#Unique<SymbolModel>([\.binary, \.address])
+
 	var binary: BinaryModel
-	var name = "Untitled"
+	var identifier = ""
+	var name = ""
 	var address: UInt64 = 0
 	var size: UInt64 = 0
 	var type = SymbolType.unknown
 	var binding = SymbolBinding.undefined
+	var isImport = false
+	var isExport = false
 
-	var id: UInt64 { address }
+	var addressRange: Range<UInt64> { address..<(address + size) }
 
 	init(in binary: BinaryModel) {
 		self.binary = binary
 	}
 
-	var isImport: Bool {
+	var isImported: Bool {
 		binding == .external && address == 0
 	}
 
-	var isExport: Bool {
+	var isExported: Bool {
 		binding == .global && address != 0
 	}
 
 	var isLocal: Bool {
 		binding == .local
+	}
+
+	func refresh() {
+		isImport = isImported
+		isExport = isExported
+		name = identifier
 	}
 
 	var displayName: String {
@@ -194,12 +286,11 @@ extension Schema {
 
 /// Represents an identified function in the binary
 @Model nonisolated final class ProcedureModel {
+	#Unique<ProcedureModel>([\.symbol])
+
 	var binary: BinaryModel
-	var name = "Untitled"
-	var startAddress: UInt64 = 0
-	var endAddress: UInt64 = 0
-	var addressRange: Range<UInt64> { startAddress..<endAddress }
-	var size: UInt64 { endAddress - startAddress }
+	var symbol: SymbolModel
+	var demangled = ""
 
 	// Analysis results
 
@@ -221,36 +312,37 @@ extension Schema {
 	var arguments: [FunctionArgument] = []
 	var localVariables: [LocalVariable] = []
 
-	init(in binary: BinaryModel) {
+	init(is symbol: SymbolModel, in binary: BinaryModel) {
 		self.binary = binary
+		self.symbol = symbol
 	}
 
 	func contains(address: UInt64) -> Bool {
-		address >= startAddress && address < endAddress
+		symbol.addressRange.contains(address)
 	}
 
 	var displayName: String {
-		if name.isEmpty {
-			return String(format: "sub_%llX", startAddress)
+		if symbol.name.isEmpty {
+			return String(format: "sub_%llX", symbol.address)
 		}
 		// Strip leading underscore for display
-		if name.hasPrefix("_") && !name.hasPrefix("__") {
-			return String(name.dropFirst())
+		if symbol.name.hasPrefix("_") && !symbol.name.hasPrefix("__") {
+			return String(symbol.name.dropFirst())
 		}
-		return name
+		return symbol.name
 	}
 
 	/// Short display name for headers/UI - formats Java signatures nicely
 	var shortDisplayName: String {
-		if name.isEmpty {
-			return String(format: "sub_%llX", startAddress)
+		if symbol.name.isEmpty {
+			return String(format: "sub_%llX", symbol.address)
 		}
 
 		// Check if this looks like a Java method signature
 		// Format: className.methodName(descriptor)returnType
 		// Detect by: has parenthesis AND has at least 2 dot-separated parts before it
-		if let parenIndex = name.firstIndex(of: "(") {
-			let beforeParen = String(name[..<parenIndex])
+		if let parenIndex = symbol.name.firstIndex(of: "(") {
+			let beforeParen = String(symbol.name[..<parenIndex])
 			let parts = beforeParen.split(separator: ".")
 
 			// If we have package.class.method format (2+ parts), it's likely Java
@@ -259,7 +351,7 @@ extension Schema {
 				let methodName = String(parts[parts.count - 1])
 
 				// Parse descriptor to get simple parameter types
-				let afterParen = String(name[parenIndex...])
+				let afterParen = String(symbol.name[parenIndex...])
 				let params = parseJavaParams(afterParen)
 
 				if methodName == "<init>" {
@@ -273,11 +365,11 @@ extension Schema {
 		}
 
 		// For native functions, strip underscore
-		if name.hasPrefix("_") && !name.hasPrefix("__") {
-			return String(name.dropFirst())
+		if symbol.name.hasPrefix("_") && !symbol.name.hasPrefix("__") {
+			return String(symbol.name.dropFirst())
 		}
 
-		return name
+		return symbol.name
 	}
 
 	/// Parse Java method descriptor to extract simple parameter types

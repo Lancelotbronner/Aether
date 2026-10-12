@@ -6,33 +6,31 @@ import AetherKit
 
 @Observable
 final class AppState {
-	// MARK: - File State
 	var currentFile: BinaryFile?
 	var isLoading = false
-	var loadingProgress: Double = 0
-	var loadingMessage = ""
-	var errorMessage: String?
-	var showError = false
 
-	// MARK: - Navigation State
+	// MARK: - Selection
+
+	var selectedBinary: BinaryModel?
+	var selectedSegment: SegmentModel?
+	var selectedSection: SectionModel?
+	var selectedFunction: ProcedureModel?
 
 	var selectedAddress: UInt64 {
 		get { selectedAddressRange.lowerBound }
 		set { selectedAddressRange = newValue..<(newValue + 1) }
 	}
 	var selectedAddressRange: Range<UInt64> = 0..<0
-	var selectedFunction: Function?
-	var selectedSection: _Section?
 
-	var functionNavigator: Function? {
+	var functionNavigator: ProcedureModel? {
 		get { selectedFunction }
 		set {
 			guard let selectedFunction else { return }
-			goToAddress(selectedFunction.startAddress)
+			goToAddress(selectedFunction.symbol.address)
 		}
 	}
 
-	var sectionNavigator: _Section? {
+	var sectionNavigator: SectionModel? {
 		get { selectedSection }
 		set {
 			guard let selectedSection else { return }
@@ -51,6 +49,8 @@ final class AppState {
 			}
 		}
 	}
+
+	var programNavigatorSelection: Set<ProgramNavigatorSelection> = []
 
 	// MARK: - UI State
 	var showCFG = false
@@ -128,14 +128,6 @@ final class AppState {
 	var recognizedIdioms: [IdiomRecognizer.Idiom] = []
 	var structuredCode: String = ""
 
-	// MARK: - Analysis Results
-	var functions: [Function] = []
-	var strings: [StringReference] = []
-	var imports: [Symbol] = []
-	var exports: [Symbol] = []
-	var symbols: [Symbol] { currentFile?.symbols ?? [] }
-	var xrefs: [CrossReference] = []
-
 	// MARK: - Lookup Caches (for O(1) access)
 	@ObservationIgnored var symbolsByAddress: [UInt64: Symbol] = [:]
 	@ObservationIgnored var symbolsByName: [String: Symbol] = [:]
@@ -170,207 +162,20 @@ final class AppState {
 	private let javaDecompiler = JavaDecompiler()
 	private let fridaGenerator = FridaScriptGenerator()
 
-	// MARK: - File Operations
-
-	func openFile() {
-		let panel = NSOpenPanel()
-		panel.allowsMultipleSelection = false
-		panel.canChooseDirectories = false
-		panel.canChooseFiles = true
-		panel.message = "Select a binary file to analyze"
-
-		let result = panel.runModal()
-		Logger.app.info("File picker: \(result == .OK ? "OK" : "cancelled")")
-		guard result == .OK, let url = panel.url else { return }
-
-		Logger.app.info("Opening \(url.lastPathComponent)")
-		Task {
-			do {
-				// Read off the main actor so large files don't freeze the UI
-				let start = ContinuousClock.now
-				let data = try await Task.detached(priority: .userInitiated) {
-					// Memory-map when possible so large binaries are not copied from disk
-					try Data(contentsOf: url, options: .mappedIfSafe)
-				}.value
-				Logger.app.info("Read \(data.count) bytes in \(start.duration(to: .now).logDescription)")
-				await loadFile(data: data)
-			} catch {
-				Logger.app.error("Failed to read \(url.lastPathComponent): \(error.localizedDescription)")
-				errorMessage = error.localizedDescription
-				showError = true
-			}
-		}
-	}
-
-	func closeFile() {
-		currentFile = nil
-		selectedSection = nil
-		selectedFunction = nil
-		selectedAddress = 0
-		functions = []
-		strings = []
-		decompilerOutput = ""
-		errorMessage = nil
-
-		// Clear malware state
-		malwareReport = nil
-		isAnalyzingMalware = false
-		malwareFlowResult = nil
-		isAnalyzingMalwareFlow = false
-		malwareFlowError = nil
-
-		// Clear caches
-		symbolsByAddress = [:]
-		symbolsByName = [:]
-		functionsByAddress = [:]
-
-		// Clear user annotations
-		renamedFunctions = [:]
-		renamedSymbols = [:]
-		comments = [:]
-		bookmarks = [:]
-	}
-
-	private var loadTask: Task<Void, Never>?
-
-	func cancelLoading() {
-		loadTask?.cancel()
-		loadTask = nil
-		isLoading = false
-		loadingMessage = "Cancelled"
-	}
-
-	func loadFile(data: Data) async {
-		// Cancel any previous load
-		loadTask?.cancel()
-
-		isLoading = true
-		loadingProgress = 0
-		loadingMessage = "Loading file..."
-		errorMessage = nil
-
-		let loadStart = ContinuousClock.now
-		Logger.app.info("loadFile: starting (\(data.count) bytes)")
-
-		let loader = binaryLoader
-		let strAnalyzer = stringAnalyzer
-
-		let task = Task { @concurrent () -> (BinaryFile, [Symbol], [Symbol], [Function], [UInt64: Symbol], [String: Symbol], [UInt64: Function], [StringReference]) in
-			// Load binary (synchronous, no deadlock)
-			let parseStart = ContinuousClock.now
-			let binary = try loader.load(from: data)
-			Logger.app.info("Parsed binary in \(parseStart.duration(to: .now).logDescription)")
-
-			try Task.checkCancellation()
-
-			// Process symbols in a single pass: imports, exports, functions and lookup caches
-			let postProcessStart = ContinuousClock.now
-			let symbols = binary.symbols
-			var imports: [Symbol] = []
-			var exports: [Symbol] = []
-			var functions: [Function] = []
-			functions.reserveCapacity(symbols.count / 2)
-			var symbolsByAddress: [UInt64: Symbol] = [:]
-			symbolsByAddress.reserveCapacity(symbols.count)
-			var symbolsByName: [String: Symbol] = [:]
-			symbolsByName.reserveCapacity(symbols.count)
-
-			for symbol in symbols {
-				if symbol.isImport {
-					imports.append(symbol)
-				}
-				if symbol.isExport {
-					exports.append(symbol)
-				}
-				if symbol.type == .function && symbol.address != 0 {
-					functions.append(Function(name: symbol.name, startAddress: symbol.address, endAddress: symbol.address + max(symbol.size, 256)))
-				}
-				if symbol.address != 0 {
-					symbolsByAddress[symbol.address, default: symbol] = symbol
-				}
-				symbolsByName[symbol.name, default: symbol] = symbol
-			}
-
-			functions.sort { $0.startAddress < $1.startAddress }
-
-			let functionsByAddress = functions.reduce(into: [UInt64: Function]()) { dict, func_ in
-				if dict[func_.startAddress] == nil {
-					dict[func_.startAddress] = func_
-				}
-			}
-			Logger.app.info("Processed \(symbols.count) symbols into \(imports.count) imports, \(exports.count) exports, \(functions.count) functions in \(postProcessStart.duration(to: .now).logDescription)")
-
-			try Task.checkCancellation()
-
-			// Extract strings
-//			let strings = strAnalyzer.analyze(binary: binary)
-
-			return (binary, imports, exports, functions, symbolsByAddress, symbolsByName, functionsByAddress, /*strings*/[])
-		}
-
-		loadTask = Task {
-			do {
-				loadingMessage = "Parsing binary format..."
-				loadingProgress = 0.1
-
-				let result = try await task.value
-
-				guard !Task.isCancelled else { return }
-
-				loadingMessage = "Finalizing..."
-				loadingProgress = 0.9
-
-				let (binary, imports, exports, functions, symbolsByAddress, symbolsByName, functionsByAddress, strings) = result
-
-				self.currentFile = binary
-				self.selectedSection = binary.sections.first { $0.containsCode }
-				self.imports = imports
-				self.exports = exports
-				self.functions = functions
-				self.symbolsByAddress = symbolsByAddress
-				self.symbolsByName = symbolsByName
-				self.functionsByAddress = functionsByAddress
-				self.strings = strings
-
-				self.patcher = BinaryPatcher(binary: binary)
-				self.patches = []
-				self.hasUnsavedChanges = false
-
-				loadingProgress = 1.0
-				loadingMessage = "Ready"
-				isLoading = false
-				Logger.app.info("Loaded \(binary.architecture.rawValue) binary: \(binary.symbols.count) symbols, \(functions.count) functions, \(binary.sections.count) sections in \(loadStart.duration(to: .now).logDescription)")
-
-			} catch is CancellationError {
-				Logger.app.info("loadFile cancelled after \(loadStart.duration(to: .now).logDescription)")
-				isLoading = false
-				loadingMessage = "Cancelled"
-			} catch {
-				Logger.app.error("loadFile failed after \(loadStart.duration(to: .now).logDescription): \(error.localizedDescription)")
-				errorMessage = error.localizedDescription
-				showError = true
-				loadingMessage = "Error: \(error.localizedDescription)"
-				isLoading = false
-			}
-		}
-
-		await loadTask?.value
-	}
-
 	// MARK: - Malware Analysis
 
 	func analyzeMalware() {
-		guard let binary = currentFile else { return }
-		isAnalyzingMalware = true
-
-		Task.detached(priority: .userInitiated) {
-			let analyzer = MalwareAnalyzer()
-			let report = analyzer.analyze(binary: binary)
-			await MainActor.run { [weak self] in
-				self?.malwareReport = report
-				self?.isAnalyzingMalware = false
-			}
-		}
+//		guard let binary = selectedBinary else { return }
+//		isAnalyzingMalware = true
+//
+//		Task.detached(priority: .userInitiated) {
+//			let analyzer = MalwareAnalyzer()
+//			let report = analyzer.analyze(binary: binary)
+//			await MainActor.run { [weak self] in
+//				self?.malwareReport = report
+//				self?.isAnalyzingMalware = false
+//			}
+//		}
 	}
 
 	// MARK: - Malware Flow Analysis
@@ -380,227 +185,227 @@ final class AppState {
 	}
 
 	func analyzeMalwareFlow() {
-		guard let binary = currentFile else { return }
-		guard let apiKey = KeychainHelper.load(key: "AIAPIKey"), !apiKey.isEmpty else {
-			malwareFlowError = "No API key configured. Please add your AI API key in Settings."
-			return
-		}
-
-		isAnalyzingMalwareFlow = true
-		malwareFlowResult = nil
-		malwareFlowError = nil
-
-		// Run malware analysis first if not done yet
-		if malwareReport == nil {
-			let analyzer = MalwareAnalyzer()
-			malwareReport = analyzer.analyze(binary: binary)
-		}
-
-		let report = malwareReport!
-
-		Task {
-			do {
-				let sectionData = binary.sections.map { section -> (name: String, size: UInt64, entropy: Double, permissions: String) in
-					let sectionEntropy = report.entropyResult.sectionEntropies.first { $0.name == section.name }
-					// PE flags: R=0x40000000, W=0x80000000, X=0x20000000
-					let r = (section.flags & 0x40000000 != 0) || !section.isExecutable // default readable
-					let w = section.flags & 0x80000000 != 0
-					let x = section.isExecutable
-					let perms = "\(r ? "R" : "-")\(w ? "W" : "-")\(x ? "X" : "-")"
-					return (
-						name: section.name,
-						size: section.size,
-						entropy: sectionEntropy?.entropy ?? 0,
-						permissions: perms
-					)
-				}
-
-				let importNames = imports.map { $0.name }
-				let exportNames = exports.map { $0.name }
-				let stringValues = strings.prefix(100).map { $0.value }
-				let anomalyDescs = report.anomalies.map { "\($0.severity.rawValue): \($0.title) - \($0.description)" }
-
-				let result = try await aiClient.analyzeMalwareFlowAsync(
-					binaryName: binary.name,
-					sections: sectionData,
-					imports: importNames,
-					exports: exportNames,
-					strings: Array(stringValues),
-					entropyOverall: report.entropyResult.overallEntropy,
-					anomalies: anomalyDescs,
-					apiKey: apiKey
-				)
-
-				await MainActor.run {
-					self.malwareFlowResult = result
-					self.isAnalyzingMalwareFlow = false
-				}
-			} catch {
-				await MainActor.run {
-					self.malwareFlowError = error.localizedDescription
-					self.isAnalyzingMalwareFlow = false
-				}
-			}
-		}
+//		guard let binary = selectedBinary else { return }
+//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey"), !apiKey.isEmpty else {
+//			malwareFlowError = "No API key configured. Please add your AI API key in Settings."
+//			return
+//		}
+//
+//		isAnalyzingMalwareFlow = true
+//		malwareFlowResult = nil
+//		malwareFlowError = nil
+//
+//		// Run malware analysis first if not done yet
+//		if malwareReport == nil {
+//			let analyzer = MalwareAnalyzer()
+//			malwareReport = analyzer.analyze(binary: binary)
+//		}
+//
+//		let report = malwareReport!
+//
+//		Task {
+//			do {
+//				let sectionData = binary.sections.map { section -> (name: String, size: UInt64, entropy: Double, permissions: String) in
+//					let sectionEntropy = report.entropyResult.sectionEntropies.first { $0.name == section.name }
+//					// PE flags: R=0x40000000, W=0x80000000, X=0x20000000
+//					let r = (section.flags & 0x40000000 != 0) || !section.isExecutable // default readable
+//					let w = section.flags & 0x80000000 != 0
+//					let x = section.isExecutable
+//					let perms = "\(r ? "R" : "-")\(w ? "W" : "-")\(x ? "X" : "-")"
+//					return (
+//						name: section.name,
+//						size: section.size,
+//						entropy: sectionEntropy?.entropy ?? 0,
+//						permissions: perms
+//					)
+//				}
+//
+//				let importNames = imports.map { $0.name }
+//				let exportNames = exports.map { $0.name }
+//				let stringValues = strings.prefix(100).map { $0.value }
+//				let anomalyDescs = report.anomalies.map { "\($0.severity.rawValue): \($0.title) - \($0.description)" }
+//
+//				let result = try await aiClient.analyzeMalwareFlowAsync(
+//					binaryName: binary.name,
+//					sections: sectionData,
+//					imports: importNames,
+//					exports: exportNames,
+//					strings: Array(stringValues),
+//					entropyOverall: report.entropyResult.overallEntropy,
+//					anomalies: anomalyDescs,
+//					apiKey: apiKey
+//				)
+//
+//				await MainActor.run {
+//					self.malwareFlowResult = result
+//					self.isAnalyzingMalwareFlow = false
+//				}
+//			} catch {
+//				await MainActor.run {
+//					self.malwareFlowError = error.localizedDescription
+//					self.isAnalyzingMalwareFlow = false
+//				}
+//			}
+//		}
 	}
 
 	// MARK: - Analysis
 
 	func analyzeAll() {
-		guard currentFile != nil else { return }
+		guard selectedBinary != nil else { return }
 		Task {
 			await performAnalysis()
 		}
 	}
 
 	private func performAnalysis() async {
-		guard let binary = currentFile else { return }
+		guard let binary = selectedBinary else { return }
 
-		isLoading = true
-
-		// Find functions
-		loadingMessage = "Analyzing functions..."
-		loadingProgress = 0.4
-		self.functions = await functionAnalyzer.analyze(binary: binary, disassembler: disassembler)
-
-		// Find strings
-		loadingMessage = "Extracting strings..."
-		loadingProgress = 0.6
-		self.strings = stringAnalyzer.analyze(binary: binary)
-
-		// Build cross-references
-		loadingMessage = "Building cross-references..."
-		loadingProgress = 0.8
-		self.xrefs = await xrefAnalyzer.analyze(binary: binary, functions: functions, disassembler: disassembler)
-
-		// Extract imports/exports
-		loadingMessage = "Processing symbols..."
-		loadingProgress = 0.9
-		self.imports = binary.symbols.filter { $0.isImport }
-		self.exports = binary.symbols.filter { $0.isExport }
-
-		loadingProgress = 1.0
-		loadingMessage = "Analysis complete"
-		isLoading = false
+//		isLoading = true
+//
+//		// Find functions
+//		loadingMessage = "Analyzing functions..."
+//		loadingProgress = 0.4
+//		self.functions = await functionAnalyzer.analyze(binary: binary, disassembler: disassembler)
+//
+//		// Find strings
+//		loadingMessage = "Extracting strings..."
+//		loadingProgress = 0.6
+//		self.strings = stringAnalyzer.analyze(binary: binary)
+//
+//		// Build cross-references
+//		loadingMessage = "Building cross-references..."
+//		loadingProgress = 0.8
+//		self.xrefs = await xrefAnalyzer.analyze(binary: binary, functions: functions, disassembler: disassembler)
+//
+//		// Extract imports/exports
+//		loadingMessage = "Processing symbols..."
+//		loadingProgress = 0.9
+//		self.imports = binary.symbols.filter { $0.isImport }
+//		self.exports = binary.symbols.filter { $0.isExport }
+//
+//		loadingProgress = 1.0
+//		loadingMessage = "Analysis complete"
+//		isLoading = false
 	}
 
 	func findFunctions() {
-		guard let binary = currentFile else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Finding functions..."
-			self.functions = await functionAnalyzer.analyze(binary: binary, disassembler: disassembler)
-			isLoading = false
-		}
+//		guard let binary = selectedBinary else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Finding functions..."
+//			self.functions = await functionAnalyzer.analyze(binary: binary, disassembler: disassembler)
+//			isLoading = false
+//		}
 	}
 
 	// MARK: - Advanced Analysis
 
 	func runCryptoDetection() {
-		guard let binary = currentFile else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Detecting cryptographic patterns..."
-			let detector = AdvancedCryptoDetector()
-			self.cryptoFindings = detector.scan(binary: binary)
-			isLoading = false
-			showCryptoDetection = true
-		}
+//		guard let binary = selectedBinary else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Detecting cryptographic patterns..."
+//			let detector = AdvancedCryptoDetector()
+//			self.cryptoFindings = detector.scan(binary: binary)
+//			isLoading = false
+//			showCryptoDetection = true
+//		}
 	}
 
 	func runDeobfuscation() {
-		guard let binary = currentFile, let function = selectedFunction else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Analyzing obfuscation..."
-			let deobfuscator = Deobfuscator()
-			let instructions = await disassembleFunction(function)
-
-			// Build basic blocks for analysis
-			var basicBlocks: [BasicBlock] = []
-			if !instructions.isEmpty {
-				let bb = BasicBlock(startAddress: function.startAddress, endAddress: function.endAddress, instructions: instructions)
-				basicBlocks.append(bb)
-			}
-
-			var func_ = function
-			func_.basicBlocks = basicBlocks
-			let findings = deobfuscator.analyze(function: func_, binary: binary)
-			let result = deobfuscator.deobfuscate(function: func_, binary: binary)
-
-			self.deobfuscationReport = DeobfuscationReportWrapper.from(result, findings: findings)
-			isLoading = false
-			showDeobfuscation = true
-		}
+//		guard let binary = selectedBinary, let function = selectedFunction else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Analyzing obfuscation..."
+//			let deobfuscator = Deobfuscator()
+//			let instructions = await disassembleFunction(function)
+//
+//			// Build basic blocks for analysis
+//			var basicBlocks: [BasicBlock] = []
+//			if !instructions.isEmpty {
+//				let bb = BasicBlock(startAddress: function.startAddress, endAddress: function.endAddress, instructions: instructions)
+//				basicBlocks.append(bb)
+//			}
+//
+//			var func_ = function
+//			func_.basicBlocks = basicBlocks
+//			let findings = deobfuscator.analyze(function: func_, binary: binary)
+//			let result = deobfuscator.deobfuscate(function: func_, binary: binary)
+//
+//			self.deobfuscationReport = DeobfuscationReportWrapper.from(result, findings: findings)
+//			isLoading = false
+//			showDeobfuscation = true
+//		}
 	}
 
 	func runTypeRecovery() {
-		guard let binary = currentFile, let function = selectedFunction else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Recovering types..."
-			let recovery = TypeRecovery()
-			let instructions = await disassembleFunction(function)
-
-			var basicBlocks: [BasicBlock] = []
-			if !instructions.isEmpty {
-				let bb = BasicBlock(startAddress: function.startAddress, endAddress: function.endAddress, instructions: instructions)
-				basicBlocks.append(bb)
-			}
-
-			self.recoveredTypes = recovery.recoverTypes(function: function, blocks: basicBlocks, binary: binary)
-			isLoading = false
-			showTypeRecovery = true
-		}
+//		guard let binary = selectedBinary, let function = selectedFunction else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Recovering types..."
+//			let recovery = TypeRecovery()
+//			let instructions = await disassembleFunction(function)
+//
+//			var basicBlocks: [BasicBlock] = []
+//			if !instructions.isEmpty {
+//				let bb = BasicBlock(startAddress: function.startAddress, endAddress: function.endAddress, instructions: instructions)
+//				basicBlocks.append(bb)
+//			}
+//
+//			self.recoveredTypes = recovery.recoverTypes(function: function, blocks: basicBlocks, binary: binary)
+//			isLoading = false
+//			showTypeRecovery = true
+//		}
 	}
 
 	func runIdiomRecognition() {
-		guard let function = selectedFunction else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Recognizing code idioms..."
-			let recognizer = IdiomRecognizer()
-			let instructions = await disassembleFunction(function)
-
-			var basicBlocks: [BasicBlock] = []
-			if !instructions.isEmpty {
-				let bb = BasicBlock(startAddress: function.startAddress, endAddress: function.endAddress, instructions: instructions)
-				basicBlocks.append(bb)
-			}
-
-			var func_ = function
-			func_.basicBlocks = basicBlocks
-			self.recognizedIdioms = recognizer.recognize(function: func_)
-			isLoading = false
-			showIdiomRecognition = true
-		}
+//		guard let function = selectedFunction else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Recognizing code idioms..."
+//			let recognizer = IdiomRecognizer()
+//			let instructions = await disassembleFunction(function)
+//
+//			var basicBlocks: [BasicBlock] = []
+//			if !instructions.isEmpty {
+//				let bb = BasicBlock(startAddress: function.startAddress, endAddress: function.endAddress, instructions: instructions)
+//				basicBlocks.append(bb)
+//			}
+//
+//			var func_ = function
+//			func_.basicBlocks = basicBlocks
+//			self.recognizedIdioms = recognizer.recognize(function: func_)
+//			isLoading = false
+//			showIdiomRecognition = true
+//		}
 	}
 
 	func generateStructuredCode() {
-		guard let binary = currentFile, let function = selectedFunction else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Generating structured code..."
-			let instructions = await disassembleFunction(function)
-
-			guard !instructions.isEmpty else {
-				self.structuredCode = "// No instructions found for function"
-				isLoading = false
-				showPseudoCode = true
-				return
-			}
-
-			// Build proper basic blocks by splitting at control flow instructions
-			let basicBlocks = buildBasicBlocks(from: instructions, function: function)
-
-			var func_ = function
-			func_.basicBlocks = basicBlocks
-
-			// Generate pseudo-code directly from instructions
-			self.structuredCode = generatePseudoCodeFromInstructions(instructions, function: func_, binary: binary)
-			isLoading = false
-			showPseudoCode = true
-		}
+//		guard let binary = selectedBinary, let function = selectedFunction else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Generating structured code..."
+//			let instructions = await disassembleFunction(function)
+//
+//			guard !instructions.isEmpty else {
+//				self.structuredCode = "// No instructions found for function"
+//				isLoading = false
+//				showPseudoCode = true
+//				return
+//			}
+//
+//			// Build proper basic blocks by splitting at control flow instructions
+//			let basicBlocks = buildBasicBlocks(from: instructions, function: function)
+//
+//			var func_ = function
+//			func_.basicBlocks = basicBlocks
+//
+//			// Generate pseudo-code directly from instructions
+//			self.structuredCode = generatePseudoCodeFromInstructions(instructions, function: func_, binary: binary)
+//			isLoading = false
+//			showPseudoCode = true
+//		}
 	}
 
 	private func buildBasicBlocks(from instructions: ArraySlice<Instruction>, function: Function) -> [BasicBlock] {
@@ -783,33 +588,33 @@ final class AppState {
 	}
 
 	func exportTo(format: ExportManager.ExportFormat, url: URL) {
-		guard let binary = currentFile else { return }
-		Task {
-			isLoading = true
-			loadingMessage = "Exporting to \(format.rawValue)..."
-			let exporter = ExportManager()
-			do {
-				try exporter.export(binary: binary, functions: functions, symbols: symbols, to: url, format: format)
-				loadingMessage = "Export complete!"
-			} catch {
-				errorMessage = "Export failed: \(error.localizedDescription)"
-				showError = true
-			}
-			isLoading = false
-		}
+//		guard let binary = selectedBinary else { return }
+//		Task {
+//			isLoading = true
+//			loadingMessage = "Exporting to \(format.rawValue)..."
+//			let exporter = ExportManager()
+//			do {
+//				try exporter.export(binary: binary, functions: functions, symbols: symbols, to: url, format: format)
+//				loadingMessage = "Export complete!"
+//			} catch {
+//				errorMessage = "Export failed: \(error.localizedDescription)"
+//				showError = true
+//			}
+//			isLoading = false
+//		}
 	}
 
 	// MARK: - Navigation
 
 	func goToAddress(_ address: UInt64) {
-		guard let currentFile else { return }
+		guard let selectedBinary else { return }
 		// Update section if necessary
 		if let selectedSection, selectedSection.contains(address: address) {} else {
-			self.selectedSection = currentFile.sections.first { $0.contains(address: address) }
+			self.selectedSection = selectedBinary.sections.first { $0.contains(address: address) }
 		}
 		// Update function if necessary
 		if let selectedFunction, selectedFunction.contains(address: address) {} else {
-			self.selectedFunction = functions.first { $0.contains(address: address) }
+			self.selectedFunction = selectedBinary.procedures.first { $0.contains(address: address) }
 		}
 		// Update selection range
 		selectedAddress = address
@@ -821,41 +626,41 @@ final class AppState {
 	}
 
 	func selectFunction(_ function: Function) {
-		functionNavigator = function
+//		functionNavigator = function
 	}
 
 	// MARK: - Decompilation
 
 	func decompileCurrentFunction() {
 		guard let function = selectedFunction,
-			  let binary = currentFile else { return }
+			  let binary = selectedBinary else { return }
 
 		// Check if this is a Java class file
-		if let javaClasses = binary.javaClasses, !javaClasses.isEmpty {
-			decompileJavaMethod(function: function, javaClasses: javaClasses)
-			return
-		}
+//		if let javaClasses = binary.javaClasses, !javaClasses.isEmpty {
+//			decompileJavaMethod(function: function, javaClasses: javaClasses)
+//			return
+//		}
 
 		decompilerOutput = "// Decompiling..."
 
-		Task {
-			let instructions = await disassembleFunction(function)
-
-			// Run heavy decompilation off the main thread
-			let decomp = self.decompiler
-			let output = await Task.detached(priority: .userInitiated) {
-				return decomp.decompile(
-					function: function,
-					instructions: instructions,
-					binary: binary
-				)
-			}.value
-
-			// Update UI on main thread (automatic via @MainActor)
-			if self.selectedFunction?.startAddress == function.startAddress {
-				self.decompilerOutput = output
-			}
-		}
+//		Task {
+//			let instructions = await disassembleFunction(function)
+//
+//			// Run heavy decompilation off the main thread
+//			let decomp = self.decompiler
+//			let output = await Task.detached(priority: .userInitiated) {
+//				return decomp.decompile(
+//					function: function,
+//					instructions: instructions,
+//					binary: binary
+//				)
+//			}.value
+//
+//			// Update UI on main thread (automatic via @MainActor)
+//			if self.selectedFunction?.startAddress == function.startAddress {
+//				self.decompilerOutput = output
+//			}
+//		}
 	}
 
 	private func decompileJavaMethod(function: Function, javaClasses: [JARLoader.JavaClass]) {
@@ -911,153 +716,153 @@ final class AppState {
 	}
 
 	func analyzeWithAI() {
-		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
-			securityAnalysisError = "No API key configured. Please add your AI API key in Settings."
-			showSecurityAnalysis = true
-			return
-		}
-
-		guard let function = selectedFunction else {
-			securityAnalysisError = "Please select a function to analyze."
-			showSecurityAnalysis = true
-			return
-		}
-
-		isAnalyzingWithAI = true
-		securityAnalysisResult = nil
-		securityAnalysisError = nil
-		showSecurityAnalysis = true
-
-		Task {
-			do {
-				// Get disassembly for the function
-				let instructions = await disassembleFunction(function)
-				let disassembly = instructions.prefix(200).map { insn in
-					String(format: "0x%llX: %@ %@", insn.address, insn.mnemonic, insn.operands)
-				}.joined(separator: "\n")
-
-				// Get relevant strings
-				let relevantStrings = strings.filter { str in
-					str.address >= function.startAddress && str.address < function.endAddress
-				}.map { $0.value }
-
-				// Get imports
-				let importNames = imports.map { $0.name }
-
-				// Call AI API
-				let result = try await aiClient.analyzeSecurityAsync(
-					functionName: function.displayName,
-					decompiledCode: decompilerOutput,
-					disassembly: disassembly,
-					strings: relevantStrings + Array(strings.prefix(30).map { $0.value }),
-					imports: importNames,
-					apiKey: apiKey
-				)
-
-				await MainActor.run {
-					securityAnalysisResult = result
-					isAnalyzingWithAI = false
-				}
-			} catch {
-				await MainActor.run {
-					securityAnalysisError = error.localizedDescription
-					isAnalyzingWithAI = false
-				}
-			}
-		}
+//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
+//			securityAnalysisError = "No API key configured. Please add your AI API key in Settings."
+//			showSecurityAnalysis = true
+//			return
+//		}
+//
+//		guard let function = selectedFunction else {
+//			securityAnalysisError = "Please select a function to analyze."
+//			showSecurityAnalysis = true
+//			return
+//		}
+//
+//		isAnalyzingWithAI = true
+//		securityAnalysisResult = nil
+//		securityAnalysisError = nil
+//		showSecurityAnalysis = true
+//
+//		Task {
+//			do {
+//				// Get disassembly for the function
+//				let instructions = await disassembleFunction(function)
+//				let disassembly = instructions.prefix(200).map { insn in
+//					String(format: "0x%llX: %@ %@", insn.address, insn.mnemonic, insn.operands)
+//				}.joined(separator: "\n")
+//
+//				// Get relevant strings
+//				let relevantStrings = strings.filter { str in
+//					str.address >= function.startAddress && str.address < function.endAddress
+//				}.map { $0.value }
+//
+//				// Get imports
+//				let importNames = imports.map { $0.name }
+//
+//				// Call AI API
+//				let result = try await aiClient.analyzeSecurityAsync(
+//					functionName: function.displayName,
+//					decompiledCode: decompilerOutput,
+//					disassembly: disassembly,
+//					strings: relevantStrings + Array(strings.prefix(30).map { $0.value }),
+//					imports: importNames,
+//					apiKey: apiKey
+//				)
+//
+//				await MainActor.run {
+//					securityAnalysisResult = result
+//					isAnalyzingWithAI = false
+//				}
+//			} catch {
+//				await MainActor.run {
+//					securityAnalysisError = error.localizedDescription
+//					isAnalyzingWithAI = false
+//				}
+//			}
+//		}
 	}
 
 	func analyzeBinaryWithAI() {
-		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
-			securityAnalysisError = "No API key configured. Please add your AI API key in Settings."
-			showSecurityAnalysis = true
-			return
-		}
-
-		guard let binary = currentFile else {
-			securityAnalysisError = "No binary loaded."
-			showSecurityAnalysis = true
-			return
-		}
-
-		isAnalyzingWithAI = true
-		securityAnalysisResult = nil
-		securityAnalysisError = nil
-		showSecurityAnalysis = true
-
-		Task {
-			do {
-				let functionNames = functions.map { $0.displayName }
-				let stringValues = strings.map { $0.value }
-				let importNames = imports.map { $0.name }
-				let exportNames = exports.map { $0.name }
-
-				let result = try await aiClient.analyzeBinaryAsync(
-					binaryName: binary.name,
-					functions: functionNames,
-					strings: stringValues,
-					imports: importNames,
-					exports: exportNames,
-					apiKey: apiKey
-				)
-
-				await MainActor.run {
-					securityAnalysisResult = result
-					isAnalyzingWithAI = false
-				}
-			} catch {
-				await MainActor.run {
-					securityAnalysisError = error.localizedDescription
-					isAnalyzingWithAI = false
-				}
-			}
-		}
+//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
+//			securityAnalysisError = "No API key configured. Please add your AI API key in Settings."
+//			showSecurityAnalysis = true
+//			return
+//		}
+//
+//		guard let binary = selectedBinary else {
+//			securityAnalysisError = "No binary loaded."
+//			showSecurityAnalysis = true
+//			return
+//		}
+//
+//		isAnalyzingWithAI = true
+//		securityAnalysisResult = nil
+//		securityAnalysisError = nil
+//		showSecurityAnalysis = true
+//
+//		Task {
+//			do {
+//				let functionNames = functions.map { $0.displayName }
+//				let stringValues = strings.map { $0.value }
+//				let importNames = imports.map { $0.name }
+//				let exportNames = exports.map { $0.name }
+//
+//				let result = try await aiClient.analyzeBinaryAsync(
+//					binaryName: binary.name,
+//					functions: functionNames,
+//					strings: stringValues,
+//					imports: importNames,
+//					exports: exportNames,
+//					apiKey: apiKey
+//				)
+//
+//				await MainActor.run {
+//					securityAnalysisResult = result
+//					isAnalyzingWithAI = false
+//				}
+//			} catch {
+//				await MainActor.run {
+//					securityAnalysisError = error.localizedDescription
+//					isAnalyzingWithAI = false
+//				}
+//			}
+//		}
 	}
 
 	// MARK: - AI Chat
 
 	func sendChatMessage(_ message: String) {
-		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
-			chatError = "No API key configured. Please add your AI API key in Settings."
-			return
-		}
-
-		// Add user message
-		let userMessage = ChatMessage(role: "user", content: message)
-		chatMessages.append(userMessage)
-		isChatLoading = true
-		chatError = nil
-
-		Task {
-			do {
-				// Build context
-				let context = BinaryContext(
-					name: currentFile?.name ?? "Unknown",
-					architecture: currentFile?.architecture.rawValue ?? "Unknown",
-					functionCount: functions.count,
-					currentFunction: selectedFunction?.displayName,
-					decompiledCode: decompilerOutput.isEmpty ? nil : decompilerOutput,
-					relevantStrings: strings.prefix(30).map { $0.value }
-				)
-
-				let response = try await aiClient.chatAsync(
-					messages: chatMessages,
-					context: context,
-					apiKey: apiKey
-				)
-
-				await MainActor.run {
-					let assistantMessage = ChatMessage(role: "assistant", content: response)
-					chatMessages.append(assistantMessage)
-					isChatLoading = false
-				}
-			} catch {
-				await MainActor.run {
-					chatError = error.localizedDescription
-					isChatLoading = false
-				}
-			}
-		}
+//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
+//			chatError = "No API key configured. Please add your AI API key in Settings."
+//			return
+//		}
+//
+//		// Add user message
+//		let userMessage = ChatMessage(role: "user", content: message)
+//		chatMessages.append(userMessage)
+//		isChatLoading = true
+//		chatError = nil
+//
+//		Task {
+//			do {
+//				// Build context
+//				let context = BinaryContext(
+//					name: selectedBinary?.name ?? "Unknown",
+//					architecture: selectedBinary?.architecture.rawValue ?? "Unknown",
+//					functionCount: functions.count,
+//					currentFunction: selectedFunction?.displayName,
+//					decompiledCode: decompilerOutput.isEmpty ? nil : decompilerOutput,
+//					relevantStrings: strings.prefix(30).map { $0.value }
+//				)
+//
+//				let response = try await aiClient.chatAsync(
+//					messages: chatMessages,
+//					context: context,
+//					apiKey: apiKey
+//				)
+//
+//				await MainActor.run {
+//					let assistantMessage = ChatMessage(role: "assistant", content: response)
+//					chatMessages.append(assistantMessage)
+//					isChatLoading = false
+//				}
+//			} catch {
+//				await MainActor.run {
+//					chatError = error.localizedDescription
+//					isChatLoading = false
+//				}
+//			}
+//		}
 	}
 
 	func clearChat() {
@@ -1068,48 +873,48 @@ final class AppState {
 	// MARK: - AI Explain Code
 
 	func explainCurrentFunction() {
-		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
-			explainError = "No API key configured. Please add your AI API key in Settings."
-			showExplainCode = true
-			return
-		}
-
-		guard let function = selectedFunction else {
-			explainError = "Please select a function to explain."
-			showExplainCode = true
-			return
-		}
-
-		isExplainingCode = true
-		codeExplanation = nil
-		explainError = nil
-		showExplainCode = true
-
-		Task {
-			do {
-				let instructions = await disassembleFunction(function)
-				let disassembly = instructions.prefix(100).map { insn in
-					String(format: "0x%llX: %@ %@", insn.address, insn.mnemonic, insn.operands)
-				}.joined(separator: "\n")
-
-				let result = try await aiClient.explainCodeAsync(
-					functionName: function.displayName,
-					decompiledCode: decompilerOutput,
-					disassembly: disassembly,
-					apiKey: apiKey
-				)
-
-				await MainActor.run {
-					codeExplanation = result
-					isExplainingCode = false
-				}
-			} catch {
-				await MainActor.run {
-					explainError = error.localizedDescription
-					isExplainingCode = false
-				}
-			}
-		}
+//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
+//			explainError = "No API key configured. Please add your AI API key in Settings."
+//			showExplainCode = true
+//			return
+//		}
+//
+//		guard let function = selectedFunction else {
+//			explainError = "Please select a function to explain."
+//			showExplainCode = true
+//			return
+//		}
+//
+//		isExplainingCode = true
+//		codeExplanation = nil
+//		explainError = nil
+//		showExplainCode = true
+//
+//		Task {
+//			do {
+//				let instructions = await disassembleFunction(function)
+//				let disassembly = instructions.prefix(100).map { insn in
+//					String(format: "0x%llX: %@ %@", insn.address, insn.mnemonic, insn.operands)
+//				}.joined(separator: "\n")
+//
+//				let result = try await aiClient.explainCodeAsync(
+//					functionName: function.displayName,
+//					decompiledCode: decompilerOutput,
+//					disassembly: disassembly,
+//					apiKey: apiKey
+//				)
+//
+//				await MainActor.run {
+//					codeExplanation = result
+//					isExplainingCode = false
+//				}
+//			} catch {
+//				await MainActor.run {
+//					explainError = error.localizedDescription
+//					isExplainingCode = false
+//				}
+//			}
+//		}
 	}
 
 	// MARK: - AI Variable Renaming
@@ -1198,215 +1003,186 @@ final class AppState {
 	// MARK: - Frida Script Generation
 
 	func generateFridaScript() {
-		guard let binary = currentFile, let function = selectedFunction else {
-			fridaScriptError = "Please select a function first"
-			showFridaScript = true
-			return
-		}
-
-		isGeneratingFridaScript = true
-		fridaScriptResult = nil
-		aiFridaScriptResult = nil
-		fridaScriptError = nil
-		showFridaScript = true
-
-		Task {
-			let result = fridaGenerator.generateHookScript(
-				function: function,
-				binary: binary,
-				platform: selectedFridaPlatform,
-				hookType: selectedFridaHookType,
-				bypassTechniques: preConfiguredBypassTechniques,
-				patchPoints: preConfiguredPatchPoints
-			)
-
-			await MainActor.run {
-				fridaScriptResult = result
-				isGeneratingFridaScript = false
-			}
-		}
+//		guard let binary = selectedBinary, let function = selectedFunction else {
+//			fridaScriptError = "Please select a function first"
+//			showFridaScript = true
+//			return
+//		}
+//
+//		isGeneratingFridaScript = true
+//		fridaScriptResult = nil
+//		aiFridaScriptResult = nil
+//		fridaScriptError = nil
+//		showFridaScript = true
+//
+//		Task {
+//			let result = fridaGenerator.generateHookScript(
+//				function: function,
+//				binary: binary,
+//				platform: selectedFridaPlatform,
+//				hookType: selectedFridaHookType,
+//				bypassTechniques: preConfiguredBypassTechniques,
+//				patchPoints: preConfiguredPatchPoints
+//			)
+//
+//			await MainActor.run {
+//				fridaScriptResult = result
+//				isGeneratingFridaScript = false
+//			}
+//		}
 	}
 
 	func generateFridaScriptWithAI() {
-		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
-			// Fallback to basic generation
-			generateFridaScript()
-			return
-		}
-
-		guard currentFile != nil, let function = selectedFunction else {
-			fridaScriptError = "Please select a function first"
-			showFridaScript = true
-			return
-		}
-
-		isGeneratingFridaScript = true
-		fridaScriptResult = nil
-		aiFridaScriptResult = nil
-		fridaScriptError = nil
-		showFridaScript = true
-
-		Task {
-			do {
-				let instructions = await disassembleFunction(function)
-				let disassembly = instructions.prefix(150).map { insn in
-					String(format: "0x%llX: %@ %@", insn.address, insn.mnemonic, insn.operands)
-				}.joined(separator: "\n")
-
-				// Use security findings if available
-				let securityFindings = securityAnalysisResult?.findings.map { $0.description } ?? []
-				let bypassTechniques = preConfiguredBypassTechniques.isEmpty
-				? (securityAnalysisResult?.bypassTechniques ?? [])
-				: preConfiguredBypassTechniques
-
-				let result = try await aiClient.generateFridaScriptAsync(
-					functionName: function.displayName,
-					decompiledCode: decompilerOutput,
-					disassembly: disassembly,
-					securityFindings: securityFindings,
-					bypassTechniques: bypassTechniques,
-					platform: selectedFridaPlatform.rawValue,
-					hookType: selectedFridaHookType.rawValue,
-					apiKey: apiKey
-				)
-
-				await MainActor.run {
-					aiFridaScriptResult = result
-					isGeneratingFridaScript = false
-				}
-			} catch {
-				await MainActor.run {
-					fridaScriptError = error.localizedDescription
-					isGeneratingFridaScript = false
-				}
-			}
-		}
+//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
+//			// Fallback to basic generation
+//			generateFridaScript()
+//			return
+//		}
+//
+//		guard selectedBinary != nil, let function = selectedFunction else {
+//			fridaScriptError = "Please select a function first"
+//			showFridaScript = true
+//			return
+//		}
+//
+//		isGeneratingFridaScript = true
+//		fridaScriptResult = nil
+//		aiFridaScriptResult = nil
+//		fridaScriptError = nil
+//		showFridaScript = true
+//
+//		Task {
+//			do {
+//				let instructions = await disassembleFunction(function)
+//				let disassembly = instructions.prefix(150).map { insn in
+//					String(format: "0x%llX: %@ %@", insn.address, insn.mnemonic, insn.operands)
+//				}.joined(separator: "\n")
+//
+//				// Use security findings if available
+//				let securityFindings = securityAnalysisResult?.findings.map { $0.description } ?? []
+//				let bypassTechniques = preConfiguredBypassTechniques.isEmpty
+//				? (securityAnalysisResult?.bypassTechniques ?? [])
+//				: preConfiguredBypassTechniques
+//
+//				let result = try await aiClient.generateFridaScriptAsync(
+//					functionName: function.displayName,
+//					decompiledCode: decompilerOutput,
+//					disassembly: disassembly,
+//					securityFindings: securityFindings,
+//					bypassTechniques: bypassTechniques,
+//					platform: selectedFridaPlatform.rawValue,
+//					hookType: selectedFridaHookType.rawValue,
+//					apiKey: apiKey
+//				)
+//
+//				await MainActor.run {
+//					aiFridaScriptResult = result
+//					isGeneratingFridaScript = false
+//				}
+//			} catch {
+//				await MainActor.run {
+//					fridaScriptError = error.localizedDescription
+//					isGeneratingFridaScript = false
+//				}
+//			}
+//		}
 	}
 
 	func generateFridaFromSecurityAnalysis(_ securityResult: SecurityAnalysisResult) {
-		// Pre-configure the generator with security analysis results
-		selectedFridaHookType = .bypass
-		preConfiguredBypassTechniques = securityResult.bypassTechniques
-		preConfiguredPatchPoints = securityResult.patchPoints
-
-		// Generate with AI if available, otherwise basic
-		if hasAIAPIKey {
-			generateFridaScriptWithAI()
-		} else {
-			generateFridaScript()
-		}
+//		// Pre-configure the generator with security analysis results
+//		selectedFridaHookType = .bypass
+//		preConfiguredBypassTechniques = securityResult.bypassTechniques
+//		preConfiguredPatchPoints = securityResult.patchPoints
+//
+//		// Generate with AI if available, otherwise basic
+//		if hasAIAPIKey {
+//			generateFridaScriptWithAI()
+//		} else {
+//			generateFridaScript()
+//		}
 	}
 
 	func generateMultiFunctionFridaScript() {
-		guard let binary = currentFile else {
-			fridaScriptError = "No binary loaded"
-			showFridaScript = true
-			return
-		}
-
-		guard !functions.isEmpty else {
-			fridaScriptError = "No functions found. Run analysis first."
-			showFridaScript = true
-			return
-		}
-
-		isGeneratingFridaScript = true
-		fridaScriptResult = nil
-		aiFridaScriptResult = nil
-		fridaScriptError = nil
-		showFridaScript = true
-
-		Task {
-			// Use first 10 functions for multi-hook
-			let targetFunctions = Array(functions.prefix(10))
-			let result = fridaGenerator.generateMultiHookScript(
-				functions: targetFunctions,
-				binary: binary,
-				platform: selectedFridaPlatform
-			)
-
-			await MainActor.run {
-				fridaScriptResult = result
-				isGeneratingFridaScript = false
-			}
-		}
+//		guard let binary = selectedBinary else {
+//			fridaScriptError = "No binary loaded"
+//			showFridaScript = true
+//			return
+//		}
+//
+//		guard !functions.isEmpty else {
+//			fridaScriptError = "No functions found. Run analysis first."
+//			showFridaScript = true
+//			return
+//		}
+//
+//		isGeneratingFridaScript = true
+//		fridaScriptResult = nil
+//		aiFridaScriptResult = nil
+//		fridaScriptError = nil
+//		showFridaScript = true
+//
+//		Task {
+//			// Use first 10 functions for multi-hook
+//			let targetFunctions = Array(functions.prefix(10))
+//			let result = fridaGenerator.generateMultiHookScript(
+//				functions: targetFunctions,
+//				binary: binary,
+//				platform: selectedFridaPlatform
+//			)
+//
+//			await MainActor.run {
+//				fridaScriptResult = result
+//				isGeneratingFridaScript = false
+//			}
+//		}
 	}
 
 	// MARK: - Patching
 
 	func patchBytes(at address: UInt64, newBytes: [UInt8], description: String) {
-		guard let patcher = patcher else { return }
-
-		do {
-			let patch = try patcher.createPatch(at: address, newBytes: newBytes, description: description)
-			try patcher.applyPatch(patch)
-			patches = patcher.getAllPatches()
-			hasUnsavedChanges = true
-
-			// Clear cache for affected section
-			clearDisassemblyCache(in: address..<(address + UInt64(newBytes.count)))
-		} catch {
-			errorMessage = error.localizedDescription
-			showError = true
-		}
+//		guard let patcher = patcher else { return }
+//
+//		do {
+//			let patch = try patcher.createPatch(at: address, newBytes: newBytes, description: description)
+//			try patcher.applyPatch(patch)
+//			patches = patcher.getAllPatches()
+//			hasUnsavedChanges = true
+//
+//			// Clear cache for affected section
+//			clearDisassemblyCache(in: address..<(address + UInt64(newBytes.count)))
+//		} catch {
+//			errorMessage = error.localizedDescription
+//			showError = true
+//		}
 	}
 
 	func nopInstruction(at address: UInt64, size: Int) {
-		guard let patcher = patcher else { return }
-
-		do {
-			let patch = try patcher.createNOPPatch(at: address, size: size, description: "NOP at \(String(format: "0x%llX", address))")
-			try patcher.applyPatch(patch)
-			patches = patcher.getAllPatches()
-			hasUnsavedChanges = true
-			clearDisassemblyCache(in: address..<(address + UInt64(size)))
-		} catch {
-			errorMessage = error.localizedDescription
-			showError = true
-		}
+//		guard let patcher = patcher else { return }
+//
+//		do {
+//			let patch = try patcher.createNOPPatch(at: address, size: size, description: "NOP at \(String(format: "0x%llX", address))")
+//			try patcher.applyPatch(patch)
+//			patches = patcher.getAllPatches()
+//			hasUnsavedChanges = true
+//			clearDisassemblyCache(in: address..<(address + UInt64(size)))
+//		} catch {
+//			errorMessage = error.localizedDescription
+//			showError = true
+//		}
 	}
 
 	func revertPatch(_ patch: BinaryPatcher.Patch) {
-		guard let patcher = patcher else { return }
-
-		do {
-			try patcher.revertPatch(patch)
-			patches = patcher.getAllPatches()
-			hasUnsavedChanges = patches.contains { $0.isApplied }
-			clearDisassemblyCache(in: patch.address..<(patch.address + UInt64(patch.newBytes.count)))
-		} catch {
-			errorMessage = error.localizedDescription
-			showError = true
-		}
-	}
-
-	func saveFile() {
-		guard currentFile != nil else { return }
-		preconditionFailure("cannot save without URL")
-	}
-
-	func saveFileAs() {
-		let panel = NSSavePanel()
-		panel.allowedContentTypes = [.data]
-		panel.nameFieldStringValue = currentFile?.name ?? "patched_binary"
-		panel.message = "Save patched binary"
-
-		if panel.runModal() == .OK, let url = panel.url {
-			saveFile(to: url)
-		}
-	}
-
-	func saveFile(to url: URL) {
-		guard let patcher = patcher else { return }
-
-		do {
-			try patcher.save(to: url)
-			hasUnsavedChanges = false
-			loadingMessage = "Saved to \(url.lastPathComponent)"
-		} catch {
-			errorMessage = "Failed to save: \(error.localizedDescription)"
-			showError = true
-		}
+//		guard let patcher = patcher else { return }
+//
+//		do {
+//			try patcher.revertPatch(patch)
+//			patches = patcher.getAllPatches()
+//			hasUnsavedChanges = patches.contains { $0.isApplied }
+//			clearDisassemblyCache(in: patch.address..<(patch.address + UInt64(patch.newBytes.count)))
+//		} catch {
+//			errorMessage = error.localizedDescription
+//			showError = true
+//		}
 	}
 
 	// MARK: - Disassembly
@@ -1443,7 +1219,7 @@ final class AppState {
 	}
 
 	private func disassembleIfNecessary(_ addresses: Range<UInt64>) async {
-		guard let currentFile else { return }
+		guard let selectedBinary else { return }
 		// The address ranges that haven't been disassembled yet
 		let requestedSet = RangeSet(addresses)
 		let remaining = requestedSet.subtracting(disassembled)
@@ -1451,9 +1227,9 @@ final class AppState {
 		for range in remaining.ranges {
 			// disassemble the range
 			var result = await disassembler.disassemble(
-				data: currentFile.data(in: range),
+				data: selectedBinary.data(in: range),
 				address: range.lowerBound,
-				architecture: currentFile.architecture
+				architecture: selectedBinary.architecture
 			)
 			guard !result.instructions.isEmpty else { continue }
 			instructionMap.reserveCapacity(instructionMap.count + result.instructions.count)
@@ -1574,14 +1350,15 @@ final class AppState {
 	// MARK: - Search
 
 	func search(query: String, type: SearchType) async {
-		guard let binary = currentFile else { return }
+		guard let binary = selectedBinary else { return }
 
 		isSearching = true
 		searchResults = []
 
 		switch type {
 		case .all:
-			await searchAll(query: query, binary: binary)
+//			await searchAll(query: query, binary: binary)
+			break
 		case .functions:
 			searchResults = searchFunctions(query: query)
 		case .strings:
@@ -1589,7 +1366,8 @@ final class AppState {
 		case .symbols:
 			searchResults = searchSymbols(query: query)
 		case .bytes:
-			searchResults = await searchBytes(query: query, binary: binary)
+//			searchResults = await searchBytes(query: query, binary: binary)
+			break
 		case .address:
 			if let address = parseAddress(query) {
 				searchResults = [SearchResult(name: String(format: "0x%llX", address), address: address, type: .address)]
@@ -1620,31 +1398,34 @@ final class AppState {
 	}
 
 	private func searchFunctions(query: String) -> [SearchResult] {
-		let lowercaseQuery = query.lowercased()
-		return functions.filter {
-			$0.displayName.lowercased().contains(lowercaseQuery) ||
-			getDisplayName(forFunctionAt: $0.startAddress).lowercased().contains(lowercaseQuery)
-		}.map {
-			SearchResult(name: getDisplayName(forFunctionAt: $0.startAddress), address: $0.startAddress, type: .function)
-		}
+//		let lowercaseQuery = query.lowercased()
+//		return functions.filter {
+//			$0.displayName.lowercased().contains(lowercaseQuery) ||
+//			getDisplayName(forFunctionAt: $0.startAddress).lowercased().contains(lowercaseQuery)
+//		}.map {
+//			SearchResult(name: getDisplayName(forFunctionAt: $0.startAddress), address: $0.startAddress, type: .function)
+//		}
+		[]
 	}
 
 	private func searchStrings(query: String) -> [SearchResult] {
-		let lowercaseQuery = query.lowercased()
-		return strings.filter {
-			$0.value.lowercased().contains(lowercaseQuery)
-		}.map {
-			SearchResult(name: $0.value, address: $0.address, type: .string)
-		}
+//		let lowercaseQuery = query.lowercased()
+//		return strings.filter {
+//			$0.value.lowercased().contains(lowercaseQuery)
+//		}.map {
+//			SearchResult(name: $0.value, address: $0.address, type: .string)
+//		}
+		[]
 	}
 
 	private func searchSymbols(query: String) -> [SearchResult] {
-		let lowercaseQuery = query.lowercased()
-		return symbols.filter {
-			$0.displayName.lowercased().contains(lowercaseQuery)
-		}.map {
-			SearchResult(name: $0.displayName, address: $0.address, type: .symbol)
-		}
+//		let lowercaseQuery = query.lowercased()
+//		return symbols.filter {
+//			$0.displayName.lowercased().contains(lowercaseQuery)
+//		}.map {
+//			SearchResult(name: $0.displayName, address: $0.address, type: .symbol)
+//		}
+		[]
 	}
 
 	private func searchBytes(query: String, binary: BinaryFile) async -> [SearchResult] {
@@ -1696,11 +1477,11 @@ final class AppState {
 	// MARK: - Cross References
 
 	func getXRefsTo(address: UInt64) -> [CrossReference] {
-		return xrefs.filter { $0.toAddress == address }
+		[]
 	}
 
 	func getXRefsFrom(address: UInt64) -> [CrossReference] {
-		return xrefs.filter { $0.fromAddress == address }
+		[]
 	}
 
 	// MARK: - Undo/Redo
@@ -1721,7 +1502,7 @@ final class AppState {
 
 	func saveProject(to url: URL) throws {
 		let project = ProjectData(
-			binaryData: currentFile?.data ?? Data(),
+			binaryData: selectedBinary?.data ?? Data(),
 			renamedFunctions: renamedFunctions,
 			renamedSymbols: renamedSymbols,
 			comments: comments,
@@ -1741,7 +1522,7 @@ final class AppState {
 		let project = try decoder.decode(ProjectData.self, from: data)
 
 		// Load the binary first
-		await loadFile(data: project.binaryData)
+//		await loadFile(data: project.binaryData)
 
 		// Restore annotations
 		renamedFunctions = project.renamedFunctions
@@ -1773,7 +1554,7 @@ final class AppState {
 	func saveProjectAs() {
 		let panel = NSSavePanel()
 		panel.allowedContentTypes = [.json]
-		panel.nameFieldStringValue = "\(currentFile?.name ?? "project").dproj"
+		panel.nameFieldStringValue = "\(selectedBinary?.name ?? "project").dproj"
 		panel.message = "Save Aether Project"
 
 		if panel.runModal() == .OK, let url = panel.url {
