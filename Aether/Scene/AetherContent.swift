@@ -121,7 +121,8 @@ struct AetherContentView: View {
 						// Read off the main actor so large files don't freeze the UI
 						let start = ContinuousClock.now
 						let data = try await Task.detached(priority: .userInitiated) {
-							try Data(contentsOf: url)
+							// Memory-map when possible so large binaries are not copied from disk
+							try Data(contentsOf: url, options: .mappedIfSafe)
 						}.value
 						Logger.app.info("Drop: read \(data.count) bytes in \(start.duration(to: .now).logDescription)")
 						await appState.loadFile(data: data)

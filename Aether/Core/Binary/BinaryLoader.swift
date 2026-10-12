@@ -52,7 +52,8 @@ nonisolated final class BinaryLoader {
 			throw BinaryLoaderError.fileNotFound(url)
 		}
 
-		let data = try Data(contentsOf: url)
+		// Memory-map when possible so large binaries are not copied from disk
+		let data = try Data(contentsOf: url, options: .mappedIfSafe)
 		return try load(from: data)
 	}
 

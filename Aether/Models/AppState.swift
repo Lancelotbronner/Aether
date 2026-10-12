@@ -189,7 +189,8 @@ final class AppState {
 				// Read off the main actor so large files don't freeze the UI
 				let start = ContinuousClock.now
 				let data = try await Task.detached(priority: .userInitiated) {
-					try Data(contentsOf: url)
+					// Memory-map when possible so large binaries are not copied from disk
+					try Data(contentsOf: url, options: .mappedIfSafe)
 				}.value
 				Logger.app.info("Read \(data.count) bytes in \(start.duration(to: .now).logDescription)")
 				await loadFile(data: data)
@@ -262,33 +263,36 @@ final class AppState {
 
 			try Task.checkCancellation()
 
-			// Process symbols
+			// Process symbols in a single pass: imports, exports, functions and lookup caches
 			let postProcessStart = ContinuousClock.now
-			let imports = binary.symbols.filter { $0.isImport }
-			let exports = binary.symbols.filter { $0.isExport }
 			let symbols = binary.symbols
+			var imports: [Symbol] = []
+			var exports: [Symbol] = []
+			var functions: [Function] = []
+			functions.reserveCapacity(symbols.count / 2)
+			var symbolsByAddress: [UInt64: Symbol] = [:]
+			symbolsByAddress.reserveCapacity(symbols.count)
+			var symbolsByName: [String: Symbol] = [:]
+			symbolsByName.reserveCapacity(symbols.count)
 
-			try Task.checkCancellation()
-
-			// Get functions from symbols
-			let functions = binary.symbols.lazy
-				.filter { $0.type == .function && $0.address != 0 }
-				.map { Function(name: $0.name, startAddress: $0.address, endAddress: $0.address + max($0.size, 256)) }
-				.sorted { $0.startAddress < $1.startAddress }
-
-			try Task.checkCancellation()
-
-			// Build lookup caches
-			let symbolsByAddress = symbols.reduce(into: [UInt64: Symbol]()) { dict, symbol in
-				if symbol.address != 0 && dict[symbol.address] == nil {
-					dict[symbol.address] = symbol
+			for symbol in symbols {
+				if symbol.isImport {
+					imports.append(symbol)
 				}
-			}
-			let symbolsByName = symbols.reduce(into: [String: Symbol]()) { dict, symbol in
-				if dict[symbol.name] == nil {
-					dict[symbol.name] = symbol
+				if symbol.isExport {
+					exports.append(symbol)
 				}
+				if symbol.type == .function && symbol.address != 0 {
+					functions.append(Function(name: symbol.name, startAddress: symbol.address, endAddress: symbol.address + max(symbol.size, 256)))
+				}
+				if symbol.address != 0 {
+					symbolsByAddress[symbol.address, default: symbol] = symbol
+				}
+				symbolsByName[symbol.name, default: symbol] = symbol
 			}
+
+			functions.sort { $0.startAddress < $1.startAddress }
+
 			let functionsByAddress = functions.reduce(into: [UInt64: Function]()) { dict, func_ in
 				if dict[func_.startAddress] == nil {
 					dict[func_.startAddress] = func_
