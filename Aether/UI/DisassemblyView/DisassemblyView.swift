@@ -29,7 +29,7 @@ struct DisassemblyView: View {
 			}
 
 			// Content
-			if appState.currentFile == nil {
+			if appState.selectedBinary == nil {
 				ContentUnavailableView("No binary loaded", systemImage: "doc.badge.plus", description: Text("Open a binary file or drag and drop one here"))
 					.frame(maxWidth: .infinity, maxHeight: .infinity)
 			} else if isLoading {
@@ -69,13 +69,13 @@ struct DisassemblyView: View {
 			}
 		}
 		.background(Color.background)
-		.onChange(of: appState.currentFile?.id) { _, _ in
+		.onChange(of: appState.selectedBinary) {
 			loadInstructions()
 		}
-		.onChange(of: appState.selectedFunction?.id) { _, _ in
+		.onChange(of: appState.selectedFunction) {
 			loadInstructions()
 		}
-		.onChange(of: appState.selectedSection?.id) { _, _ in
+		.onChange(of: appState.selectedSection) {
 			loadInstructions()
 		}
 		.onAppear {
@@ -90,26 +90,26 @@ struct DisassemblyView: View {
 	}
 
 	private func loadInstructions() {
-//		isLoading = true
-//
-//		Task {
-//			var result: ArraySlice<Instruction> = []
-//
-//			if let function = appState.selectedFunction {
-//				result = await appState.disassembleFunction(function)
-//			} else if let section = appState.selectedSection, section.containsCode {
-//				result = await appState.disassemble(section: section)
-//			}
-//
-//			// Limit instructions to prevent UI freeze
-//			result = result.prefix(maxInstructions)
-//			instructions = result
-//
-//			// Analyze branches
-//			branches = BranchAnalyzer.analyzeBranches(instructions: instructions)
-//
-//			isLoading = false
-//		}
+		isLoading = true
+
+		Task {
+			var result: ArraySlice<Instruction> = []
+
+			if let function = appState.selectedFunction {
+				result = await appState.disassembleFunction(function)
+			} else if let section = appState.selectedSection, section.containsCode {
+				result = await appState.disassemble(section: section)
+			}
+
+			// Limit instructions to prevent UI freeze
+			result = result.prefix(maxInstructions)
+			instructions = result
+
+			// Analyze branches
+			branches = BranchAnalyzer.analyzeBranches(instructions: instructions)
+
+			isLoading = false
+		}
 	}
 }
 

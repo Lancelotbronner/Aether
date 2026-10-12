@@ -22,10 +22,9 @@ struct FunctionsTab: View {
 		VStack(alignment: .leading) {
 			TextField("Search", text: $searchText, prompt: Text("Filter"))
 			
-			List(procedures, selection: $appState.selectedFunction) { func_ in
+			List(procedures, selection: $appState.functionNavigator) { func_ in
 				FunctionRow(function: func_, isSelected: appState.selectedFunction == func_)
 					.tag(func_)
-					.id(func_.symbol.address)
 					.listRowSeparator(.hidden)
 			}
 		}

@@ -25,8 +25,10 @@ final class AppState {
 	var functionNavigator: ProcedureModel? {
 		get { selectedFunction }
 		set {
-			guard let selectedFunction else { return }
-			goToAddress(selectedFunction.symbol.address)
+			guard let newValue else { return }
+			selectedBinary = newValue.binary
+			selectedFunction = newValue
+			goToAddress(newValue.symbol.address)
 		}
 	}
 
@@ -1249,14 +1251,14 @@ final class AppState {
 		}
 	}
 
-	func disassemble(section: _Section) async -> ArraySlice<Instruction> {
+	func disassemble(section: SectionModel) async -> ArraySlice<Instruction> {
 		await disassembleIfNecessary(section.addressRange)
 		return instructions(in: section.addressRange)
 	}
 
-	func disassembleFunction(_ function: Function) async -> ArraySlice<Instruction> {
-		await disassembleIfNecessary(function.addressRange)
-		return instructions(in: function.addressRange)
+	func disassembleFunction(_ function: ProcedureModel) async -> ArraySlice<Instruction> {
+		await disassembleIfNecessary(function.symbol.addressRange)
+		return instructions(in: function.symbol.addressRange)
 	}
 
 	func disassembleRange(start: UInt64, end: UInt64) async -> ArraySlice<Instruction> {

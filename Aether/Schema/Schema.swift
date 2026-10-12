@@ -229,7 +229,7 @@ extension Schema {
 	var identifier = ""
 	var name = ""
 	var address: UInt64 = 0
-	var size: UInt64 = 0
+	var size: UInt64 = 1
 	var type = SymbolType.unknown
 	var binding = SymbolBinding.undefined
 	var isImport = false
@@ -318,7 +318,8 @@ extension Schema {
 	}
 
 	func contains(address: UInt64) -> Bool {
-		symbol.addressRange.contains(address)
+		let range = symbol.addressRange
+		return range.contains(address)
 	}
 
 	var displayName: String {
