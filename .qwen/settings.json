@@ -1,0 +1,10 @@
+{
+  "skills": {
+    "enabled": [
+      "the-swiftui-way",
+      "swiftui-whats-new-27",
+      "swiftui-specialist"
+    ]
+  },
+  "$version": 4
+}
