@@ -2,7 +2,6 @@
 
 Method: `the-swiftui-way` checklist (view-value comparison vs @Observable dependency tracking,
 minimum dependencies, stable identity, async in `.task(id:)`, no per-row inline work).
-Status: IN PROGRESS — sections are appended as files are read.
 
 Scope traced so far:
 `AetherScene` → `AetherContentView` → `AetherSidebar` (+ navigators), `DetailView` →

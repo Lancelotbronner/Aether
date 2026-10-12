@@ -27,6 +27,7 @@
   ],
   "files": [
     { "path": "AGENTS.md" },
+    { "path": "SwiftUI.md" },
     { "path": "CoreAether" },
     { "path": "AetherKit" },
     {

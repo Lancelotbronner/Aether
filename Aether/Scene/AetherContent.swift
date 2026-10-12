@@ -5,7 +5,6 @@ import AetherKit
 
 struct AetherContentView: View {
 	@Environment(\.undoManager) private var undoManager
-	@State private var isTargeted = false
 	@Environment(AppState.self) private var appState
 
 	var body: some View {
@@ -23,15 +22,9 @@ struct AetherContentView: View {
 			Inspector()
 		}
 		.onAppear { appState.undoManager = undoManager }
-		.sheet(isPresented: $appState.showGoToAddress) {
-			GoToAddressSheet()
-		}
-		.sheet(isPresented: $appState.showSearch) {
-			SearchView()
-		}
-		.sheet(isPresented: $appState.showCallGraph) {
-			CallGraphWindowView()
-		}
+		.modifier(GoToAddressSheetModifier())
+		.modifier(SearchSheetModifier())
+		.modifier(CallGraphModifier())
 		.sheet(isPresented: $appState.showCryptoDetection) {
 			CryptoDetectionView()
 		}
@@ -81,28 +74,58 @@ struct AetherContentView: View {
 		.sheet(isPresented: $appState.showMalwareFlow) {
 			MalwareFlowView()
 		}
-		.onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
-			handleDrop(providers: providers)
-		}
-		.overlay {
-			if appState.isLoading {
-				LoadingOverlay(
-					message: appState.loadingMessage,
-					progress: appState.loadingProgress
-				)
-			}
-
-			// Show welcome message when no file is loaded
-			if appState.currentFile == nil && !appState.isLoading {
-				WelcomeView()
-			}
-		}
+		.modifier(LoadOnDropModifier())
+		.modifier(OverlayModifier())
 		.alert("Error", isPresented: $appState.showError) {
 			Button("OK") {
 				appState.showError = false
 			}
 		} message: {
 			Text(appState.errorMessage ?? "Unknown error")
+		}
+	}
+}
+
+private struct DetailView: View {
+	@State private var bottomPanelHeight: CGFloat = 200
+	@Environment(AppState.self) var appState
+
+	var body: some View {
+		VStack(spacing: 0) {
+			HSplitView {
+				DisassemblyView()
+					.frame(minWidth: 350)
+
+				if appState.showDecompiler {
+					DecompilerView()
+						.frame(minWidth: 350)
+				}
+			}
+
+			if appState.showHexView || appState.showCFG {
+				Divider()
+
+				Group {
+					if appState.showCFG {
+						CFGView()
+					} else if appState.showHexView {
+						HexView()
+					}
+				}
+				.frame(minHeight: 100, idealHeight: bottomPanelHeight, maxHeight: 400)
+			}
+			
+			StatusBarView()
+		}
+	}
+}
+
+private struct LoadOnDropModifier: ViewModifier {
+	@State private var isTargeted = false
+
+	func body(content: Content) -> some View {
+		content.onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
+			handleDrop(providers: providers)
 		}
 	}
 
@@ -139,36 +162,99 @@ struct AetherContentView: View {
 	}
 }
 
-private struct DetailView: View {
-	@State private var bottomPanelHeight: CGFloat = 200
-	@Environment(AppState.self) var appState
+private struct OverlayModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
 
-	var body: some View {
-		VStack(spacing: 0) {
-			HSplitView {
-				DisassemblyView()
-					.frame(minWidth: 350)
-
-				if appState.showDecompiler {
-					DecompilerView()
-						.frame(minWidth: 350)
-				}
+	func body(content: Content) -> some View {
+		content.overlay {
+			if appState.isLoading {
+				LoadingOverlay(
+					message: appState.loadingMessage,
+					progress: appState.loadingProgress
+				)
 			}
 
-			if appState.showHexView || appState.showCFG {
-				Divider()
-
-				ZStack {
-					if appState.showCFG {
-						CFGView()
-					} else if appState.showHexView {
-						HexView()
-					}
-				}
-				.frame(minHeight: 100, idealHeight: bottomPanelHeight, maxHeight: 400)
+			// Show welcome message when no file is loaded
+			if appState.currentFile == nil && !appState.isLoading {
+				WelcomeView()
 			}
-			
-			StatusBarView()
+		}
+	}
+}
+
+private struct GoToAddressSheetModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showGoToAddress) {
+			GoToAddressSheet()
+		}
+	}
+}
+
+private struct SearchSheetModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showSearch) {
+			SearchView()
+		}
+	}
+}
+
+private struct CallGraphModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showCallGraph) {
+			CallGraphWindowView()
+		}
+	}
+}
+
+private struct GoToAddressSheetViewModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showGoToAddress) {
+			GoToAddressSheet()
+		}
+	}
+}
+
+private struct GoToAddressSheetViewModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showGoToAddress) {
+			GoToAddressSheet()
+		}
+	}
+}
+
+private struct GoToAddressSheetViewModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showGoToAddress) {
+			GoToAddressSheet()
+		}
+	}
+}
+
+private struct GoToAddressSheetViewModifier: ViewModifier {
+	@Environment(AppState.self) private var appState
+
+	func body(content: Content) -> some View {
+		@Bindable var appState = appState
+		content.sheet(isPresented: $appState.showGoToAddress) {
+			GoToAddressSheet()
 		}
 	}
 }
