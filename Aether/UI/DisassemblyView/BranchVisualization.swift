@@ -572,7 +572,7 @@ struct EnhancedInstructionRow: View {
 			}
 
 			// Comment
-			if let userComment = appState.comments[instruction.address] {
+			if let userComment = appState.getComment(at: instruction.address) {
 				Text("; \(userComment)")
 					.font(.system(.caption, design: .monospaced))
 					.foregroundColor(.yellow)

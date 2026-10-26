@@ -38,8 +38,10 @@ struct FunctionRow: View {
 	@State private var showRenameSheet = false
 	@State private var newName = ""
 
+	// Renames live on the symbol model now (Task 5), so the model's
+	// shortDisplayName already reflects a renamed function.
 	var displayName: String {
-		appState.renamedFunctions[function.symbol.address] ?? function.shortDisplayName
+		function.shortDisplayName
 	}
 
 	var body: some View {

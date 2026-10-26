@@ -1,10 +1,12 @@
 import SwiftUI
+import SwiftData
 import UniformTypeIdentifiers
 import OSLog
 import AetherKit
 
 struct AetherContentView: View {
 	@Environment(\.undoManager) private var undoManager
+	@Environment(\.modelContext) private var modelContext
 	@Environment(AppState.self) private var appState
 
 	var body: some View {
@@ -21,7 +23,10 @@ struct AetherContentView: View {
 		.inspector(isPresented: $appState.isInspectorPresented) {
 			Inspector()
 		}
-		.onAppear { appState.undoManager = undoManager }
+		.onAppear {
+			appState.undoManager = undoManager
+			appState.modelContext = modelContext
+		}
 		.modifier(GoToAddressSheetModifier())
 		.modifier(SearchSheetModifier())
 		.modifier(CallGraphModifier())

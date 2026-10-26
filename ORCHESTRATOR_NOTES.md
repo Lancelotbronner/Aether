@@ -51,3 +51,20 @@ Goal: complete the transition from ad-hoc project state (god-model `AppState`, `
 - `clearDisassemblyCache` deleted (zero live callers, delete branch per plan) + its 3 commented call sites removed; grep confirms 0 references under `Aether/`. Diff matches report exactly.
 - **Important audit findings for Tasks 8/10 (handoff 05 §2):** (1) stale-cache risk — the AppState disassembly cache (`disassembled` RangeSet is union-only) survives Task 2's reset-first re-Load, so a re-Load serves pre-Load cached instructions; a `data(in:) == nil` skip is *permanently* marked disassembled because `formUnion` runs before the read; (2) **latent underflow trap** in `instructions(in:)` (~line 1204): `guard remaining - c >= 0 else { break }` underflows `UInt64` before comparing when a later-cached range sits past the requested one — repro: function A → higher-address function B → A again. Directly blocks Task 8's "switch between functions" acceptance. Both documented, not fixed (Task 4 scope was deletion); the underflow fix must land with or before Task 8.
 - **Process note (user, 2026-10-26 mid-session):** Xcode MCP server added by the user — orchestrator to verify with a request; agents may use its tools if it works. User also **authorized `git push` after commits** — pushing `experiment/swift-data` to origin after each commit from now on.
+- Pushed `f084113..4dfd0ae` to origin (`experiment/swift-data`) — remote now current.
+
+### Orchestrator — Xcode MCP verification (2026-10-26)
+- **Works.** `mcp__xcode__XcodeListWorkspaces` → workspace `windowtab-R99exWJFNH` (identifier format `windowtab-<random>`, likely changes when Xcode restarts — agents must call `XcodeListWorkspaces` first; the raw project path is NOT accepted as `workspaceIdentifier`). `XcodeListSchemes` then returns all 6 schemes (Aether active, AetherKit, AetherTests, Cartograph, CoreAether, Tests). The 2026-10-12 "no schemes" limitation is gone — project memory updated.
+- Agents may use `mcp__xcode__BuildProject` (etc.) for builds, but the canonical verification stays `xcodebuild … build` via shell (deterministic, log-capturable); MCP build is a fine supplement.
+
+### 2026-10-26 Agent 6 launch FAILED — context overflow; orchestrator executes Task 5 directly
+- `agent` tool (general-purpose, foreground) refused to spawn: "Context is too large to send safely after automatic compression. Estimated prompt tokens: 129242; hard limit: 127000". Agents 1–5 spawned fine; the difference is that the mid-session Xcode MCP `tool_search` results (~18 large tool schemas) bloated the session context that subagent spawns inherit.
+- Decision: orchestrator executes Task 5 inline under the same constraints/deliverables Agent 6 would have had (handoff 06, PLAN.md progress entry, green xcodebuild, no commits by me mid-task — commit after verification as always). Subagent launches will be retried for Task 6 onward once the MCP schema noise has been compressed out of context.
+
+### 2026-10-26 Orchestrator executing Task 5 (annotations/bookmarks/renames modelization + undo via modelContext)
+
+### Task 5 complete (orchestrator-executed) — committing
+- Dicts deleted; renames → `SymbolModel.name` (original in `identifier`), comments → `AnnotationModel`, bookmarks → `BookmarkModel`; `AppState.modelContext` captured in `AetherContentView.onAppear`. View readers converted (`FunctionRow.displayName`, `BranchVisualization` comment). Dead `getDisplayName` helpers + `ProjectData` annotation fields reconciled (full detail: handoff 06 + PLAN.md entry).
+- **Undo finding:** `modelContext.undoManager` is not assigned by the DocumentGroup bridge → per task rule, manual `registerUndoRedo` kept (now mutating models; delete-undo rebuilds fresh objects). Native SwiftData auto-undo recorded as follow-up.
+- Red build once: missing `import SwiftData` in `AetherContent.swift` (`\.modelContext` env value) — fixed; `** BUILD SUCCEEDED ** [5.100 sec]`. Grep: zero live dict references.
+- Next: retry Agent 7 for Task 6 (strings/B11) — if the subagent context is still over the limit, continue inline.

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Combine
 import UniformTypeIdentifiers
 import OSLog
@@ -146,10 +147,10 @@ final class AppState {
 	var hasUnsavedChanges = false
 
 	// MARK: - User Annotations
-	var renamedFunctions: [UInt64: String] = [:]
-	var renamedSymbols: [UInt64: String] = [:]
-	var comments: [UInt64: String] = [:]
-	var bookmarks: [UInt64: Bookmark] = [:]
+	// Renames, comments, and bookmarks are SwiftData rows now
+	// (SymbolModel.name, AnnotationModel, BookmarkModel) — the model-backed
+	// mutators below keep them in the document, with undo through the
+	// window's UndoManager via registerUndoRedo.
 
 	// MARK: - Search State
 	var searchResults: [SearchResult] = []
@@ -157,6 +158,7 @@ final class AppState {
 
 	// MARK: - Services
 	@ObservationIgnored var undoManager: UndoManager?
+	@ObservationIgnored var modelContext: ModelContext?
 	private let binaryLoader = BinaryLoader()
 	private let disassembler = DisassemblerEngine()
 	private let functionAnalyzer = FunctionAnalyzer()
@@ -1258,86 +1260,103 @@ final class AppState {
 	}
 
 	// MARK: - Rename Functions/Symbols
+	//
+	// A rename writes SymbolModel.name (the original name stays in
+	// `identifier`); empty name restores `identifier` (un-rename).
+
+	private func symbol(at address: UInt64, preferProcedure: Bool) -> SymbolModel? {
+		guard let binary = selectedBinary else { return nil }
+		if preferProcedure {
+			return binary.procedures.first { $0.symbol.address == address }?.symbol
+				?? binary.symbols.first { $0.address == address }
+		}
+		return binary.symbols.first { $0.address == address }
+			?? binary.procedures.first { $0.symbol.address == address }?.symbol
+	}
+
+	private func rename(_ address: UInt64, to newName: String, preferProcedure: Bool) {
+		guard let symbol = symbol(at: address, preferProcedure: preferProcedure) else { return }
+		let oldName = symbol.name
+		let applied = newName.isEmpty ? symbol.identifier : newName
+		registerUndoRedo {
+			symbol.name = oldName
+		} redo: {
+			symbol.name = applied
+		}
+	}
 
 	func renameFunction(at address: UInt64, to newName: String) {
-		let oldName = renamedFunctions[address]
-		let newName = newName.isEmpty ? nil : newName
-		registerUndoRedo {
-			self.renamedFunctions[address] = oldName
-		} redo: {
-			self.renamedFunctions[address] = newName
-		}
-		hasUnsavedChanges = true
+		rename(address, to: newName, preferProcedure: true)
 	}
 
 	func renameSymbol(at address: UInt64, to newName: String) {
-		let oldName = renamedSymbols[address]
-		let newName = newName.isEmpty ? nil : newName
-		registerUndoRedo {
-			self.renamedSymbols[address] = oldName
-		} redo: {
-			self.renamedSymbols[address] = newName
-		}
-		hasUnsavedChanges = true
-	}
-
-	func getDisplayName(forFunctionAt address: UInt64) -> String {
-		if let renamed = renamedFunctions[address] {
-			return renamed
-		}
-		if let func_ = functionsByAddress[address] {
-			return func_.name
-		}
-		return String(format: "sub_%llX", address)
-	}
-
-	func getDisplayName(forSymbolAt address: UInt64) -> String {
-		if let renamed = renamedSymbols[address] {
-			return renamed
-		}
-		if let symbol = symbolsByAddress[address] {
-			return symbol.displayName
-		}
-		return String(format: "loc_%llX", address)
+		rename(address, to: newName, preferProcedure: false)
 	}
 
 	// MARK: - Comments
 
 	func setComment(at address: UInt64, comment: String) {
-		let oldComment = comments[address]
-		let newComment = comment.isEmpty ? nil : comment
-		registerUndoRedo {
-			self.comments[address] = oldComment
-		} redo: {
-			self.comments[address] = newComment
+		guard let context = modelContext, let binary = selectedBinary else { return }
+		let existing = binary.annotations.first { $0.address == address }
+
+		if comment.isEmpty {
+			// Remove the comment at this address.
+			guard let existing else { return }
+			let text = existing.text
+			let kind = existing.kind
+			registerUndoRedo {
+				let restored = AnnotationModel(text, at: address, in: binary)
+				restored.kind = kind
+				context.insert(restored)
+			} redo: {
+				context.delete(existing)
+			}
+		} else if let existing {
+			let oldText = existing.text
+			registerUndoRedo {
+				existing.text = oldText
+			} redo: {
+				existing.text = comment
+			}
+		} else {
+			let annotation = AnnotationModel(comment, at: address, in: binary)
+			registerUndoRedo {
+				context.delete(annotation)
+			} redo: {
+				context.insert(annotation)
+			}
 		}
-		hasUnsavedChanges = true
 	}
 
 	func getComment(at address: UInt64) -> String? {
-		return comments[address]
+		selectedBinary?.annotations.first { $0.address == address }?.text
 	}
 
 	// MARK: - Bookmarks
 
 	func addBookmark(at address: UInt64, name: String, description: String = "") {
-		let bookmark = Bookmark(name: name, description: description)
+		guard let context = modelContext, let binary = selectedBinary else { return }
+		let bookmark = BookmarkModel(name, at: address, in: binary)
+		bookmark.summary = description
 		registerUndoRedo {
-			self.bookmarks[address] = nil
+			context.delete(bookmark)
 		} redo: {
-			self.bookmarks[address] = bookmark
+			context.insert(bookmark)
 		}
-		hasUnsavedChanges = true
 	}
 
 	func removeBookmark(at address: UInt64) {
-		guard let bookmark = bookmarks[address] else { return }
+		guard let context = modelContext, let binary = selectedBinary,
+			  let bookmark = binary.bookmarks.first(where: { $0.address == address }) else { return }
+		let name = bookmark.name
+		let summary = bookmark.summary
 		registerUndoRedo {
-			self.bookmarks[address] = bookmark
+			let restored = BookmarkModel(name, at: address, in: binary)
+			restored.summary = summary
+			context.insert(restored)
 		} redo: {
-			self.bookmarks[address] = nil
+			context.delete(bookmark)
 		}
-		hasUnsavedChanges = true
 	}
 
 	// MARK: - Search
@@ -1496,10 +1515,6 @@ final class AppState {
 	func saveProject(to url: URL) throws {
 		let project = ProjectData(
 			binaryData: selectedBinary?.data ?? Data(),
-			renamedFunctions: renamedFunctions,
-			renamedSymbols: renamedSymbols,
-			comments: comments,
-			bookmarks: bookmarks,
 			patches: patches.map { PatchData(address: $0.address, bytes: $0.newBytes, description: $0.description) }
 		)
 
@@ -1517,11 +1532,8 @@ final class AppState {
 		// Load the binary first
 //		await loadFile(data: project.binaryData)
 
-		// Restore annotations
-		renamedFunctions = project.renamedFunctions
-		renamedSymbols = project.renamedSymbols
-		comments = project.comments
-		bookmarks = project.bookmarks
+		// Renames/comments/bookmarks live in the SwiftData models now —
+		// they persist with the document itself, nothing to restore here.
 
 		// Re-apply patches
 		for patchData in project.patches {
@@ -1595,11 +1607,9 @@ enum UndoAction {
 
 struct ProjectData: Codable {
 	let binaryData: Data
-	let renamedFunctions: [UInt64: String]
-	let renamedSymbols: [UInt64: String]
-	let comments: [UInt64: String]
-	let bookmarks: [UInt64: Bookmark]
 	let patches: [PatchData]
+	// Renames/comments/bookmarks no longer serialize here: they live in the
+	// SwiftData models and persist with the document (Task 5).
 }
 
 struct PatchData: Codable {
