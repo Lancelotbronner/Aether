@@ -1,7 +1,7 @@
 import ArgumentParser
 import SwiftData
 
-struct Count<Model: FetchableModel>: AsyncParsableCommand {
+struct CountCommand<Model: FetchableModel>: AsyncParsableCommand {
 	static var configuration: CommandConfiguration {
 		CommandConfiguration(
 			commandName: "fetch",
@@ -18,12 +18,11 @@ struct Count<Model: FetchableModel>: AsyncParsableCommand {
 	@Option
 	var offset: Int?
 
-	@MainActor
 	mutating func run() async throws {
 		var descriptor = Model.descriptor(using: options)
 		descriptor.fetchLimit = limit
 		descriptor.fetchOffset = offset
-		let count = try aether.modelContext.fetchCount(descriptor)
+		let count = try aether.backgroundContext.fetchCount(descriptor)
 		print(count)
 	}
 }

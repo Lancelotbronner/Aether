@@ -7,10 +7,10 @@ struct ProgramCommand: AsyncParsableCommand {
 		commandName: "program",
 		abstract: "Work with programs.",
 		subcommands: [
-			Fetch<BinaryModel>.self,
-			Count<BinaryModel>.self,
+			FetchCommand<BinaryModel>.self,
+			CountCommand<BinaryModel>.self,
 		],
-		defaultSubcommand: Fetch<BinaryModel>.self)
+		defaultSubcommand: FetchCommand<BinaryModel>.self)
 }
 
 extension BinaryModel: FetchableModel {
@@ -21,6 +21,6 @@ extension BinaryModel: FetchableModel {
 	}
 
 	func describe() -> String {
-		name
+		"\(name)\n" + "id: \(persistentModelID)"
 	}
 }

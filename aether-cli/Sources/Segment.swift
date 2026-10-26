@@ -7,10 +7,10 @@ struct SegmentCommand: AsyncParsableCommand {
 		commandName: "segment",
 		abstract: "Work with segments.",
 		subcommands: [
-			Fetch<SegmentModel>.self,
-			Count<BinaryModel>.self,
+			FetchCommand<SegmentModel>.self,
+			CountCommand<BinaryModel>.self,
 		],
-		defaultSubcommand: Fetch<SegmentModel>.self)
+		defaultSubcommand: FetchCommand<SegmentModel>.self)
 }
 
 extension SegmentModel: FetchableModel {

@@ -1,6 +1,5 @@
 import SwiftUI
 import AetherKit
-import AetherKit
 
 struct StatusBarView: View {
 	@Environment(AppState.self) private var appState

@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
 	name: "aether",
 	platforms: [
-		.macOS(.v26),
+		.macOS(.v27),
 	],
 	dependencies: [
 		.package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),

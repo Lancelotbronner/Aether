@@ -1,6 +1,5 @@
 import Foundation
 import AetherKit
-import AetherKit
 
 /// Analyzes binary to find strings
 nonisolated final class StringAnalyzer {

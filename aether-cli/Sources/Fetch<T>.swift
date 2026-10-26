@@ -21,7 +21,7 @@ extension FetchableModel {
 	}
 }
 
-struct Fetch<Model: FetchableModel>: AsyncParsableCommand {
+struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	static var configuration: CommandConfiguration {
 		CommandConfiguration(
 			commandName: "fetch",
@@ -38,12 +38,11 @@ struct Fetch<Model: FetchableModel>: AsyncParsableCommand {
 	@Option
 	var offset: Int?
 
-	@MainActor
 	mutating func run() async throws {
 		var descriptor = Model.descriptor(using: options)
 		descriptor.fetchLimit = limit
 		descriptor.fetchOffset = offset
-		let models = try aether.modelContext.fetch(descriptor)
+		let models = try aether.backgroundContext.fetch(descriptor)
 		print("Showing \(models.count) models:")
 		for model in models {
 			print(model.describe())

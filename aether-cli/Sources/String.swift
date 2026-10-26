@@ -7,10 +7,10 @@ struct StringCommand: AsyncParsableCommand {
 		commandName: "string",
 		abstract: "Work with strings.",
 		subcommands: [
-			Fetch<StringModel>.self,
-			Count<BinaryModel>.self,
+			FetchCommand<StringModel>.self,
+			CountCommand<BinaryModel>.self,
 		],
-		defaultSubcommand: Fetch<StringModel>.self)
+		defaultSubcommand: FetchCommand<StringModel>.self)
 }
 
 extension StringModel: FetchableModel {

@@ -2,7 +2,6 @@ import Foundation
 import JavaScriptCore
 import Combine
 import AetherKit
-import AetherKit
 
 // MARK: - Scripting Engine
 

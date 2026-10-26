@@ -10,10 +10,13 @@ import SwiftData
 				SectionCommand.self,
 				SegmentCommand.self,
 				StringCommand.self,
+
+				NewCommand.self,
+				ImportCommand.self,
 			])
 }
 
-struct AetherOptions: ParsableArguments, Sendable {
+struct AetherOptions: ParsableArguments {
 	@Option(help: "The project file to open", completion: .file(extensions: ["aetherproj"]))
 	var project: String
 
@@ -23,14 +26,20 @@ struct AetherOptions: ParsableArguments, Sendable {
 
 	lazy var modelContainer: ModelContainer = {
 		try! ModelContainer(for: .project, configurations: [
-			ModelConfiguration(url: projectURL.appending(path: "StoreContent", directoryHint: .notDirectory))
+			ModelConfiguration(schema: .project, url: projectURL.appending(path: "StoreContent", directoryHint: .notDirectory))
 		])
 	}()
 
 	@MainActor
-	var modelContext: ModelContext {
+	var mainContext: ModelContext {
 		mutating get {
 			modelContainer.mainContext
+		}
+	}
+
+	var backgroundContext: ModelContext {
+		mutating get {
+			ModelContext(modelContainer)
 		}
 	}
 }

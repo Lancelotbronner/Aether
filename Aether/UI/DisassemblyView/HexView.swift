@@ -1,7 +1,5 @@
 import SwiftUI
 import AetherKit
-import AetherKit
-import AetherKit
 
 struct HexView: View {
 	@Environment(AppState.self) private var appState
