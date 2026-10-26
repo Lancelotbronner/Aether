@@ -5,9 +5,12 @@ import SwiftData
 @main struct aether: AsyncParsableCommand {
 	static let configuration = CommandConfiguration(
 			abstract: "A utility for working with Aether projects.",
-			subcommands: [ProgramCommand.self],
-			defaultSubcommand: ProgramCommand.self)
-
+			subcommands: [
+				ProgramCommand.self,
+				SectionCommand.self,
+				SegmentCommand.self,
+				StringCommand.self,
+			])
 }
 
 struct AetherOptions: ParsableArguments, Sendable {

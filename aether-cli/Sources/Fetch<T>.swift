@@ -8,14 +8,25 @@ protocol FetchableModel: PersistentModel {
 
 	func describe() -> String
 
+	static var subcommands: [any ParsableCommand.Type] { get }
+
 	static func descriptor(using options: FetchOptions) -> FetchDescriptor<Self>
+}
+
+extension FetchableModel {
+	static var subcommands: [any ParsableCommand.Type] { [] }
+
+	static func descriptor(using options: FetchOptions) -> FetchDescriptor<Self> {
+		FetchDescriptor()
+	}
 }
 
 struct Fetch<Model: FetchableModel>: AsyncParsableCommand {
 	static var configuration: CommandConfiguration {
 		CommandConfiguration(
 			commandName: "fetch",
-			abstract: "Fetches a list of \(Model.plural) from the project.")
+			abstract: "Fetches a list of \(Model.plural) from the project.",
+			subcommands: Model.subcommands)
 	}
 
 	@OptionGroup var aether: AetherOptions
