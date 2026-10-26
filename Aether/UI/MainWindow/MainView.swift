@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import UniformTypeIdentifiers
 
 // MARK: - Welcome View
@@ -138,6 +139,7 @@ struct GoToAddressSheet: View {
 
 struct SearchSheet: View {
 	@Environment(AppState.self) private var appState
+	@Environment(\.modelContext) private var modelContext
 	@Environment(\.dismiss) var dismiss
 	@State private var searchText = ""
 	@State private var searchType: SearchType = .symbols
@@ -172,6 +174,15 @@ struct SearchSheet: View {
 						.onChange(of: searchText) { _, newValue in
 							performSearch()
 						}
+
+					Button {
+						dismiss()
+					} label: {
+						Image(systemName: "xmark.circle.fill")
+							.foregroundColor(.secondary)
+					}
+					.buttonStyle(.plain)
+					.keyboardShortcut(.cancelAction)
 				}
 				.padding(8)
 				.background(Color.background)
@@ -224,31 +235,36 @@ struct SearchSheet: View {
 
 		let query = searchText.lowercased()
 
-//		switch searchType {
-//		case .symbols:
-//			results = appState.symbols
-//				.filter { $0.name.lowercased().contains(query) }
-//				.prefix(50)
-//				.map { SearchResult(name: $0.displayName, address: $0.address, type: "Symbol") }
-//
-//		case .strings:
-//			results = appState.strings
-//				.filter { $0.value.lowercased().contains(query) }
-//				.prefix(50)
-//				.map { SearchResult(name: $0.value, address: $0.address, type: "String") }
-//
-//		case .functions:
-//			results = appState.functions
-//				.filter { $0.name.lowercased().contains(query) || $0.shortDisplayName.lowercased().contains(query) }
-//				.prefix(50)
-//				.map { SearchResult(name: $0.shortDisplayName, address: $0.startAddress, type: "Function") }
-//
-//		case .addresses:
-//			if let addr = UInt64(query.replacingOccurrences(of: "0x", with: ""), radix: 16) {
-//				results = [SearchResult(name: String(format: "0x%llX", addr), address: addr, type: "Address")]
-//			} else {
-//				results = []
-//			}
-//		}
+		switch searchType {
+		case .symbols:
+			let symbols = (try? modelContext.fetch(FetchDescriptor<SymbolModel>())) ?? []
+			results = symbols
+				.filter { $0.displayName.lowercased().contains(query) }
+				.prefix(50)
+				.map { SearchResult(name: $0.displayName, address: $0.address, type: "Symbol") }
+
+		case .strings:
+			// StringModel.value derives from @Transient cached (not
+			// persisted) — must be filtered in memory, not via #Predicate.
+			let strings = (try? modelContext.fetch(FetchDescriptor<StringModel>())) ?? []
+			results = strings
+				.filter { $0.value.lowercased().contains(query) }
+				.prefix(50)
+				.map { SearchResult(name: $0.value, address: $0.address, type: "String") }
+
+		case .functions:
+			let procedures = (try? modelContext.fetch(FetchDescriptor<ProcedureModel>())) ?? []
+			results = procedures
+				.filter { $0.shortDisplayName.lowercased().contains(query) }
+				.prefix(50)
+				.map { SearchResult(name: $0.shortDisplayName, address: $0.symbol.address, type: "Function") }
+
+		case .addresses:
+			if let addr = UInt64(query.replacingOccurrences(of: "0x", with: ""), radix: 16) {
+				results = [SearchResult(name: String(format: "0x%llX", addr), address: addr, type: "Address")]
+			} else {
+				results = []
+			}
+		}
 	}
 }

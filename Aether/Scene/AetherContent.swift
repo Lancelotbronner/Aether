@@ -205,7 +205,7 @@ private struct SearchSheetModifier: ViewModifier {
 	func body(content: Content) -> some View {
 		@Bindable var appState = appState
 		content.sheet(isPresented: $appState.showSearch) {
-			SearchView()
+			SearchSheet()
 		}
 	}
 }

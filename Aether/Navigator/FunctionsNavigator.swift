@@ -7,22 +7,22 @@ struct FunctionsTab: View {
 
 	@Query private var procedures: [ProcedureModel]
 
-//	var filteredFunctions: [Function] {
-//		if searchText.isEmpty {
-//			return appState.functions
-//		}
-//		return appState.functions.filter {
-//			$0.name.localizedCaseInsensitiveContains(searchText) ||
-//			$0.shortDisplayName.localizedCaseInsensitiveContains(searchText)
-//		}
-//	}
+	// In-memory filter (Task 7): filters on the *display* name, which is
+	// computed (underscore-stripped), so a #Predicate on the stored
+	// `symbol.name` wouldn't match what the user sees.
+	var filteredProcedures: [ProcedureModel] {
+		guard !searchText.isEmpty else { return procedures }
+		return procedures.filter {
+			$0.shortDisplayName.localizedCaseInsensitiveContains(searchText)
+		}
+	}
 
 	var body: some View {
 		@Bindable var appState = appState
 		VStack(alignment: .leading) {
 			TextField("Search", text: $searchText, prompt: Text("Filter"))
-			
-			List(procedures, selection: $appState.functionNavigator) { func_ in
+
+			List(filteredProcedures, selection: $appState.functionNavigator) { func_ in
 				FunctionRow(function: func_, isSelected: appState.selectedFunction == func_)
 					.tag(func_)
 					.listRowSeparator(.hidden)

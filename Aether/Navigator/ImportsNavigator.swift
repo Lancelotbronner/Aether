@@ -8,21 +8,20 @@ struct ImportsListView: View {
 	@Query(filter: #Predicate<SymbolModel> { $0.isImport })
 	private var symbols: [SymbolModel]
 
-//	var filteredImports: [Symbol] {
-//		let imports = appState.imports
-//		if searchText.isEmpty {
-//			return imports
-//		}
-//		return imports.filter {
-//			$0.displayName.localizedCaseInsensitiveContains(searchText)
-//		}
-//	}
+	// In-memory filter (Task 7): on the *display* name (computed,
+	// underscore-stripped), matching what the row shows.
+	var filteredSymbols: [SymbolModel] {
+		guard !searchText.isEmpty else { return symbols }
+		return symbols.filter {
+			$0.displayName.localizedCaseInsensitiveContains(searchText)
+		}
+	}
 
 	var body: some View {
 		VStack(alignment: .leading) {
 			TextField("Search", text: $searchText, prompt: Text("Filter"))
-			
-			List(symbols) { symbol in
+
+			List(filteredSymbols) { symbol in
 				SymbolRow(model: symbol)
 			}
 		}
