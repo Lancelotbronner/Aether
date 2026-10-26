@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 // MARK: - Swift Metadata Analysis
 
@@ -140,8 +141,8 @@ class SwiftAnalyzer {
         let protocolSection = binary.sections.first { $0.name == "__swift5_protos" }
         let conformsSection = binary.sections.first { $0.name == "__swift5_proto" }
         let fieldmdSection = binary.sections.first { $0.name == "__swift5_fieldmd" }
-        let assoctySection = binary.sections.first { $0.name == "__swift5_assocty" }
-        let builtinSection = binary.sections.first { $0.name == "__swift5_builtin" }
+		_ = binary.sections.first { $0.name == "__swift5_assocty" }
+		_ = binary.sections.first { $0.name == "__swift5_builtin" }
         let reflstrSection = binary.sections.first { $0.name == "__swift5_reflstr" }
 
         // Parse type metadata

@@ -1,31 +1,13 @@
 {
-  "originHash" : "9e1e93cde440bfe239f92f6f8e35be2939b180e3c02b9d290626923404a2568b",
+  "originHash" : "e523068bfc10a1b4dd3c0e57495ec8e91fb73974444af58a447b47df2ee14625",
   "pins" : [
     {
-      "identity" : "swift-argument-parser",
+      "identity" : "zip",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-argument-parser.git",
+      "location" : "https://github.com/tomasf/Zip.git",
       "state" : {
-        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
-        "version" : "1.8.2"
-      }
-    },
-    {
-      "identity" : "swift-case-accessors",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Lancelotbronner/swift-case-accessors.git",
-      "state" : {
-        "revision" : "702c2eb2f2210d0ff6fbdc89dec85eff8249230c",
-        "version" : "2.0.0"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax",
-      "state" : {
-        "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
-        "version" : "602.0.0"
+        "revision" : "83b635cb5b9a7372c1cabbd58af159db63969c6c",
+        "version" : "2.1.3"
       }
     }
   ],

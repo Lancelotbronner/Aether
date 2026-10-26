@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 // MARK: - Signature Matching Engine
 
@@ -388,7 +389,7 @@ class FLIRTMatcher {
     }
 
     private func identifyFunction(_ function: Function, in binary: BinaryFile) -> String? {
-        guard let section = binary.section(containing: function.startAddress),
+		guard let _ = binary.section(containing: function.startAddress),
               let functionData = binary.read(at: function.startAddress, count: Int(min(function.size, 64))) else {
             return nil
         }
@@ -504,7 +505,7 @@ class YARAMatcher {
 
     private func parseRuleBody(name: String, body: String) -> YARARule? {
         // Simplified parsing
-        var meta: [String: String] = [:]
+		let meta: [String: String] = [:]
         var strings: [YARAString] = []
         var condition = "any of them"
 

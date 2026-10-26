@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 /// Analyzes cross-references between code and data
 class XRefAnalyzer {
@@ -12,7 +13,7 @@ class XRefAnalyzer {
         var xrefs: [CrossReference] = []
 
         // Build function address lookup
-        let functionAddresses = Set(functions.map { $0.startAddress })
+		_ = Set(functions.map { $0.startAddress })
 
         // Analyze each code section
         for section in binary.sections where section.containsCode {

@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 // MARK: - Lightweight CPU Emulator
 

@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 // MARK: - Binary Patcher
 
@@ -174,7 +175,7 @@ class BinaryPatcher {
 
 	/// Apply a patch
 	func applyPatch(_ patch: Patch) throws {
-		guard var index = patches.firstIndex(where: { $0.id == patch.id }) else {
+		guard let index = patches.firstIndex(where: { $0.id == patch.id }) else {
 			throw PatchError.notApplied
 		}
 
@@ -207,7 +208,7 @@ class BinaryPatcher {
 
 	/// Revert a patch
 	func revertPatch(_ patch: Patch) throws {
-		guard var index = patches.firstIndex(where: { $0.id == patch.id }) else {
+		guard let index = patches.firstIndex(where: { $0.id == patch.id }) else {
 			throw PatchError.notApplied
 		}
 

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import AetherKit
 
 struct AetherScene: Scene {
 	var body: some Scene {
@@ -32,8 +33,4 @@ private struct AetherRootView: View {
 //				await session.bootstrap(context: context)
 			}
 	}
-}
-
-extension UTType {
-	static let project = UTType(exportedAs: "com.lancelotbronner.aetherproj", conformingTo: .package)
 }

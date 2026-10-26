@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 // MARK: - Type Recovery System
 
@@ -703,7 +704,7 @@ class ArrayAnalyzer {
         }
 
         // Analyze access patterns
-        for (base, accesses) in accessesByBase {
+		for (_, accesses) in accessesByBase {
             guard accesses.count >= 2 else { continue }
 
             let sortedAccesses = accesses.sorted { $0.offset < $1.offset }

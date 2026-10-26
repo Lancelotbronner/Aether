@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 /// ELF binary format loader
 nonisolated final class ELFLoader: BinaryLoaderProtocol {

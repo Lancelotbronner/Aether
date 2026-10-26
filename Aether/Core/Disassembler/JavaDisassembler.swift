@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 extension DisassemblerEngine {
 	func disassembleJVM(data: Data, address: UInt64) -> [Instruction] {
@@ -8,7 +9,7 @@ extension DisassemblerEngine {
 
 		while offset < data.count {
 			let opcode = data[offset]
-			let (mnemonic, operandSize, operands, type, target) = decodeJVMInstruction(
+			let (_, operandSize, _, _, target) = decodeJVMInstruction(
 				opcode: opcode,
 				data: data,
 				offset: offset,

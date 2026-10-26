@@ -27,8 +27,8 @@
   ],
   "files": [
     { "path": "AGENTS.md" },
-    { "path": "CoreAether" },
     { "path": "AetherKit" },
+    { "path": "aether-cli" },
     {
       "kind": "folder",
       "path": "Aether",
@@ -70,9 +70,6 @@
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "product-name": "CapstoneKit",
-          "build-phase": { "build-phase": "frameworks" },
-        }, {
-          "product-name": "CoreAether",
           "build-phase": { "build-phase": "frameworks" },
         }, {
           "package": "Zip",

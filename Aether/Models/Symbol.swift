@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 /// Represents a symbol in the binary
 nonisolated struct Symbol: Identifiable, Sendable {
@@ -57,15 +58,7 @@ nonisolated struct Symbol: Identifiable, Sendable {
 	}
 }
 
-/// Symbol type
-enum SymbolType: String, Codable {
-	case function = "Function"
-	case data = "Data"
-	case object = "Object"
-	case section = "Section"
-	case file = "File"
-	case unknown = "Unknown"
-
+extension SymbolType {
 	var icon: String {
 		switch self {
 		case .function: return "f.square"
@@ -76,13 +69,4 @@ enum SymbolType: String, Codable {
 		case .unknown: return "questionmark.square"
 		}
 	}
-}
-
-/// Symbol binding/visibility
-enum SymbolBinding: String, Codable {
-	case local = "Local"
-	case global = "Global"
-	case weak = "Weak"
-	case external = "External"
-	case undefined = "Undefined"
 }

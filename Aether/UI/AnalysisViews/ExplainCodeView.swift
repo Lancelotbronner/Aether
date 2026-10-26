@@ -1,4 +1,5 @@
 import SwiftUI
+import AetherKit
 
 struct ExplainCodeView: View {
     @Environment(AppState.self) private var appState

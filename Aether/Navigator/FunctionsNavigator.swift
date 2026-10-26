@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AetherKit
 
 struct FunctionsTab: View {
 	@Environment(AppState.self) private var appState

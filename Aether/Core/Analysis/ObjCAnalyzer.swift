@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 // MARK: - Objective-C Runtime Analysis
 
@@ -119,8 +120,8 @@ class ObjCAnalyzer {
         let protoListSection = binary.sections.first { $0.name == "__objc_protolist" }
         let selRefsSection = binary.sections.first { $0.name == "__objc_selrefs" }
         let classRefsSection = binary.sections.first { $0.name == "__objc_classrefs" }
-        let methNamesSection = binary.sections.first { $0.name == "__objc_methname" }
-        let classNamesSection = binary.sections.first { $0.name == "__objc_classname" }
+		_ = binary.sections.first { $0.name == "__objc_methname" }
+		_ = binary.sections.first { $0.name == "__objc_classname" }
 
         // Parse classes
         if let classListSection = classListSection {
@@ -464,7 +465,7 @@ class ObjCAnalyzer {
     }
 
     private func parseClassRefs(_ section: _Section, binary: BinaryFile) -> [UInt64: String] {
-        var refs: [UInt64: String] = [:]
+		let refs: [UInt64: String] = [:]
         // Would need to follow class pointers to get names
         return refs
     }

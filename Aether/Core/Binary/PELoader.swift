@@ -1,5 +1,6 @@
 import Foundation
 import CommonCrypto
+import AetherKit
 
 /// PE/COFF binary format loader (Windows executables)
 nonisolated final class PELoader: BinaryLoaderProtocol {
