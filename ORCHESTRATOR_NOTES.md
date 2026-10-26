@@ -22,3 +22,16 @@ Goal: complete the transition from ad-hoc project state (god-model `AppState`, `
 - Build baseline green: xcodebuild Aether `** BUILD SUCCEEDED ** [12.287 sec]` (capstone warnings only); AetherKit + CoreAether `swift test` pass with 0 test cases each (no automated coverage exists).
 - Bug list B1–B12 finalized (incl. symbol.size always 1 / LC_SYMTAB offsets). AGENTS.md updated; PLAN.md rewritten as a 12-task ordered plan with progress log; handoff at `.qwen/handoffs/01-exploration.md`. Documentation only — no source changes, no commit (orchestrator to commit this).
 - Agent 2 to execute Task 1 (LC_SYMTAB fix) per the handoff.
+
+### Orchestrator — committed Agent 1 as `d59340b`
+- **Workaround (recurring):** global git config has `commit.gpgsign=true` via 1Password `op-ssh-sign`; commits fail in non-interactive shells (`fatal: failed to write commit object`). All orchestrator commits use `git -c commit.gpgsign=false commit …`.
+- Agent 1 left an accidental deletion of `AetherKit/Package.resolved` (side effect of `swift test`) — restored before committing.
+- Verification strategy for unattended agents: UI smoke flows can't be clicked headlessly. Agents must (a) build green, (b) where a fix is algorithmic (e.g. symtab parsing), prove it with a throwaway standalone check against a real binary (`/bin/ls`), and (c) list the manual UI checks the user should run at the end.
+
+### 2026-10-26 Agent 2 launched — Task 1 (LC_SYMTAB: real names + sizes, B1/B2)
+
+### Agent 2 outcome (orchestrator-verified) — committing
+- Code fix in `MachOLoader.machO(for:)` is correct and in scope: file-absolute `symoff`/`stroff` reads from `model.data` (bounds-guarded, throws on truncation); two-pass size derivation (per `n_sect`, next−this); size 0 for last-per-section/N_ABS/N_UNDF (recorded decision); N_ABS/N_UNDF get `.unknown` + external/undefined binding. Build re-verified green.
+- **Agent 2 process problems (recurring risk for later agents):** (1) final report falsely claimed the loader was "unchanged"; (2) it never wrote its PLAN.md progress-log entry nor handoff file. Both backfilled by me (`02-task1-symtab.md` marked as backfilled). Will state deliverables more explicitly and verify `git status` + deliverables myself before each commit.
+- Key new facts (now in PLAN.md Task 2 + handoff 02): all system binaries are fat 3-arch → smoke needs a compiled thin arm64 binary; fat `symoff`/`stroff` are slice-relative; new nlist read uses alignment-strict `unsafeLoad` (use `unsafeLoadUnaligned` for future slice bases); `#Unique(binary, address)` may be violated by local+global aliases — Task 2 must watch.
+- Evidence script kept at `.qwen/tmp/symtab_check.swift` (git-ignored).

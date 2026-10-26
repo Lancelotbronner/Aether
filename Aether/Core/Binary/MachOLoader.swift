@@ -140,31 +140,90 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 					log += "\t\(section.segmentName),\(section.name)\n"
 				}
 			case UInt32(bitPattern: LC_SYMTAB):
+				// `symoff` (nlist array) and `stroff` (string table) are
+				// ABSOLUTE FILE OFFSETS into the whole image — not offsets
+				// relative to the load-command stream, so both are read from
+				// `model.data` (see the legacy path's
+				// `strOffset = binaryOffset + Int(symtab.stroff)` reference).
 				let command = bytes.unsafeLoad(as: symtab_command.self)
-				let strings = bytes.extracting(droppingFirst: Int(command.stroff))
+				let stringTable = model.data
+				let symbolTable = model.data
 
 				model.symbols.reserveCapacity(model.symbols.count + Int(command.nsyms))
 
 				let start = ContinuousClock.now
 				log += "Parsing \(command.nsyms) symbols\n"
 
+				// Pass 1: read the nlist_64 array (bounds-guarded against a
+				// truncated table) and remember everything the size derivation
+				// in pass 2 needs. nlist_64 has no size field — sizes must be
+				// derived from the next symbol in the same section.
+				struct SymbolEntry {
+					let sym: nlist_64
+					let name: String
+				}
+
+				let entrySize = MemoryLayout<nlist_64>.size
+				guard symbolTable.count >= Int(command.symoff) + Int(command.nsyms) * entrySize else {
+					throw BinaryLoaderError.corruptedFile("Symbol table extends past end of file (symoff=\(command.symoff), nsyms=\(command.nsyms))")
+				}
+
 				//FIXME: MachO's nlist_64 doesn't conform to BitwiseCopyable, wait until fixed by Apple
-				 var symbolBytes = bytes.extracting(droppingFirst: Int(command.symoff))
-				 symbolBytes = symbolBytes.extracting(droppingLast: symbolBytes.byteCount % MemoryLayout<nlist_64>.size)
-				// let symbols = Span<nlist_64>(_bytes: symbolBytes)
+				let rawSymbols = [nlist_64](
+					unsafeUninitializedCapacity: Int(command.nsyms),
+					initializingWith: { buffer, count in
+						for i in 0..<Int(command.nsyms) {
+							buffer[i] = symbolTable.bytes
+								.extracting(droppingFirst: Int(command.symoff) + i * entrySize)
+								.unsafeLoad(as: nlist_64.self)
+						}
+						count = Int(command.nsyms)
+					})
 
-				for _ in 0..<command.nsyms {
-					let sym = symbolBytes.unsafeLoad(as: nlist_64.self)
-					symbolBytes = symbolBytes.extracting(droppingFirst: MemoryLayout<nlist_64>.size)
+				let entries = rawSymbols.map { sym in
+					SymbolEntry(
+						sym: sym,
+						name: sym.n_un.n_strx == 0 ? "" :
+							stringTable.readCString(at: Int(command.stroff) + Int(sym.n_un.n_strx)) ?? "")
+				}
 
+				// Pass 2: derive sizes. Per section (n_sect), in ascending
+				// address order, a symbol runs until the next symbol in the
+				// same section. The last symbol per section and every
+				// N_ABS/N_UNDF symbol has no next symbol to bound it — those
+				// get size 0 (recorded decision: 0, not the SymbolModel
+				// default of 1; an unknown size must not be reported as a
+				// fabricated one-byte body).
+				var sectionSizes: [UInt8: Set<UInt64>] = [:]
+				for entry in entries where entry.sym.n_sect != 0 {
+					sectionSizes[entry.sym.n_sect, default: []].insert(entry.sym.n_value)
+				}
+				var sizes: [UInt64: UInt64] = [:]
+				for section in sectionSizes.keys.sorted() {
+					let sorted = Array(sectionSizes[section]!).sorted()
+					for i in 0..<sorted.count {
+						// Same address in several sections: the highest
+						// section ordinal wins; local + global aliases at
+						// the same address derive the same size.
+						sizes[sorted[i]] = i + 1 < sorted.count
+							? sorted[i + 1] - sorted[i] : 0
+					}
+				}
+
+				for entry in entries {
+					let sym = entry.sym
 					let symbol = SymbolModel(in: model)
 					model.symbols.append(symbol)
 
 					symbol.address = sym.n_value
+					// Aliases at the same address (local + global) share the
+					// derived size; N_SECT symbols without a derived entry
+					// (cannot happen: n_sect != 0 implies a dict entry) fall
+					// back to the SymbolModel default.
+					symbol.size = sizes[sym.n_value] ?? 1
 
-					symbol.name = sym.n_un.n_strx == 0 ? "" : strings
-						.extracting(droppingFirst: Int(sym.n_un.n_strx))
-						.fromCString
+					symbol.name = entry.name
+					symbol.identifier = entry.name
 
 					let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
 					let isExternal = n_type.n_ext
@@ -174,13 +233,16 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 						// Absolute symbols: n_value is a constant, not a load
 						// address — never treat as a function.
 						symbol.type = .unknown
+						symbol.size = 0
 						symbol.binding = isExternal ? .global : .local
 					case .N_SECT:
 						// Check if this looks like a function (in __TEXT,__text)
 						symbol.type = sym.n_sect == 1 ? .function : .data
 						symbol.binding = isExternal ? .global : .local
 					default:
+						// N_UNDF and the rest: no body in this file.
 						symbol.type = .unknown
+						symbol.size = 0
 						symbol.binding = isExternal ? .external : .undefined
 					}
 
