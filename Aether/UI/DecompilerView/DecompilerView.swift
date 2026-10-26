@@ -33,29 +33,38 @@ struct DecompilerView: View {
 			// Content
 			if appState.selectedFunction == nil {
 				ContentUnavailableView("No function selected", systemImage: "doc.plaintext", description: Text("Select a function to see pseudo-code"))
-					.frame(maxWidth: .infinity, maxHeight: .infinity)
-			} else if appState.decompilerOutput.isEmpty {
-				VStack {
-					ProgressView()
-					Text("Decompiling...")
-						.font(.caption)
-						.foregroundColor(.secondary)
-				}
-				.frame(maxWidth: .infinity, maxHeight: .infinity)
-				.task {
-					appState.decompileCurrentFunction()
-				}
 			} else {
-				ScrollView {
-					SyntaxHighlightedCode(
-						code: appState.decompilerOutput,
-						fontSize: fontSize,
-						fontName: fontName
-					)
-					.padding(12)
-					.frame(maxWidth: .infinity, alignment: .leading)
+				ZStack {
+					switch appState.decompileState {
+					case .running:
+						VStack {
+							ProgressView()
+							Text("Decompiling...")
+								.font(.caption)
+								.foregroundColor(.secondary)
+						}
+					case .failed(let message):
+						ContentUnavailableView("Decompilation failed", systemImage: "exclamationmark.triangle", description: Text(message))
+					case .done:
+						ScrollView {
+							SyntaxHighlightedCode(
+								code: appState.decompilerOutput,
+								fontSize: fontSize,
+								fontName: fontName
+							)
+							.padding(12)
+							.frame(maxWidth: .infinity, alignment: .leading)
+						}
+					}
 				}
 			}
+		}
+		// Keyed by the selected procedure's persistent model ID: switching
+		// selection (or a re-Load) cancels the in-flight decompile and starts
+		// a fresh one, so stale output can never be left on screen.
+		.task(id: appState.selectedProcedureID) {
+			guard appState.selectedFunction != nil else { return }
+			await appState.decompileCurrentFunction()
 		}
 		.background(Color.background)
 	}

@@ -637,36 +637,131 @@ final class AppState {
 
 	// MARK: - Decompilation
 
-	func decompileCurrentFunction() {
+	/// Whether the decompiler is running, done, or failed for the current
+	/// selection. Driven by `DecompilerView`'s `.task(id:)`, which cancels
+	/// the in-flight decompile when the selection changes.
+	enum DecompilerState {
+		case running
+		case done
+		case failed(String)
+	}
+
+	var decompileState: DecompilerState = .done
+	/// Finished pseudo-code keyed by the procedure's `persistentModelID`, so a
+	/// result for one function is never shown for another.
+	@ObservationIgnored var decompiledOutputs: [PersistentIdentifier: String] = [:]
+	/// The key the in-flight decompile task owns, if any. Keyed (not a bool or the
+	/// state itself) so a task cancelled mid-flight cannot wedge the next one:
+	/// a stale `.running` left by a cancelled task would trip a state-based
+	/// re-entrancy guard and leave a new `.task(id:)` returning without ever
+	/// decompiling (stuck spinner on rapid A→B→A selection switches).
+	@ObservationIgnored var decompileOwner: PersistentIdentifier?
+
+	/// The procedure identity to drive `DecompilerView`'s `.task(id:)` with.
+	var selectedProcedureID: PersistentIdentifier? {
+		selectedFunction?.persistentModelID
+	}
+
+	func decompileCurrentFunction() async {
 		guard let function = selectedFunction,
 			  let binary = selectedBinary else { return }
+		let key = function.persistentModelID
+		// Only a live task for the *same* procedure may pre-empt us (e.g. the
+		// ⇧⌘D command racing the view task). A different key always proceeds —
+		// its old task has been cancelled by `.task(id:)` and will publish nothing.
+		if decompileOwner == key { return }
+		decompileOwner = key
+		defer { if decompileOwner == key { decompileOwner = nil } }
 
-		// Check if this is a Java class file
-//		if let javaClasses = binary.javaClasses, !javaClasses.isEmpty {
-//			decompileJavaMethod(function: function, javaClasses: javaClasses)
-//			return
-//		}
+		decompileState = .running
+		decompilerOutput = ""
+		if let cached = decompiledOutputs[key] {
+			decompilerOutput = cached
+			decompileState = .done
+			return
+		}
 
-		decompilerOutput = "// Decompiling..."
+		do {
+			let instructions = await disassembleFunction(function)
+			guard !Task.isCancelled else { return }
+			guard !instructions.isEmpty else {
+				throw DecompilerError.noInstructions
+			}
 
-//		Task {
-//			let instructions = await disassembleFunction(function)
-//
-//			// Run heavy decompilation off the main thread
-//			let decomp = self.decompiler
-//			let output = await Task.detached(priority: .userInitiated) {
-//				return decomp.decompile(
-//					function: function,
-//					instructions: instructions,
-//					binary: binary
-//				)
-//			}.value
-//
-//			// Update UI on main thread (automatic via @MainActor)
-//			if self.selectedFunction?.startAddress == function.startAddress {
-//				self.decompilerOutput = output
-//			}
-//		}
+			// Legacy adapters: the Decompiler still consumes `Function` /
+			// `BinaryFile` (porting it to the models is Task 12).
+			let legacyFunction = Function(name: function.displayName,
+				startAddress: function.symbol.address,
+				endAddress: function.symbol.address + function.symbol.size)
+			legacyFunction.callees = Set(function.callees.map { $0.symbol.address })
+			let legacyBinary = Self.legacyBinary(for: binary)
+
+			let output = decompiler.decompile(
+				function: legacyFunction,
+				instructions: instructions,
+				binary: legacyBinary
+			)
+
+			guard !Task.isCancelled else { return }
+			decompiledOutputs[key] = output
+			decompilerOutput = output
+			decompileState = .done
+		} catch is CancellationError {
+			return
+		} catch {
+			guard !Task.isCancelled else { return }
+			decompileState = .failed(error.localizedDescription)
+		}
+	}
+
+	private enum DecompilerError: LocalizedError {
+		case noInstructions
+		var errorDescription: String? {
+			switch self {
+			case .noInstructions:
+				return "No instructions could be disassembled for this function."
+			}
+		}
+	}
+
+	/// Builds a legacy `BinaryFile` view over a `BinaryModel` for the
+	/// (still legacy) `Decompiler`. Sections carry their own byte slice so
+	/// the decompiler's string cache reads the right data.
+	private static func legacyBinary(for binary: BinaryModel) -> BinaryFile {
+		let sections: [_Section] = binary.sections.map { section in
+			_Section(
+				name: section.name,
+				segmentName: section.segmentName,
+				address: section.address,
+				size: section.size,
+				offset: section.offset,
+				alignment: section.alignment,
+				flags: section.flags,
+				data: binary.data(in: section.addressRange) ?? Data()
+			)
+		}
+		let symbols: [Symbol] = binary.symbols.map { symbol in
+			Symbol(
+				name: symbol.name,
+				address: symbol.address,
+				size: symbol.size,
+				type: symbol.type,
+				binding: symbol.binding
+			)
+		}
+		return BinaryFile(
+			format: binary.format,
+			architecture: binary.architecture,
+			endianness: binary.endian,
+			is64Bit: binary.is64,
+			fileSize: binary.data.count,
+			entryPoint: binary.entryPoint,
+			baseAddress: binary.baseAddress,
+			sections: sections,
+			segments: [],
+			symbols: symbols,
+			data: binary.data
+		)
 	}
 
 	private func decompileJavaMethod(function: Function, javaClasses: [JARLoader.JavaClass]) {
@@ -1189,9 +1284,29 @@ final class AppState {
 	// MARK: - Disassembly
 
 	@ObservationIgnored var disassembled = RangeSet<UInt64>()
+	/// Which binary the disassembly cache belongs to (its `persistentModelID`).
+	/// The cache is flushed when it doesn't match the selected binary, so a
+	/// re-Load never serves stale pre-Load instructions.
+	@ObservationIgnored var disassembledFor: PersistentIdentifier?
+	/// Monotonically increasing cache generation; bumped by `resetDisassemblyCache()`
+	/// so a disassembly suspended at an `await` can detect a reset mid-flight.
+	@ObservationIgnored var disassemblyCacheGeneration = 0
 	var instructionMap: [UInt64: Int] = [:]
 	@ObservationIgnored var instructions: [Instruction] = []
 	@ObservationIgnored var pcode: [Pcode] = []
+
+	/// Clears the transient disassembly cache (address ranges, instructions,
+	/// p-code). Called from the Load path: after a re-Load the bytes backing
+	/// the addresses may have changed, and an in-memory cache is union-only,
+	/// so it must be dropped rather than kept.
+	func resetDisassemblyCache() {
+		disassembled = RangeSet()
+		disassembledFor = nil
+		disassemblyCacheGeneration &+= 1
+		instructionMap.removeAll()
+		instructions.removeAll()
+		pcode.removeAll()
+	}
 
 	func instruction(at address: UInt64) -> Instruction? {
 		instructionMap[address].map { instructions[$0] }
@@ -1203,7 +1318,11 @@ final class AppState {
 		var remaining = range.count
 		while upperBound < instructions.endIndex {
 			let c = instructions[upperBound].addressRange.count
-			guard remaining - c >= 0 else { break }
+			// Compare before subtracting: `remaining - c >= 0` traps on
+			// integer underflow when the instruction extends past the
+			// requested range (e.g. an instruction from a later cached
+			// function sits right after the requested one).
+			guard c <= remaining else { break }
 			remaining -= c
 			upperBound += 1
 		}
@@ -1212,13 +1331,22 @@ final class AppState {
 
 	private func disassembleIfNecessary(_ addresses: Range<UInt64>) async {
 		guard let selectedBinary else { return }
+		// Invalidate the cache if it was built for a different binary
+		// (e.g. the selected binary was re-Loaded: `persistentModelID`
+		// survives the reset-first re-parse, so also compare against an
+		// explicit reset from the Load path).
+		if disassembledFor != nil, disassembledFor != selectedBinary.persistentModelID {
+			resetDisassemblyCache()
+		}
 		// The address ranges that haven't been disassembled yet
 		let requestedSet = RangeSet(addresses)
 		let remaining = requestedSet.subtracting(disassembled)
-		disassembled.formUnion(requestedSet)
+		let generation = disassemblyCacheGeneration
 		for range in remaining.ranges {
 			// Skip ranges not fully backed by the file data (e.g. addresses
-			// that fall outside any mapped segment).
+			// that fall outside any mapped segment). Deliberately NOT marked
+			// disassembled: a later Load can back the range, and a permanent
+			// skip would wedge these addresses forever.
 			guard let bytes = selectedBinary.data(in: range) else { continue }
 			// disassemble the range
 			var result = await disassembler.disassemble(
@@ -1227,6 +1355,10 @@ final class AppState {
 				architecture: selectedBinary.architecture
 			)
 			guard !result.instructions.isEmpty else { continue }
+			// The disassembler is an actor: a `resetDisassemblyCache()` (e.g.
+			// from a re-Load) may have run while we were suspended. Dropping
+			// the stale result keeps the fresh cache from being poisoned.
+			guard generation == disassemblyCacheGeneration else { return }
 			instructionMap.reserveCapacity(instructionMap.count + result.instructions.count)
 			// locate the insertion index in order to remain sorted
 			let instructionsIndex = instructions.lastIndex { $0.address < range.lowerBound } ?? 0
@@ -1241,7 +1373,9 @@ final class AppState {
 			// cache the disassembly
 			instructions.insert(contentsOf: result.instructions, at: instructionsIndex)
 			pcode.insert(contentsOf: result.pcode, at: pcodesIndex)
+			disassembled.formUnion(RangeSet(range))
 		}
+		disassembledFor = selectedBinary.persistentModelID
 	}
 
 	func disassemble(section: SectionModel) async -> ArraySlice<Instruction> {

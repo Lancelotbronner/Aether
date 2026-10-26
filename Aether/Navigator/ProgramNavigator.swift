@@ -18,7 +18,17 @@ struct ProgramNavigator: View {
 					Button("Load...") {
 						Task { @concurrent in
 							do {
+								// Drop any pre-Load disassembly first: a
+								// re-Load must not serve stale instructions,
+								// and a failed re-Load leaves the old
+								// (still valid) models in place.
+								appState.resetDisassemblyCache()
 								try await MachOLoader.load(binary)
+								// Bytes backing the addresses may have
+								// changed on disk; the old rows are gone
+								// after the reset-first re-parse, so the
+								// cache (address-keyed) must go with them.
+								appState.resetDisassemblyCache()
 							} catch {
 								Logger.app.error("Failed to load \(binary.name) binary: \(error)")
 							}

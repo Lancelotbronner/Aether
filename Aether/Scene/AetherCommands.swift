@@ -56,7 +56,10 @@ struct AetherCommands: Commands {
 			.disabled(appState?.selectedFunction == nil)
 
 			Button("Decompile") {
-				appState?.decompileCurrentFunction()
+				guard let appState else { return }
+				Task { @concurrent in
+					await appState.decompileCurrentFunction()
+				}
 			}
 			.keyboardShortcut("d", modifiers: [.command, .shift])
 			.disabled(appState?.selectedFunction == nil)
