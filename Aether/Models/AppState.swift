@@ -1151,9 +1151,6 @@ final class AppState {
 //			try patcher.applyPatch(patch)
 //			patches = patcher.getAllPatches()
 //			hasUnsavedChanges = true
-//
-//			// Clear cache for affected section
-//			clearDisassemblyCache(in: address..<(address + UInt64(newBytes.count)))
 //		} catch {
 //			errorMessage = error.localizedDescription
 //			showError = true
@@ -1168,7 +1165,6 @@ final class AppState {
 //			try patcher.applyPatch(patch)
 //			patches = patcher.getAllPatches()
 //			hasUnsavedChanges = true
-//			clearDisassemblyCache(in: address..<(address + UInt64(size)))
 //		} catch {
 //			errorMessage = error.localizedDescription
 //			showError = true
@@ -1182,7 +1178,6 @@ final class AppState {
 //			try patcher.revertPatch(patch)
 //			patches = patcher.getAllPatches()
 //			hasUnsavedChanges = patches.contains { $0.isApplied }
-//			clearDisassemblyCache(in: patch.address..<(patch.address + UInt64(patch.newBytes.count)))
 //		} catch {
 //			errorMessage = error.localizedDescription
 //			showError = true
@@ -1198,15 +1193,6 @@ final class AppState {
 
 	func instruction(at address: UInt64) -> Instruction? {
 		instructionMap[address].map { instructions[$0] }
-	}
-
-	func clearDisassemblyCache(in range: Range<UInt64>) {
-		let lowerBoundI = instructionMap[range.lowerBound, default: 0]
-		let upperBoundI = instructionMap[range.upperBound, default: 0]
-		let lowerBoundP = instructions[lowerBoundI].pcode.lowerBound
-		let upperBoundP = instructions[upperBoundI].pcode.upperBound
-		instructions.removeSubrange(lowerBoundI..<upperBoundI)
-		pcode.removeSubrange(lowerBoundP..<upperBoundP)
 	}
 
 	func instructions(in range: Range<UInt64>) -> ArraySlice<Instruction> {
