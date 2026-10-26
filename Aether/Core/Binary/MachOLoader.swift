@@ -29,14 +29,13 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		return try loadMachO(data: data, offset: 0)
 	}
 
+	/// Model-based Mach-O loader. Thin 64-bit Mach-O only: fat, 32-bit
+	/// and non-Mach-O input throws a `BinaryLoaderError` (never traps).
+	/// Format validation and the re-parse guard live in `machO(for:)` so
+	/// every caller of the model-based path gets them.
 	@concurrent
 	static func load(_ model: BinaryModel) async throws {
-		// Handle fat/universal binaries
-//		if magic == FAT_MAGIC || magic == FAT_CIGAM {
-//			return try loadFatBinary(data: model.embedded, swapped: magic == FAT_CIGAM)
-//		}
-
-		return try machO(for: model)
+		try await machO(for: model)
 	}
 
 	// MARK: - Fat Binary Loading
@@ -77,6 +76,39 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 	// MARK: - Mach-O Loading
 
 	static func machO(for model: BinaryModel) throws {
+		// Format gate (B3): the model-based path supports thin 64-bit
+		// Mach-O only. Fat, 32-bit and non-Mach-O input used to hit a
+		// fatalError; now it throws a typed error the "Load..." call
+		// site logs.
+		guard let magic = model.data.readUInt32LE(at: 0) else {
+			throw BinaryLoaderError.invalidHeader
+		}
+		if magic == FAT_MAGIC || magic == FAT_CIGAM {
+			throw BinaryLoaderError.unsupportedBinary("fat/universal Mach-O (magic 0x\(String(format: "%08x", magic))) — thin images only")
+		}
+		if magic == MH_MAGIC || magic == MH_CIGAM {
+			throw BinaryLoaderError.unsupportedBinary("32-bit Mach-O (magic 0x\(String(format: "%08x", magic))) — 64-bit only")
+		}
+		guard magic == MH_MAGIC_64 || magic == MH_CIGAM_64 else {
+			throw BinaryLoaderError.invalidMagic("0x\(String(format: "%08x", magic)) — not a Mach-O header")
+		}
+
+		// Re-parse guard (B3): "Load..." must be idempotent. Chose
+		// reset-first over skip: a previously failed load can leave
+		// partial state (rows appended before a throw), which a skip
+		// guard would wedge permanently; reset also lets "Load..."
+		// re-parse from scratch. All four child relationships are
+		// .cascade, so removeAll() deletes the rows.
+		if !model.segments.isEmpty {
+			model.procedures.removeAll()
+			model.symbols.removeAll()
+			model.sections.removeAll()
+			model.segments.removeAll()
+			model.entryPoint = 0
+			model.stackSize = 0
+			model.baseAddress = 0
+		}
+
 		var bytes = model.data.bytes
 		let header = bytes.unsafeLoad(as: mach_header_64.self)
 
@@ -86,10 +118,6 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 		let start = ContinuousClock.now
 		var log = "Mach-O: \(bytes.byteCount) bytes, \(is64Bit ? "64-bit" : "32-bit")\(swapped ? ", byte-swapped" : "")\n"
-
-		if !is64Bit {
-			fatalError("32-bit files aren't supported")
-		}
 
 		bytes = bytes.extracting(droppingFirst: MemoryLayout<mach_header_64>.size)
 
@@ -210,7 +238,39 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 					}
 				}
 
-				for entry in entries {
+				// In-pass dedupe (B3): `#Unique<SymbolModel>([\.binary,
+				// \.address])` allows one row per (binary, address), but a
+				// symtab may name the same address several times (local +
+				// global aliases; undefined symbols all sit at 0). Keep the
+				// highest-preference entry per address: N_SECT (real body)
+				// beats N_ABS beats N_UNDF, external beats local within a
+				// kind — a real function body must not be replaced by an
+				// absolute constant or an undefined stub at the same
+				// address.
+				func preference(_ sym: nlist_64) -> Int {
+					let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
+					let external = n_type.n_ext ? 1 : 0
+					switch n_type.n_type {
+					case .N_SECT:
+						return 4 + external
+					case .N_ABS:
+						return 2 + external
+					default:
+						// N_UNDF and the rest: no body in this file.
+						return external
+					}
+				}
+				var winners: [UInt64: (index: Int, rank: Int)] = [:]
+				for (i, entry) in entries.enumerated() {
+					let rank = preference(entry.sym)
+					if let current = winners[entry.sym.n_value], current.rank >= rank {
+						continue
+					}
+					winners[entry.sym.n_value] = (index: i, rank: rank)
+				}
+				let kept = Set(winners.values.map { $0.index })
+
+				for (i, entry) in entries.enumerated() where kept.contains(i) {
 					let sym = entry.sym
 					let symbol = SymbolModel(in: model)
 					model.symbols.append(symbol)
@@ -254,7 +314,9 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 					}
 				}
 
-				log += "Parsed \(command.nsyms) symbols in \(start.duration(to: .now).logDescription)\n"
+				log += "Parsed \(command.nsyms) symbols"
+				+ (entries.count - kept.count > 0 ? " (\(entries.count - kept.count) same-address aliases collapsed)" : "")
+				+ " in \(start.duration(to: .now).logDescription)\n"
 			case LC_MAIN:
 				let command = bytes.unsafeLoad(as: entry_point_command.self)
 				let address = model.segments.first { $0.name == "__TEXT" }?.address ?? 0

@@ -11,6 +11,8 @@ enum BinaryLoaderError: Error, LocalizedError {
 	case fileNotFound(URL)
 	case unsupportedFormat
 	case invalidHeader
+	case invalidMagic(String)
+	case unsupportedBinary(String)
 	case corruptedFile(String)
 	case unsupportedArchitecture(String)
 	case readError(String)
@@ -23,6 +25,10 @@ enum BinaryLoaderError: Error, LocalizedError {
 			return "Unsupported binary format"
 		case .invalidHeader:
 			return "Invalid file header"
+		case .invalidMagic(let magic):
+			return "Not a Mach-O binary (magic \(magic))"
+		case .unsupportedBinary(let reason):
+			return "Unsupported binary: \(reason)"
 		case .corruptedFile(let reason):
 			return "Corrupted file: \(reason)"
 		case .unsupportedArchitecture(let arch):
