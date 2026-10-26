@@ -32,10 +32,10 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	@OptionGroup var aether: AetherOptions
 	@OptionGroup var options: Model.FetchOptions
 
-	@Option
+	@Option(help: "Maximum number of models to show")
 	var limit: Int?
 
-	@Option
+	@Option(help: "Skip this many models from the start of the result")
 	var offset: Int?
 
 	mutating func run() async throws {

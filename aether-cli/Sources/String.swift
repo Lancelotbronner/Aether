@@ -8,7 +8,7 @@ struct StringCommand: AsyncParsableCommand {
 		abstract: "Work with strings.",
 		subcommands: [
 			FetchCommand<StringModel>.self,
-			CountCommand<BinaryModel>.self,
+			CountCommand<StringModel>.self,
 		],
 		defaultSubcommand: FetchCommand<StringModel>.self)
 }

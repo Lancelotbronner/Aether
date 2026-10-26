@@ -8,7 +8,7 @@ struct SegmentCommand: AsyncParsableCommand {
 		abstract: "Work with segments.",
 		subcommands: [
 			FetchCommand<SegmentModel>.self,
-			CountCommand<BinaryModel>.self,
+			CountCommand<SegmentModel>.self,
 		],
 		defaultSubcommand: FetchCommand<SegmentModel>.self)
 }

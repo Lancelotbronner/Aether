@@ -10,7 +10,7 @@ struct ImportCommand: AsyncParsableCommand {
 
 	@OptionGroup var aether: AetherOptions
 
-	@Argument
+	@Argument(help: "Path to a thin 64-bit Mach-O executable")
 	var executablePath: String
 
 	mutating func run() async throws {
@@ -22,10 +22,15 @@ struct ImportCommand: AsyncParsableCommand {
 		binary.fileURL = url
 		binary.name = url.lastPathComponent
 		modelContext.insert(binary)
+
+		// Load first, save second: the loader validates the header, so a
+		// non-Mach-O (or fat/32-bit) file throws before anything is
+		// persisted and the document is left untouched. Saving before the
+		// load would also lose the parsed segments/sections/symbols, since
+		// nothing else in this path saves.
+		try await MachOLoader.load(binary)
 		try modelContext.save()
 
 		print("Successfully imported as \(binary.persistentModelID).")
-
-		try await MachOLoader.load(binary)
 	}
 }
