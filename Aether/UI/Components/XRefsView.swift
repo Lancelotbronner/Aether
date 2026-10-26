@@ -1,4 +1,5 @@
 import SwiftUI
+import AetherKit
 
 struct XRefsView: View {
     @Environment(AppState.self) private var appState

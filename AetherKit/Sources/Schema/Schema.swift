@@ -1,8 +1,7 @@
 import Foundation
 import SwiftData
-import AetherKit
 
-extension Array<any PersistentModel.Type> {
+public extension Array<any PersistentModel.Type> {
 	static let project: [any PersistentModel.Type] = [
 		BinaryModel.self,
 		SegmentModel.self,
@@ -14,51 +13,53 @@ extension Array<any PersistentModel.Type> {
 	]
 }
 
-extension Schema {
+public extension Schema {
 	static let project = Schema(.project)
 }
 
-@Model final class BinaryModel {
-	var name = "Untitled"
-	var format = BinaryFormat.unknown
-	var endian = Endianness.little
-	var architecture = Architecture.unknown
-	var is64 = true
-	var fileURL: URL?
+@Model public final class BinaryModel {
+	public var name = "Untitled"
+	public var format = BinaryFormat.unknown
+	public var endian = Endianness.little
+	public var architecture = Architecture.unknown
+	public var is64 = true
+	public var fileURL: URL?
 
-	var entryPoint: UInt64 = 0
-	var stackSize: UInt64 = 0
-	var baseAddress: UInt64 = 0
+	public var entryPoint: UInt64 = 0
+	public var stackSize: UInt64 = 0
+	public var baseAddress: UInt64 = 0
 
 	@Attribute(.externalStorage)
-	var data = Data()
+	public var data = Data()
 
 	@Relationship(deleteRule: .cascade, inverse: \SegmentModel.binary)
-	var segments: [SegmentModel] = []
+	public var segments: [SegmentModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \SectionModel.binary)
-	var sections: [SectionModel] = []
+	public var sections: [SectionModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \SymbolModel.binary)
-	var symbols: [SymbolModel] = []
+	public var symbols: [SymbolModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \ProcedureModel.binary)
-	var procedures: [ProcedureModel] = []
+	public var procedures: [ProcedureModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \StringModel.binary)
-	var strings: [StringModel] = []
+	public var strings: [StringModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \CrossReferenceModel.binary)
-	var references: [CrossReferenceModel] = []
+	public var references: [CrossReferenceModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \AnnotationModel.binary)
-	var annotations: [AnnotationModel] = []
+	public var annotations: [AnnotationModel] = []
 
 	@Relationship(deleteRule: .cascade, inverse: \BookmarkModel.binary)
-	var bookmarks: [BookmarkModel] = []
+	public var bookmarks: [BookmarkModel] = []
 
-	init() {}
+	public init() {}
+}
 
+public extension BinaryModel {
 	func load<T: BitwiseCopyable>(_ type: T.Type, at address: UInt64) -> T {
 		let byteOffset = Int(address - baseAddress)
 		return data.bytes.unsafeLoadUnaligned(fromByteOffset: byteOffset, as: T.self)
@@ -154,25 +155,27 @@ extension Schema {
 }
 
 /// Binary segment (e.g., `__TEXT`, `__DATA`)
-@Model nonisolated final class SegmentModel {
+@Model public final class SegmentModel {
 	#Unique<SegmentModel>([\.binary, \.address])
-	
-	var binary: BinaryModel
-	var name = "Untitled"
-	var address: UInt64 = 0
-	var size: UInt64 = 0
-	var fileOffset: UInt64 = 0
-	var fileSize: UInt64 = 0
-	var maxProtection: UInt32 = 0
-	var initProtection: UInt32 = 0
+
+	public var binary: BinaryModel
+	public var name = "Untitled"
+	public var address: UInt64 = 0
+	public var size: UInt64 = 0
+	public var fileOffset: UInt64 = 0
+	public var fileSize: UInt64 = 0
+	public var maxProtection: UInt32 = 0
+	public var initProtection: UInt32 = 0
 
 	@Relationship(deleteRule: .cascade, inverse: \SectionModel.segment)
-	var sections: [SectionModel] = []
+	public var sections: [SectionModel] = []
 
-	init(in binary: BinaryModel) {
+	public init(in binary: BinaryModel) {
 		self.binary = binary
 	}
+}
 
+public extension SegmentModel {
 	var isReadable: Bool { initProtection & 1 != 0 }
 	var isWritable: Bool { initProtection & 2 != 0 }
 	var isExecutable: Bool { initProtection & 4 != 0 }
@@ -191,25 +194,27 @@ extension Schema {
 }
 
 /// Binary section (e.g., `__text`, `__data`)
-@Model nonisolated final class SectionModel {
+@Model public final class SectionModel {
 	#Unique<SectionModel>([\.binary, \.address])
 
-	var binary: BinaryModel
-	var segment: SegmentModel
-	var name = "Untitled"
-	var segmentName = "Untitled"
-	var address: UInt64 = 0
-	var size: UInt64 = 0
-	var offset: UInt32 = 0
-	var alignment: UInt32 = 0
-	var flags: UInt32 = 0
+	public var binary: BinaryModel
+	public var segment: SegmentModel
+	public var name = "Untitled"
+	public var segmentName = "Untitled"
+	public var address: UInt64 = 0
+	public var size: UInt64 = 0
+	public var offset: UInt32 = 0
+	public var alignment: UInt32 = 0
+	public var flags: UInt32 = 0
 
-	var addressRange: Range<UInt64> { address..<(address + size) }
-
-	init(in segment: SegmentModel, of binary: BinaryModel) {
+	public init(in segment: SegmentModel, of binary: BinaryModel) {
 		self.segment = segment
 		self.binary = binary
 	}
+}
+
+public extension SectionModel {
+	var addressRange: Range<UInt64> { address..<(address + size) }
 
 	var fullName: String { "\(segmentName),\(name)" }
 
@@ -235,26 +240,28 @@ extension Schema {
 }
 
 /// Represents a symbol in the binary
-@Model nonisolated final class SymbolModel {
+@Model public final class SymbolModel {
 	// Imports (N_UNDF) all share address 0, so uniqueness must include the
 	// name or the whole import table collapses to one row.
 	#Unique<SymbolModel>([\.binary, \.address, \.identifier])
 
-	var binary: BinaryModel
-	var identifier = ""
-	var name = ""
-	var address: UInt64 = 0
-	var size: UInt64 = 1
-	var type = SymbolType.unknown
-	var binding = SymbolBinding.undefined
-	var isImport = false
-	var isExport = false
+	public var binary: BinaryModel
+	public var identifier = ""
+	public var name = ""
+	public var address: UInt64 = 0
+	public var size: UInt64 = 1
+	public var type = SymbolType.unknown
+	public var binding = SymbolBinding.undefined
+	public var isImport = false
+	public var isExport = false
 
-	var addressRange: Range<UInt64> { address..<(address + size) }
-
-	init(in binary: BinaryModel) {
+	public init(in binary: BinaryModel) {
 		self.binary = binary
 	}
+}
+
+public extension SymbolModel {
+	var addressRange: Range<UInt64> { address..<(address + size) }
 
 	var isImported: Bool {
 		binding == .external && address == 0
@@ -300,38 +307,40 @@ extension Schema {
 }
 
 /// Represents an identified function in the binary
-@Model nonisolated final class ProcedureModel {
+@Model public final class ProcedureModel {
 	#Unique<ProcedureModel>([\.symbol])
 
-	var binary: BinaryModel
-	var symbol: SymbolModel
-	var demangled = ""
+	public var binary: BinaryModel
+	public var symbol: SymbolModel
+	public var demangled = ""
 
 	// Analysis results
 
 	@Relationship(deleteRule: .cascade, inverse: \BlockModel.procedure)
-	var blocks: [BlockModel] = []
+	public var blocks: [BlockModel] = []
 
 	/// Procedures that call this function
 	@Relationship(deleteRule: .nullify, inverse: \ProcedureModel.callees)
-	var callers: [ProcedureModel] = []
+	public var callers: [ProcedureModel] = []
 
 	/// Procedures this function calls
-//	@Relationship(deleteRule: .nullify, inverse: \ProcedureModel.callers)
-	var callees: [ProcedureModel] = []
+	//	@Relationship(deleteRule: .nullify, inverse: \ProcedureModel.callers)
+	public var callees: [ProcedureModel] = []
 
 	// Metadata
-	var isThunk: Bool = false           // Simple jump to another function
-	var isLeaf: Bool = true             // Doesn't call other functions
-	var stackSize: Int = 0              // Stack frame size
-	var arguments: [FunctionArgument] = []
-	var localVariables: [LocalVariable] = []
+	public var isThunk: Bool = false           // Simple jump to another function
+	public var isLeaf: Bool = true             // Doesn't call other functions
+	public var stackSize: Int = 0              // Stack frame size
+	public var arguments: [FunctionArgument] = []
+	public var localVariables: [LocalVariable] = []
 
-	init(is symbol: SymbolModel, in binary: BinaryModel) {
+	public init(is symbol: SymbolModel, in binary: BinaryModel) {
 		self.binary = binary
 		self.symbol = symbol
 	}
+}
 
+public extension ProcedureModel {
 	func contains(address: UInt64) -> Bool {
 		let range = symbol.addressRange
 		return range.contains(address)
@@ -437,7 +446,7 @@ extension Schema {
 }
 
 /// A basic block within a function (for CFG)
-@Model nonisolated final class BlockModel {
+@Model public final class BlockModel {
 	var procedure: ProcedureModel
 	var startAddress: UInt64 = 0
 	var endAddress: UInt64 = 0
@@ -462,46 +471,46 @@ extension Schema {
 	var size: UInt64 { endAddress - startAddress }
 }
 
-@Model final class AnnotationModel {
-	var binary: BinaryModel
-	var kind = AnnotationKind.inline
-	var address: UInt64
-	var text: String
+@Model public final class AnnotationModel {
+	public var binary: BinaryModel
+	public var kind = AnnotationKind.inline
+	public var address: UInt64
+	public var text: String
 
-	init(_ text: String, at address: UInt64, in binary: BinaryModel) {
+	public init(_ text: String, at address: UInt64, in binary: BinaryModel) {
 		self.binary = binary
 		self.address = address
 		self.text = text
 	}
 }
 
-enum AnnotationKind: Int, Codable {
+public enum AnnotationKind: Int, Codable {
 	case inline
 	case trailing
 }
 
 /// String reference found in binary
-@Model final class StringModel {
-	var binary: BinaryModel
-	var address: UInt64
-	var encoding: StringEncoding
+@Model public final class StringModel {
+	public var binary: BinaryModel
+	public var address: UInt64
+	public var encoding: StringEncoding
 
-	init(binary: BinaryModel, address: UInt64, encoding: StringEncoding, cached: String? = nil) {
+	public init(binary: BinaryModel, address: UInt64, encoding: StringEncoding, cached: String? = nil) {
 		self.binary = binary
 		self.address = address
 		self.encoding = encoding
 		self.cached = cached
 	}
 
-	@Transient var cached: String?
+	@Transient public var cached: String?
 
-	var value: String {
+	public var value: String {
 		cached ?? "not loaded"
 	}
 }
 
 /// Cross-reference
-@Model final class CrossReferenceModel {
+@Model public final class CrossReferenceModel {
 	var binary: BinaryModel
 	var fromAddress: UInt64
 	var toAddress: UInt64
@@ -515,14 +524,14 @@ enum AnnotationKind: Int, Codable {
 	}
 }
 
-@Model final class BookmarkModel {
-	var binary: BinaryModel
-	var name: String
-	var address: UInt64
-	var summary = ""
-	var created = Date.now
+@Model public final class BookmarkModel {
+	public var binary: BinaryModel
+	public var name: String
+	public var address: UInt64
+	public var summary = ""
+	public var created = Date.now
 
-	init(_ name: String, at address: UInt64, in binary: BinaryModel) {
+	public init(_ name: String, at address: UInt64, in binary: BinaryModel) {
 		self.name = name
 		self.address = address
 		self.binary = binary

@@ -68,3 +68,8 @@ Goal: complete the transition from ad-hoc project state (god-model `AppState`, `
 - **Undo finding:** `modelContext.undoManager` is not assigned by the DocumentGroup bridge → per task rule, manual `registerUndoRedo` kept (now mutating models; delete-undo rebuilds fresh objects). Native SwiftData auto-undo recorded as follow-up.
 - Red build once: missing `import SwiftData` in `AetherContent.swift` (`\.modelContext` env value) — fixed; `** BUILD SUCCEEDED ** [5.100 sec]`. Grep: zero live dict references.
 - Next: retry Agent 7 for Task 6 (strings/B11) — if the subagent context is still over the limit, continue inline.
+
+### 2026-10-26 Agent 7 relaunch — "server is shutting down"; fixed via fresh task id
+- Context was compressed by the user (to clear the MCP-schema bloat that broke Agent 6), but two `agent` launches (foreground, `run_in_background: false`) both failed with **"Subagent did not complete (terminate mode: ERROR). server is shutting down"** — the subagent execution server was restarting, not a prompt problem.
+- Workaround (user-directed): relaunch with a **different task id/description** ("Strings B11 extraction run 2") and the identical prompt, in **background** mode (`run_in_background: true`, the pattern Agents 1–5 used). User hypothesis: reusing the same id/name re-associates stale/garbage context. The fresh-id background spawn succeeded.
+- Lesson for later tasks: on "server is shutting down", don't retry the same foreground id — relaunch background with a fresh description.

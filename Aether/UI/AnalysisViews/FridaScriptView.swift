@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import AetherKit
+import AetherKit
 
 struct FridaScriptView: View {
     @Environment(\.dismiss) var dismiss

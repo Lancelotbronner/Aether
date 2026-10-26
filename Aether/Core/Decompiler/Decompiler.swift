@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 /// Enhanced pseudo-code decompiler with control flow recovery
 nonisolated final class Decompiler {

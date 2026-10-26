@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 /// Represents an identified function in the binary
 @Observable
@@ -170,31 +171,4 @@ nonisolated final class BasicBlock: Identifiable, Hashable {
 	func hash(into hasher: inout Hasher) {
 		hasher.combine(startAddress)
 	}
-}
-
-/// Type of basic block
-enum BasicBlockType: String, Codable {
-	case entry = "Entry"
-	case normal = "Normal"
-	case exit = "Exit"
-	case conditional = "Conditional"
-	case loop = "Loop"
-}
-
-/// Function argument
-struct FunctionArgument: Codable, Identifiable {
-	let id = UUID()
-	var name: String
-	var type: String
-	var register: String?
-	var stackOffset: Int?
-}
-
-/// Local variable
-struct LocalVariable: Codable, Identifiable {
-	let id = UUID()
-	var name: String
-	var type: String
-	var stackOffset: Int
-	var size: Int
 }

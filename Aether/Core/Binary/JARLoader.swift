@@ -1,6 +1,81 @@
 import Foundation
 import Zip
 import Compression
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
 
 // MARK: - JAR/Java Class Loader
 
@@ -197,7 +272,7 @@ nonisolated final class JARLoader: BinaryLoaderProtocol {
 
 		// Read manifest if exists
 		if let manifestData = try? archive.fileContents(at: "META-INF/MANIFEST.MF"),
-		   let manifestString = String(data: manifestData, encoding: .utf8) {
+		   let _ = String(data: manifestData, encoding: .utf8) {
 			manifest = parseManifest(manifestData)
 		}
 

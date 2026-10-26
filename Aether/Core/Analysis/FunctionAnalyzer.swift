@@ -1,4 +1,9 @@
 import Foundation
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
 
 /// Analyzes binary to identify functions
 class FunctionAnalyzer {
@@ -200,7 +205,7 @@ class FunctionAnalyzer {
         let endOffset = min(offset + Int(maxSize), section.data.count)
         let data = section.data[offset..<endOffset]
 
-        let instructions = await disassembler.disassemble(
+		let instructions = disassembler.disassemble(
             data: Data(data),
             address: function.startAddress,
             architecture: architecture
@@ -283,7 +288,7 @@ class FunctionAnalyzer {
                 endAddr = function.endAddress
             }
 
-            var block = BasicBlock(
+			let block = BasicBlock(
                 startAddress: leaderAddr,
                 endAddress: endAddr
             )

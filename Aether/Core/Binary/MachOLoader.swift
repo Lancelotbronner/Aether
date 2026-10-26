@@ -104,6 +104,7 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 			model.symbols.removeAll()
 			model.sections.removeAll()
 			model.segments.removeAll()
+			model.strings.removeAll()
 			model.entryPoint = 0
 			model.stackSize = 0
 			model.baseAddress = 0
@@ -336,7 +337,10 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 			bytes = bytes.extracting(droppingFirst: Int(item.cmdsize))
 		}
-		log += "Parsed \(model.segments.count) segments, \(model.sections.count) sections, \(model.symbols.count) symbols in \(start.duration(to: .now).logDescription)"
+
+		model.strings = scanStrings(in: model)
+
+		log += "Parsed \(model.segments.count) segments, \(model.sections.count) sections, \(model.symbols.count) symbols, \(model.strings.count) strings in \(start.duration(to: .now).logDescription)"
 		Logger.app.info("\(log)")
 
 		// Determine base address (skip __PAGEZERO which has address 0)
@@ -346,6 +350,64 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 		model.format = .machO
 		model.is64 = is64Bit
 		model.architecture = mapCPUType(UInt32(header.cputype))
+	}
+
+	/// Eager C-string scan (Task 6, B11).
+	///
+	/// Scans the `__TEXT` segment's file bytes in a single linear pass for
+	/// printable-ASCII runs of at least 4 bytes and inserts one `StringModel`
+	/// per hit with `cached` set, so the Strings tab is populated immediately
+	/// at Load.
+	///
+	/// Refinement: if the `__TEXT` segment declares a `__cstring` section, only
+	/// that section's bytes are scanned (where the compiler puts C-strings);
+	/// otherwise the whole segment is scanned so binaries without `__cstring`
+	/// still get string coverage. Virtual address = region address + intra-region
+	/// file offset.
+	nonisolated static func scanStrings(in model: BinaryModel) -> [StringModel] {
+		let data = model.data
+		guard let text = model.segments.first(where: { $0.name == "__TEXT" }),
+			  text.fileSize > 0,
+			  Int(text.fileOffset) + Int(text.fileSize) <= data.count else { return [] }
+
+		// Prefer the __cstring section if declared; else scan the whole segment.
+		let region: (address: UInt64, fileStart: Int, fileEnd: Int)
+		if let cstring = text.sections.first(where: { $0.name == "__cstring" }),
+		   cstring.size > 0,
+		   Int(cstring.offset) + Int(cstring.size) <= data.count {
+			region = (cstring.address, Int(cstring.offset), Int(cstring.offset) + Int(cstring.size))
+		} else {
+			region = (text.address, Int(text.fileOffset), Int(text.fileOffset) + Int(text.fileSize))
+		}
+		let bytes = data.subdata(in: region.fileStart..<region.fileEnd)
+		let minLen = 4
+
+		var result: [StringModel] = []
+		var runStart = -1
+		for i in 0..<bytes.count {
+			let b = bytes[i]
+			if b >= 0x20 && b < 0x7F {
+				if runStart < 0 { runStart = i }
+			} else {
+				let len = i - runStart
+				if runStart >= 0 && len >= minLen {
+					let value = String(decoding: bytes[runStart..<i], as: UTF8.self)
+					let vaddr = region.address + UInt64(runStart)
+					result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, cached: value))
+				}
+				runStart = -1
+			}
+		}
+		// Flush a run that reaches the end of the region.
+		if runStart >= 0 {
+			let len = bytes.count - runStart
+			if len >= minLen {
+				let value = String(decoding: bytes[runStart..<bytes.count], as: UTF8.self)
+				let vaddr = region.address + UInt64(runStart)
+				result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, cached: value))
+			}
+		}
+		return result
 	}
 
 	private func loadMachO(data: Data, offset: Int) throws -> BinaryFile {

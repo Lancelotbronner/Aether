@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AetherKit
 
 struct SymbolsListView: View {
 	@Environment(AppState.self) private var appState

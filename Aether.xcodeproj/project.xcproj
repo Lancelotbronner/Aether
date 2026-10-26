@@ -29,6 +29,7 @@
     { "path": "AGENTS.md" },
     { "path": "CoreAether" },
     { "path": "AetherKit" },
+    { "path": "aether-cli" },
     {
       "kind": "folder",
       "path": "Aether",

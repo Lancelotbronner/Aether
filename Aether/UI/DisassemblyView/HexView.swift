@@ -1,4 +1,7 @@
 import SwiftUI
+import AetherKit
+import AetherKit
+import AetherKit
 
 struct HexView: View {
 	@Environment(AppState.self) private var appState
@@ -60,7 +63,7 @@ struct HexView: View {
 					}
 					.scrollTargetBehavior(.viewAligned)
 					.onChange(of: appState.selectedAddress) { _, newAddress in
-						let rowAddress = (newAddress / UInt64(bytesPerRow)) * UInt64(bytesPerRow)
+						_ = (newAddress / UInt64(bytesPerRow)) * UInt64(bytesPerRow)
 						withAnimation {
 							//FIXME: tries to build all views on its way, spends forever there
 //							proxy.scrollTo(rowAddress, anchor: .center)

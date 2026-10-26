@@ -1,6 +1,8 @@
 import Foundation
 import JavaScriptCore
 import Combine
+import AetherKit
+import AetherKit
 
 // MARK: - Scripting Engine
 
@@ -154,7 +156,7 @@ class ScriptingEngine: ObservableObject {
 
         // Rename function
         let renameFunction: @convention(block) (String, String) -> Bool = { [weak self] addressStr, newName in
-            let address = UInt64(addressStr.replacingOccurrences(of: "0x", with: ""), radix: 16) ?? 0
+			_ = UInt64(addressStr.replacingOccurrences(of: "0x", with: ""), radix: 16) ?? 0
 //            if let index = self?.appState?.functions.firstIndex(where: { $0.startAddress == address }) {
 //                Task { @MainActor in
 //                    self?.appState?.functions[index].name = newName

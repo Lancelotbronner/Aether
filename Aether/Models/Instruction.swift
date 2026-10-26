@@ -1,4 +1,5 @@
 import Foundation
+import AetherKit
 
 /// Represents a disassembled instruction
 nonisolated struct Instruction: Identifiable {
@@ -117,14 +118,6 @@ struct CrossReference: Identifiable, Hashable {
 	}
 }
 
-/// Type of cross-reference
-enum XRefType: String, Codable {
-	case call = "Call"
-	case jump = "Jump"
-	case data = "Data"
-	case string = "String"
-}
-
 /// String reference found in binary
 struct StringReference: Identifiable, Hashable {
 	let id = UUID()
@@ -140,12 +133,4 @@ struct StringReference: Identifiable, Hashable {
 	func hash(into hasher: inout Hasher) {
 		hasher.combine(address)
 	}
-}
-
-/// String encoding
-enum StringEncoding: String, Codable {
-	case ascii = "ASCII"
-	case utf8 = "UTF-8"
-	case utf16 = "UTF-16"
-	case utf32 = "UTF-32"
 }

@@ -1,4 +1,45 @@
 import Foundation
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
+import AetherKit
 
 // MARK: - DWARF Debug Information Parser
 
@@ -315,7 +356,7 @@ class DWARFParser {
         headerOffset += 1
 
         // Parse DIEs (Debug Information Entries)
-        var cu = CompileUnit(
+		let cu = CompileUnit(
             name: "",
             compDir: "",
             producer: "",

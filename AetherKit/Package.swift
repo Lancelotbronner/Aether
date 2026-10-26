@@ -11,7 +11,9 @@ let package = Package(
 		.library(name: "AetherKit", targets: ["AetherKit"]),
 	],
 	targets: [
-		.target(name: "AetherKit"),
+		.target(name: "AetherKit", swiftSettings: [
+			.enableExperimentalFeature("Lifetimes"),
+		]),
 		.testTarget(name: "AetherTests", dependencies: ["AetherKit"]),
 	],
 	swiftLanguageModes: [.v6]
