@@ -140,17 +140,28 @@ public extension BinaryModel {
 		segments.first { $0.contains(address: address) }
 	}
 
+	/// Read `count` bytes at virtual `address`. The address is mapped to a
+	/// file offset via `baseAddress` (like `data(in:)`); returns `nil` if
+	/// the range is not fully contained in the loaded data.
 	func read(at address: UInt64, count: Int) -> Data? {
-		data[address..<(address + UInt64(count))]
+		guard count >= 0 else { return nil }
+		let start = data.startIndex
+		return data(in: address..<(address + UInt64(count)))?.subdata(in: start..<start + count)
 	}
 
-	/// Read null-terminated string at address
+	/// Read null-terminated string at virtual `address` (up to `maxLength`
+	/// bytes). Returns `nil` if `address` is not backed by loaded data.
 	func readString(at address: UInt64, maxLength: Int = 1024) -> String? {
-		var r = Int(address)
-		while data[r] != 0 {
-			r += 1
+		// Clamped view: the first byte is file-backed (data(in:) succeeded),
+		// but the string may run to the end of the file without a terminator.
+		guard let head = data(in: address..<(address + 1)) else { return nil }
+		let end = min(head.count + maxLength - 1, data.count)
+		let view = data[head.startIndex..<end]
+		var i = view.startIndex
+		while i < view.endIndex, view[i] != 0 {
+			i = view.index(after: i)
 		}
-		return String(data: data[address..<UInt64(r)], encoding: .utf8)
+		return String(data: view[..<i], encoding: .utf8)
 	}
 }
 

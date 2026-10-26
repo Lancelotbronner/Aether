@@ -72,7 +72,9 @@ struct HexView: View {
 		}
 		.onChange(of: appState.selectedSection, initial: true) {
 			if let section = appState.selectedSection {
-				data = section.binary.data
+				// Only this section's own bytes (vaddr-mapped, bounds-guarded);
+				// `data(in:)` returns nil for a range not fully file-backed.
+				data = section.binary.data(in: section.addressRange) ?? Data()
 				baseAddress = section.address
 			} else {
 				data = Data()
