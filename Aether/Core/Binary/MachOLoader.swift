@@ -238,15 +238,13 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 					}
 				}
 
-				// In-pass dedupe (B3): `#Unique<SymbolModel>([\.binary,
-				// \.address])` allows one row per (binary, address), but a
-				// symtab may name the same address several times (local +
-				// global aliases; undefined symbols all sit at 0). Keep the
-				// highest-preference entry per address: N_SECT (real body)
-				// beats N_ABS beats N_UNDF, external beats local within a
-				// kind — a real function body must not be replaced by an
-				// absolute constant or an undefined stub at the same
-				// address.
+				// In-pass dedupe (B3): a symtab can repeat the exact same
+				// (address, name) pair; `#Unique<SymbolModel>([\.binary,
+				// \.address, \.identifier])` rejects such duplicates, so keep
+				// only the highest-preference entry per (address, name):
+				// N_SECT (real body) beats N_ABS beats N_UNDF, external beats
+				// local within a kind. Aliases (same address, different name)
+				// and imports (different names at address 0) are kept.
 				func preference(_ sym: nlist_64) -> Int {
 					let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
 					let external = n_type.n_ext ? 1 : 0
@@ -260,13 +258,18 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 						return external
 					}
 				}
-				var winners: [UInt64: (index: Int, rank: Int)] = [:]
+				struct SymKey: Hashable {
+					let address: UInt64
+					let name: String
+				}
+				var winners: [SymKey: (index: Int, rank: Int)] = [:]
 				for (i, entry) in entries.enumerated() {
 					let rank = preference(entry.sym)
-					if let current = winners[entry.sym.n_value], current.rank >= rank {
+					let key = SymKey(address: entry.sym.n_value, name: entry.name)
+					if let current = winners[key], current.rank >= rank {
 						continue
 					}
-					winners[entry.sym.n_value] = (index: i, rank: rank)
+					winners[key] = (index: i, rank: rank)
 				}
 				let kept = Set(winners.values.map { $0.index })
 

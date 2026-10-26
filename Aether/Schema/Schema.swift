@@ -236,7 +236,9 @@ extension Schema {
 
 /// Represents a symbol in the binary
 @Model nonisolated final class SymbolModel {
-	#Unique<SymbolModel>([\.binary, \.address])
+	// Imports (N_UNDF) all share address 0, so uniqueness must include the
+	// name or the whole import table collapses to one row.
+	#Unique<SymbolModel>([\.binary, \.address, \.identifier])
 
 	var binary: BinaryModel
 	var identifier = ""

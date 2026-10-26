@@ -24,7 +24,7 @@ Agent 3, 2026-10-26, branch `experiment/swift-data`. No commit made (orchestrato
 4. **`#Unique<SymbolModel>([\.binary, \.address])`: in-pass dedupe, constraint kept.** In the LC_SYMTAB pass, per address keep the highest-preference entry:
    `N_SECT external (5) > N_SECT local (4) > N_ABS external (3) > N_ABS local (2) > N_UNDF external (1) > N_UNDF local (0)`.
    This deliberately refines the task's "e.g. global > external > local > undefined": kind (where the body is) outranks the external/local bit, so an absolute constant or undefined stub can never displace a real function body at the same address. `#Unique` stays as the safety net — with the in-pass dedupe it should never fire.
-   **Known consequence (do not "fix" locally):** all `N_UNDF` symbols sit at address 0, so per binary the imports collapse to *one* representative row (thin_test has 13 imports → 1 row at 0; `/bin/ls` would have ~91). The Imports tab will look wrong until the constraint is revisited — e.g. make it unique on `(binary, address, identifier)`. That is a schema change, so it's out of this task's scope.
+   ~~**Known consequence:** all `N_UNDF` symbols sit at address 0, so per binary the imports collapse to *one* representative row…~~ **RESOLVED by the orchestrator** (post-commit, same task scope): `#Unique<SymbolModel>` is now `(binary, address, identifier)` and the in-pass dedupe is keyed on (address, name) — all imports survive as separate rows; only exact (address, name) duplicates are collapsed.
 5. **`unsafeLoadUnaligned`:** no *new* struct reads were introduced (the magic check uses the existing unaligned-safe `Data.readUInt32LE(at:)`), so no new unaligned-load call sites were needed. Task 1's `Span.unsafeLoad` for nlist_64 was left untouched per instructions.
 
 ## Evidence
@@ -43,7 +43,7 @@ Agent 3, 2026-10-26, branch `experiment/swift-data`. No commit made (orchestrato
 - **Load... already logs errors** via `Logger.app.error` in `ProgramNavigator.swift` — nothing to add there.
 - Model-based path is **thin 64-bit only** by design; expect `BinaryLoaderError.unsupportedBinary` (fat/32-bit) or `.invalidMagic` for anything else. Don't treat those as crashes/regressions.
 - **"Load..." is idempotent** — repeated clicks reset and re-parse; the model will never accumulate duplicate rows from repeated Loads.
-- **Imports tab caveat:** one row per binary at address 0 (representative N_UNDF). `SymbolModel.isImported` is `binding == .external && address == 0`. If Task 3 touches the Imports navigator, this collapse is the root cause — fix belongs to the `#Unique` revisit, not Task 3.
+- **Imports tab (resolved by orchestrator after this task's commit):** all N_UNDF rows now persist (unique key includes `identifier`). `SymbolModel.isImported` is `binding == .external && address == 0`.
 - **Cascade relationships:** all four `BinaryModel` child relationships are `.cascade`; `removeAll()` on any of them is safe. Don't add non-cascade child relationships.
 - **Ordering invariant in `machO(for:)`:** magic gate → reset → parse. If you add pre-parse validation, keep it before the reset; if you add recovery of partially-parsed state, it must be after.
 - **Fat/slice facts carried to Task 12:** fat images have slice-relative `symoff`/`stroff` (add slice base `binaryOffset + symoff`), and the Task 1 nlist read uses alignment-strict `Span.unsafeLoad` — switch to `unsafeLoadUnaligned` when non-zero slice bases are introduced.
@@ -51,13 +51,13 @@ Agent 3, 2026-10-26, branch `experiment/swift-data`. No commit made (orchestrato
 
 ## Manual UI smoke steps (orchestrator)
 
-1. Import `.qwen/tmp/thin_test` → Load... → Symbols tab shows the named Swift symbols (`_$s9thin_test…`) with non-zero sizes for the N_SECT entries; one import row at 0.
+1. Import `.qwen/tmp/thin_test` → Load... → Symbols tab shows the named Swift symbols (`_$s9thin_test…`) with non-zero sizes for the N_SECT entries; Imports tab shows all 13 imports as separate rows at 0.
 2. Load... again on the same binary → **no duplicate** rows (reset-first), same symbol set.
 3. Import `/bin/ls` → Load... → clean logged error (`Unsupported binary: fat/universal Mach-O (magic 0xcafebabe) — thin images only`), no crash, app responsive.
 
 ## Risks for later tasks
 
-- Imports-tab collapse (above) will look like a regression to anyone not reading this file.
+- ~~Imports-tab collapse will look like a regression to anyone not reading this file.~~ Resolved by the orchestrator (see item 4 above).
 - `#Unique` safety net: if a future code path appends symbols outside the dedupe'd pass, SwiftData will throw a unique violation on save — that's the constraint working as intended, but it will surface as a model-save failure, not a load error.
 - The `sym.n_sect == 1` (__TEXT,__text) size heuristic is pre-existing; it's why only __text symbols currently get real sizes — Task 12 should generalize per-section.
 - Legacy `BinaryFile` path still exists and still has its own fat handling; Task 11 deletes it. Until then, `BinaryLoader` dispatch (legacy) and `MachOLoader.load` (model) are two different code paths with different fat behavior — the legacy one *does* parse fat images.
