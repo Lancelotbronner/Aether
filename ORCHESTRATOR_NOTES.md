@@ -68,3 +68,15 @@ Goal: complete the transition from ad-hoc project state (god-model `AppState`, `
 - **Undo finding:** `modelContext.undoManager` is not assigned by the DocumentGroup bridge → per task rule, manual `registerUndoRedo` kept (now mutating models; delete-undo rebuilds fresh objects). Native SwiftData auto-undo recorded as follow-up.
 - Red build once: missing `import SwiftData` in `AetherContent.swift` (`\.modelContext` env value) — fixed; `** BUILD SUCCEEDED ** [5.100 sec]`. Grep: zero live dict references.
 - Next: retry Agent 7 for Task 6 (strings/B11) — if the subagent context is still over the limit, continue inline.
+
+### 2026-10-26 Agent 7 relaunch — "server is shutting down"; fixed via fresh task id
+- Context was compressed by the user (to clear the MCP-schema bloat that broke Agent 6), but two `agent` launches (foreground, `run_in_background: false`) both failed with **"Subagent did not complete (terminate mode: ERROR). server is shutting down"** — the subagent execution server was restarting, not a prompt problem.
+- Workaround (user-directed): relaunch with a **different task id/description** ("Strings B11 extraction run 2") and the identical prompt, in **background** mode (`run_in_background: true`, the pattern Agents 1–5 used). User hypothesis: reusing the same id/name re-associates stale/garbage context. The fresh-id background spawn succeeded.
+- Lesson for later tasks: on "server is shutting down", don't retry the same foreground id — relaunch background with a fresh description.
+
+### Task 6 complete (via `worker` Agent 8) — committing
+- The prior `general-purpose` Agent 7 wrote the `scanStrings(in:)` scanner in `MachOLoader` (+64/−1) and had a green build, then **died** mid-way through a fragile evidence-script otool parser ("server is shutting down"). `worker` Agent 8 finished without touching the scanner (verified correct as-is): re-confirmed the green build, produced the `strings(1)`/otool evidence, and wrote handoff 07 + the PLAN entry.
+- Evidence: scanner mirror emits exactly one hit on `thin_test` — `0x100000b00 "sumOfSquares(3, 4) = "` — matching `strings -t x` (file offset 0xb00) + otool ground truth (`__cstring` addr 0x100000b00, size 0x16, offset 2816). `yypG` (in `__swift5_typeref`, outside `__cstring`) is the one expected by-design absence vs `strings(1)`; documented, not "fixed".
+- **Process change (user directive, 2026-10-26):** all further delegated agents use the **`worker`** subagent type, not `general-purpose`.
+- Orchestrator re-ran the build gate before commit (`** BUILD SUCCEEDED ** [1.614 sec]`) and confirmed diff scope (MachOLoader / PLAN / notes only; `.qwen/tmp/` evidence is git-ignored).
+- **Handed to Task 7 (handoff 07 §4):** `StringModel.value` is `@Transient` (not persisted) → the Strings filter must be **in-memory**; `#Predicate` cannot query it (the other four navigators' fields are stored, so they can use `#Predicate`).
