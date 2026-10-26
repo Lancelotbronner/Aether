@@ -6,6 +6,8 @@ This project was rescued from a botched AI-generated prototype.
 The author is working to get it in a usable state.
 As such many parts of the codebase are disconnected, duplicated or in-progress.
 
+A migration from the god-model `AppState` + ad-hoc `Project` persistence to SwiftData documents is in progress on branch `experiment/swift-data`; the living plan is `PLAN.md` at the repo root.
+
 ## Repository Layout
 
 | Path | What it is |
@@ -15,12 +17,14 @@ As such many parts of the codebase are disconnected, duplicated or in-progress.
 | `AetherKit/` | Swift package (`swift-tools 6.3`, macOS 26+, Swift 6 language mode). Shared IR + plugin + utility code. |
 | `CoreAether/` | C/C++ Swift package (`swift-tools 6.4`, C2X). Mach-O N-stab / `nlist` definitions in `Sources/include/CoreAether/mach-o.h`; `aether.h` is a stub. |
 | `DerivedData/` | Build artifacts (not source). |
+| `PLAN.md` | Living plan to complete the SwiftData migration (current state, ordered tasks, progress log). |
 
 ### App target (`Aether/`)
 
-- `Scene/` — `AetherScene` is a `DocumentGroup` over `ProjectDocument` (`Document/`); commands, toolbar, sidebar in the same folder.
-- `Models/` — `AppState`, `Architecture`, `BinaryFile`, `Disassembly`, `Function`, `Instruction`, `Project`, `Symbol`.
-- `Core/Binary/` — Loaders: `MachOLoader`, `ELFLoader`, `PELoader`, `JARLoader`, plus `BinaryLoader`/`BinaryPatcher`.
+- `Scene/` — `AetherScene` is a `DocumentGroup` built on the private `_SwiftData_SwiftUI` bridge (`editing: .project`, per-document `ModelContainer`, built-in autosave); `prepareDocument` is empty — file entry is the `AetherCommands` "Import Binary..." (⇧⌘O) `fileImporter`, which creates a `BinaryModel` (file bytes + URL + name) and inserts it, and the Programs navigator's "Load..." context menu then parses it via `MachOLoader.load(_:)`. `AetherRootView` owns a per-window `@State session = AppState()` (selection, transient state, UI flags, services) injected into the environment. Commands, toolbar, sidebar in the same folder.
+- `Schema/` — `Schema.swift`: the SwiftData models (`BinaryModel` — file bytes + `baseAddress`; `SegmentModel`, `SectionModel`, `SymbolModel`, `ProcedureModel`/`BlockModel`, `StringModel` with lazy `@Transient cached`; `AnnotationModel`, `CrossReferenceModel`, `BookmarkModel`), `UTType.project` (`.package`-conforming, `com.lancelotbronner.aetherproj`), and the `Array<any PersistentModel.Type>.project` model-type list. Procedure/Block/String/XRef models are *not* in that list — they are reachable via the `BinaryModel` cascade.
+- `Models/` — `AppState` (per-window session: model-based selection, transient caches, UI flags, services, ~25 stubbed analysis methods, dict-based renames/comments/bookmarks), `Architecture`, `BinaryFile`, `Disassembly`, `Function`, `Instruction`, `Project`, `Symbol` — the last five are legacy god-model types still consumed by the analyzers/decompiler.
+- `Core/Binary/` — Loaders: `MachOLoader` (dual path: model-based `machO(for: BinaryModel)` + legacy `BinaryFile`-returning path), `ELFLoader`, `PELoader`, `JARLoader`, plus `BinaryLoader`/`BinaryPatcher`.
 - `Core/Disassembler/` — `DisassemblerEngine` (actor) drives Capstone via `CapstoneDisassembler`; `JavaDisassembler` handles JVM bytecode; `DisassemblerPlugin` is the extension point. `Instruction` values carry a p-code range (`pcode: Range<Int>`).
 - `Core/Decompiler/` — `Decompiler.swift`, `JavaDecompiler.swift`.
 - `Core/Analysis/` — ~20 analyzers (xrefs, data flow, control-flow structuring, crypto/malware/packer detection, deobfuscation, DWARF, ObjC/Swift analysis, entropy, signatures, strings, type recovery, IoC extraction, AI annotation).
@@ -67,4 +71,5 @@ As such many parts of the codebase are disconnected, duplicated or in-progress.
 ## Git Context
 
 - `main` — current work: hand-rolled p-code IR in AetherKit, Capstone disassembly pipeline.
+- `experiment/swift-data` — SwiftData document migration (unattended agent pipeline; see PLAN.md).
 - `experiment/ghidra` — experiments converting Ghidra Sleigh `.sla` files into the p-code system (see `d5e6dcd` "More progress on Ghidra-like pcode system from SLA"). The author also studies Ghidra's Sleigh decision-tree resolution (`DecisionNode`) for constructor selection; frame Sleigh-related discussion in terms of compile-time tree construction (`DecisionNode::split`, `chooseOptimalField`) vs. runtime walking (`DecisionNode::resolve` via `Sleigh::resolve`). Note the Sleigh *compiler* C in Ghidra is generated from `slghparse.y` at build time.
