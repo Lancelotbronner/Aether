@@ -12,7 +12,7 @@ struct AetherToolbar: ToolbarContent {
 					appState.analyzeAll()
 				}
 				.keyboardShortcut("A", modifiers: .command)
-				.disabled(appState.currentFile == nil)
+				.disabled(appState.selectedBinary == nil)
 
 				Button("Functions", systemImage: "function") {
 					appState.findFunctions()
@@ -26,11 +26,9 @@ struct AetherToolbar: ToolbarContent {
 			ToolbarItemGroup {
 				Toggle("Decompiler", systemImage: "rectangle.split.2x1", isOn: $appState.showDecompiler)
 				Toggle("Hex View", systemImage: "rectangle.bottomhalf.filled", isOn: $appState.showHexView)
-
-				Button("CFG", systemImage: "point.3.connected.trianglepath.dotted") {
-					appState.analyzeAll()
-				}
-				.keyboardShortcut("G", modifiers: .command)
+				Toggle("CFG", systemImage: "point.3.connected.trianglepath.dotted", isOn: $appState.showCFG)
+				// No keyboardShortcut here: the View menu already binds ⌘G to
+				// "Show CFG" (AetherCommands) — a second binding would shadow it.
 				.disabled(appState.selectedFunction == nil)
 			} label: {
 				Text("View")
@@ -81,7 +79,7 @@ struct AetherToolbar: ToolbarContent {
 					} label: {
 						Label("Analyze Binary", systemImage: "doc.viewfinder")
 					}
-					.disabled(appState.currentFile == nil)
+					.disabled(appState.selectedBinary == nil)
 
 					Divider()
 
@@ -91,7 +89,7 @@ struct AetherToolbar: ToolbarContent {
 					} label: {
 						Label("Malware Behavior Flow", systemImage: "arrow.triangle.branch")
 					}
-					.disabled(appState.currentFile == nil)
+					.disabled(appState.selectedBinary == nil)
 				} else {
 					Button {
 						openSettings()
@@ -140,7 +138,7 @@ struct AetherToolbar: ToolbarContent {
 					Label("Import/Export Browser", systemImage: "arrow.left.arrow.right")
 				}
 			}
-			.disabled(appState.currentFile == nil)
+			.disabled(appState.selectedBinary == nil)
 		} label: {
 			Text("Assistant")
 		}
@@ -206,7 +204,7 @@ struct AetherToolbar: ToolbarContent {
 					}
 				}
 			}
-			.disabled(appState.currentFile == nil)
+			.disabled(appState.selectedBinary == nil)
 		}
 
 		ToolbarSpacer()
@@ -224,7 +222,7 @@ struct AetherToolbar: ToolbarContent {
 				appState.showGoToAddress = true
 			}
 			.keyboardShortcut("G")
-			.disabled(appState.currentFile == nil)
+			.disabled(appState.selectedBinary == nil)
 		}
 	}
 }

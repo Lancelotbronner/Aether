@@ -35,8 +35,10 @@ final class AppState {
 	var sectionNavigator: SectionModel? {
 		get { selectedSection }
 		set {
-			guard let selectedSection else { return }
-			goToAddress(selectedSection.address)
+			guard let newValue else { return }
+			selectedBinary = newValue.binary
+			selectedSection = newValue
+			goToAddress(newValue.address)
 		}
 	}
 
