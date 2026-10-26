@@ -171,7 +171,9 @@ nonisolated final class MachOLoader: BinaryLoaderProtocol {
 
 					switch n_type.n_type {
 					case .N_ABS:
-						symbol.type = .function
+						// Absolute symbols: n_value is a constant, not a load
+						// address — never treat as a function.
+						symbol.type = .unknown
 						symbol.binding = isExternal ? .global : .local
 					case .N_SECT:
 						// Check if this looks like a function (in __TEXT,__text)

@@ -1227,9 +1227,12 @@ final class AppState {
 		let remaining = requestedSet.subtracting(disassembled)
 		disassembled.formUnion(requestedSet)
 		for range in remaining.ranges {
+			// Skip ranges not fully backed by the file data (e.g. addresses
+			// that fall outside any mapped segment).
+			guard let bytes = selectedBinary.data(in: range) else { continue }
 			// disassemble the range
 			var result = await disassembler.disassemble(
-				data: selectedBinary.data(in: range),
+				data: bytes,
 				address: range.lowerBound,
 				architecture: selectedBinary.architecture
 			)

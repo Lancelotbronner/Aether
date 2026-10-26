@@ -30,7 +30,7 @@ private struct InstructionInspector: View {
 				Text("Address")
 			}
 			LabeledContent {
-				Text(appState.currentFile!.format(hex: instruction.addressRange))
+				Text(appState.selectedBinary?.format(hex: instruction.addressRange) ?? "")
 //					.foregroundColor(.secondary)
 					.monospaced()
 			} label: {

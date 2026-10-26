@@ -89,17 +89,30 @@ extension Schema {
 		span(in: range).bytes
 	}
 
+	/// The bytes backing `range`, clamped to the loaded data. Portions of the
+	/// range that fall outside the file (e.g. addresses not backed by any
+	/// segment) are dropped.
 	@_lifetime(borrow self)
 	func span(in range: Range<UInt64>) -> Span<UInt8> {
-		let lowerBound = Int(range.lowerBound - baseAddress)
-		let upperBound = lowerBound + range.count
+		let count = data.count
+		guard range.lowerBound >= baseAddress else {
+			let span = data.span.extracting(0..<0)
+			return _overrideLifetime(span, borrowing: self)
+		}
+		let lowerBound = min(Int(range.lowerBound - baseAddress), count)
+		let upperBound = min(lowerBound + range.count, count)
 		let span = data.span.extracting(lowerBound..<upperBound)
 		return _overrideLifetime(span, borrowing: self)
 	}
 
-	func data(in range: Range<UInt64>) -> Data {
-		let lowerBound = range.lowerBound - baseAddress
-		let upperBound = lowerBound + UInt64(range.count)
+	/// The file data backing `range`, or `nil` if the range is not fully
+	/// contained in the loaded data (e.g. it references addresses outside any
+	/// mapped segment).
+	func data(in range: Range<UInt64>) -> Data? {
+		guard range.lowerBound >= baseAddress else { return nil }
+		let lowerBound = Int(range.lowerBound - baseAddress)
+		let upperBound = lowerBound + range.count
+		guard upperBound <= data.count else { return nil }
 		return data[lowerBound..<upperBound]
 	}
 
