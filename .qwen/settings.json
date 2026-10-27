@@ -3,7 +3,21 @@
     "enabled": [
       "the-swiftui-way",
       "swiftui-whats-new-27",
-      "swiftui-specialist"
+      "swiftui-specialist",
+      "adopt-c-bounds-safety",
+      "building-document-based-swiftui-applications",
+      "audit-xcode-security-settings",
+      "modernize-tests",
+      "test-modernizer",
+      "uikit-app-modernization",
+      "app-intents-whats-new-27",
+      "app-intents-specialist",
+      "c-bounds-safety",
+      "device-interaction"
+    ],
+    "disabled": [
+      "nushell",
+      "find-skills"
     ]
   },
   "$version": 4
