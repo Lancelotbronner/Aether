@@ -7,7 +7,6 @@ import AetherKit
 
 @Observable
 final class AppState {
-	var currentFile: BinaryFile?
 	var isLoading = false
 
 	// MARK: - Selection
@@ -463,18 +462,10 @@ final class AppState {
 				throw DecompilerError.noInstructions
 			}
 
-			// Legacy adapters: the Decompiler still consumes `Function` /
-			// `BinaryFile` (porting it to the models is Task 12).
-			let legacyFunction = Function(name: function.displayName,
-				startAddress: function.symbol.address,
-				endAddress: function.symbol.address + function.symbol.size)
-			legacyFunction.callees = Set(function.callees.map { $0.symbol.address })
-			let legacyBinary = Self.legacyBinary(for: binary)
-
 			let output = decompiler.decompile(
-				function: legacyFunction,
+				procedure: function,
 				instructions: instructions,
-				binary: legacyBinary
+				binary: binary
 			)
 
 			guard !Task.isCancelled else { return }
@@ -497,46 +488,6 @@ final class AppState {
 				return "No instructions could be disassembled for this function."
 			}
 		}
-	}
-
-	/// Builds a legacy `BinaryFile` view over a `BinaryModel` for the
-	/// (still legacy) `Decompiler`. Sections carry their own byte slice so
-	/// the decompiler's string cache reads the right data.
-	private static func legacyBinary(for binary: BinaryModel) -> BinaryFile {
-		let sections: [_Section] = binary.sections.map { section in
-			_Section(
-				name: section.name,
-				segmentName: section.segmentName,
-				address: section.address,
-				size: section.size,
-				offset: section.offset,
-				alignment: section.alignment,
-				flags: section.flags,
-				data: binary.data(in: section.addressRange) ?? Data()
-			)
-		}
-		let symbols: [Symbol] = binary.symbols.map { symbol in
-			Symbol(
-				name: symbol.name,
-				address: symbol.address,
-				size: symbol.size,
-				type: symbol.type,
-				binding: symbol.binding
-			)
-		}
-		return BinaryFile(
-			format: binary.format,
-			architecture: binary.architecture,
-			endianness: binary.endian,
-			is64Bit: binary.is64,
-			fileSize: binary.data.count,
-			entryPoint: binary.entryPoint,
-			baseAddress: binary.baseAddress,
-			sections: sections,
-			segments: [],
-			symbols: symbols,
-			data: binary.data
-		)
 	}
 
 	// MARK: - AI Security Analysis

@@ -2,8 +2,6 @@ import SwiftUI
 import AetherKit
 
 nonisolated protocol DisassemblerPlugin : ~Copyable {
-	init?(for binary: BinaryFile) throws
-
 	/// Disassembles a single instruction.
 	mutating func disassemble(_ context: any DisassemblyContext) throws
 }

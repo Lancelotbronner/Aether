@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import SwiftData
 import AetherKit
 
 // MARK: - Call Graph View
@@ -45,13 +46,13 @@ struct CallGraphView: View {
 		}
 		.background(Color.background)
 		.onAppear {
-			if let binary = appState.currentFile {
-				viewModel.buildGraph(from: [], binary: binary)
+			if let binary = appState.selectedBinary {
+				viewModel.buildGraph(from: binary.procedures, binary: binary)
 			}
 		}
-		.onChange(of: [Function]()) { _, newFunctions in
-			if let binary = appState.currentFile {
-				viewModel.buildGraph(from: newFunctions, binary: binary)
+		.onChange(of: appState.selectedBinary?.persistentModelID) { _, _ in
+			if let binary = appState.selectedBinary {
+				viewModel.buildGraph(from: binary.procedures, binary: binary)
 			}
 		}
 	}
@@ -555,20 +556,20 @@ class CallGraphViewModel: ObservableObject {
 	private var allNodes: [CallGraphNode] = []
 	private var allEdges: [CallGraphEdge] = []
 	
-	func buildGraph(from functions: [Function], binary: BinaryFile) {
+	func buildGraph(from procedures: [ProcedureModel], binary: BinaryModel) {
 		var nodesDict: [UInt64: CallGraphNode] = [:]
-		
-		// Create nodes for all functions
-		for function in functions {
+
+		// Create nodes for all procedures
+		for procedure in procedures {
 			let node = CallGraphNode(
-				address: function.startAddress,
-				name: function.shortDisplayName,
-				size: Int(function.size),
-				isExternal: function.name.hasPrefix("_") && function.size < 16,
-				callers: function.callers,
-				callees: function.callees
+				address: procedure.symbol.address,
+				name: procedure.shortDisplayName,
+				size: Int(procedure.symbol.size),
+				isExternal: procedure.symbol.name.hasPrefix("_") && procedure.symbol.size < 16,
+				callers: Set(procedure.callers.map { $0.symbol.address }),
+				callees: Set(procedure.callees.map { $0.symbol.address })
 			)
-			nodesDict[function.startAddress] = node
+			nodesDict[procedure.symbol.address] = node
 		}
 		
 		// Add external symbols as nodes
@@ -591,12 +592,12 @@ class CallGraphViewModel: ObservableObject {
 		
 		// Create edges
 		var edgesSet: Set<CallGraphEdge> = []
-		for function in functions {
-			for calleeAddr in function.callees {
+		for procedure in procedures {
+			for callee in procedure.callees {
 				let edge = CallGraphEdge(
-					source: function.startAddress,
-					target: calleeAddr,
-					isRecursive: calleeAddr == function.startAddress,
+					source: procedure.symbol.address,
+					target: callee.symbol.address,
+					isRecursive: callee.symbol.address == procedure.symbol.address,
 					isIndirect: false
 				)
 				edgesSet.insert(edge)

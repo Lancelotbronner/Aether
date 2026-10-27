@@ -8,14 +8,6 @@ nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 	let arch: CapstoneArch
 	var mode: CapstoneMode
 
-	init?(for binary: BinaryFile) throws {
-		guard let arch = binary.architecture.capstoneArch else { return nil }
-		self.arch = arch
-		self.mode = binary.architecture.capstoneMode
-		capstone = try Capstone(arch: arch, mode: binary.architecture.capstoneMode)
-		capstone.withDetailedInstructions(true)
-	}
-
 	init(_ arch: CapstoneArch, mode: CapstoneMode) throws {
 		self.arch = arch
 		self.mode = mode

@@ -1,27 +1,28 @@
 import Foundation
 import AetherKit
+import SwiftData
 
 /// Enhanced pseudo-code decompiler with control flow recovery
 nonisolated final class Decompiler {
 
 	private let structurer = ControlFlowStructurer()
-	private var binary: BinaryFile?
+	private var binary: BinaryModel?
 	private var strings: [UInt64: String] = [:]
 	private var variableNames: [String: String] = [:]
 	private var variableCounter = 0
-	private var cachedBinaryID: BinaryFile.ID?
+	private var cachedBinaryID: PersistentIdentifier?
 
-	/// Decompile a function to pseudo-C code
-	func decompile(function: Function, instructions: ArraySlice<Instruction>, binary: BinaryFile) -> String {
+	/// Decompile a procedure to pseudo-C code
+	func decompile(procedure: ProcedureModel, instructions: ArraySlice<Instruction>, binary: BinaryModel) -> String {
 		self.binary = binary
 		self.variableNames = [:]
 		self.variableCounter = 0
 
 		// Build string cache only once per binary
-		if cachedBinaryID != binary.id {
+		if cachedBinaryID != binary.persistentModelID {
 			self.strings = [:]
 			buildStringCache(binary: binary)
-			cachedBinaryID = binary.id
+			cachedBinaryID = binary.persistentModelID
 		}
 
 		var output = ""
@@ -31,14 +32,15 @@ nonisolated final class Decompiler {
 		let params = inferParameters(instructions: instructions, architecture: binary.architecture)
 		let paramStr = params.isEmpty ? "void" : params.joined(separator: ", ")
 
-		output += "// Function at \(String(format: "0x%llX", function.startAddress))\n"
-		output += "// Size: \(function.size) bytes\n"
-		if !function.callees.isEmpty {
-			output += "// Calls: \(function.callees.prefix(5).map { String(format: "0x%llX", $0) }.joined(separator: ", "))\n"
+		output += "// Function at \(String(format: "0x%llX", procedure.symbol.address))\n"
+		output += "// Size: \(procedure.symbol.size) bytes\n"
+		let calleeAddresses = procedure.callees.map { $0.symbol.address }
+		if !calleeAddresses.isEmpty {
+			output += "// Calls: \(calleeAddresses.prefix(5).map { String(format: "0x%llX", $0) }.joined(separator: ", "))\n"
 		}
 		output += "\n"
 
-		output += "\(returnType) \(function.displayName)(\(paramStr))\n"
+		output += "\(returnType) \(procedure.displayName)(\(paramStr))\n"
 		output += "{\n"
 
 		// Generate local variable declarations
@@ -51,8 +53,8 @@ nonisolated final class Decompiler {
 		}
 
 		// Use ControlFlowStructurer for proper structure recovery
-		if !function.basicBlocks.isEmpty && function.basicBlocks.count > 1 {
-			let structure = structurer.structure(function: function)
+		if procedure.blocks.count > 1 {
+			let structure = structurer.structure(procedure: procedure, instructions: instructions)
 			let printer = EnhancedCodePrinter(binary: binary, strings: strings)
 			output += printer.print(structure)
 		} else {
@@ -67,26 +69,27 @@ nonisolated final class Decompiler {
 
 	// MARK: - String Cache
 
-	private func buildStringCache(binary: BinaryFile) {
+	private func buildStringCache(binary: BinaryModel) {
 		// Scan sections for strings
 		for section in binary.sections {
 			// Look in data sections
 			if section.name.contains("cstring") || section.name.contains("string") ||
 				section.name == "__const" || section.name == ".rodata" {
-				scanForStrings(in: section)
+				scanForStrings(section: section, in: binary)
 			}
 		}
 	}
 
-	private func scanForStrings(in section: _Section) {
+	private func scanForStrings(section: SectionModel, in binary: BinaryModel) {
+		guard let sectionData = binary.data(in: section.addressRange) else { return }
 		var offset = 0
-		while offset < section.data.count {
+		while offset < sectionData.count {
 			var bytes: [UInt8] = []
 			var currentOffset = offset
 
 			// Read until null terminator
-			while currentOffset < section.data.count {
-				let byte = section.data[section.data.startIndex + currentOffset]
+			while currentOffset < sectionData.count {
+				let byte = sectionData[sectionData.startIndex + currentOffset]
 				if byte == 0 { break }
 				bytes.append(byte)
 				currentOffset += 1
@@ -269,7 +272,7 @@ nonisolated final class Decompiler {
 
 	// MARK: - Instruction Decompilation
 
-	private func decompileInstructions(_ instructions: ArraySlice<Instruction>, indent: Int, binary: BinaryFile) -> String {
+	private func decompileInstructions(_ instructions: ArraySlice<Instruction>, indent: Int, binary: BinaryModel) -> String {
 		var output = ""
 		let ind = String(repeating: "    ", count: indent)
 
@@ -351,7 +354,7 @@ nonisolated final class Decompiler {
 		return "\(left) \(op) \(right)"
 	}
 
-	private func decompileInstruction(_ insn: Instruction, binary: BinaryFile) -> String {
+	private func decompileInstruction(_ insn: Instruction, binary: BinaryModel) -> String {
 		switch insn.type {
 		case .call:
 			return decompileCall(insn, binary: binary)
@@ -385,7 +388,7 @@ nonisolated final class Decompiler {
 		}
 	}
 
-	private func decompileCall(_ insn: Instruction, binary: BinaryFile) -> String {
+	private func decompileCall(_ insn: Instruction, binary: BinaryModel) -> String {
 		var funcName = "unknown"
 		var args = ""
 
@@ -417,7 +420,7 @@ nonisolated final class Decompiler {
 		return "\(funcName)(\(args));"
 	}
 
-	private func findStringArgument(near address: UInt64, binary: BinaryFile) -> String? {
+	private func findStringArgument(near address: UInt64, binary: BinaryModel) -> String? {
 		// Look for LEA instruction loading string address in the vicinity
 		// This is a heuristic - real implementation would track data flow
 		for (strAddr, strValue) in strings {
@@ -439,7 +442,7 @@ nonisolated final class Decompiler {
 		return result
 	}
 
-	private func decompileReturn(_ insn: Instruction, binary: BinaryFile) -> String {
+	private func decompileReturn(_ insn: Instruction, binary: BinaryModel) -> String {
 		// Check return register for value
 		let returnReg = binary.architecture.returnValueRegister.lowercased()
 
@@ -447,7 +450,7 @@ nonisolated final class Decompiler {
 		return "return result;"
 	}
 
-	private func decompileMove(_ insn: Instruction, binary: BinaryFile) -> String {
+	private func decompileMove(_ insn: Instruction, binary: BinaryModel) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count == 2 else { return "// \(insn.text)" }
 
@@ -553,7 +556,7 @@ nonisolated final class Decompiler {
 		return "// \(insn.text)"
 	}
 
-	private func decompileLoad(_ insn: Instruction, binary: BinaryFile) -> String {
+	private func decompileLoad(_ insn: Instruction, binary: BinaryModel) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count >= 2 else { return "// \(insn.text)" }
 
@@ -577,7 +580,7 @@ nonisolated final class Decompiler {
 		return "\(dest) = \(src);"
 	}
 
-	private func decompileStore(_ insn: Instruction, binary: BinaryFile) -> String {
+	private func decompileStore(_ insn: Instruction, binary: BinaryModel) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count >= 2 else { return "// \(insn.text)" }
 
@@ -653,7 +656,7 @@ nonisolated final class Decompiler {
 		return registerToVariable(op)
 	}
 
-	private func memoryToExpression(_ operand: String, binary: BinaryFile) -> String {
+	private func memoryToExpression(_ operand: String, binary: BinaryModel) -> String {
 		var op = operand.trimmingCharacters(in: .whitespaces)
 
 		// Remove brackets
@@ -754,11 +757,11 @@ struct DecompilerLocalVar {
 
 /// Enhanced printer that produces cleaner pseudo-C code
 nonisolated final class EnhancedCodePrinter {
-	private let binary: BinaryFile?
+	private let binary: BinaryModel?
 	private let strings: [UInt64: String]
 	private var indentLevel = 1
 
-	init(binary: BinaryFile?, strings: [UInt64: String]) {
+	init(binary: BinaryModel?, strings: [UInt64: String]) {
 		self.binary = binary
 		self.strings = strings
 	}
@@ -874,7 +877,7 @@ nonisolated final class EnhancedCodePrinter {
 		return ""
 	}
 
-	private func printBlock(_ block: BasicBlock) -> String {
+	private func printBlock(_ block: CFGBlock) -> String {
 		var lines: [String] = []
 
 		for insn in block.instructions {
