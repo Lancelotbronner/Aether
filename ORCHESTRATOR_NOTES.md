@@ -118,3 +118,12 @@ Goal: complete the transition from ad-hoc project state (god-model `AppState`, `
 - Untracked `CoreAether/` dir (staged for deletion in merge commit; only .build/.swiftpm/.DS_Store junk left) — leaving it, not my place to rm -rf.
 - Post-commit `git status`: `M PLAN.md` — an automatic editor reformatted the bug table (whitespace-only, no content change). User confirmed and discarded the change; tree clean again. Nothing to carry forward.
 - User-priority CLI work (merge + docs) is now complete. **Next: resume the migration plan at Task 9 (HexView B8/B9)** per PLAN.md / handoff 09 §4 (do NOT touch Task 8 surface; `BinaryModel.read(at:count:)` indexes raw vaddr without baseAddress adjustment — B8; `HexView` loads the whole file with `baseAddress = section.address` — B9).
+
+## Task 9 complete (via worker Agent 13) — committed 635b1a7, pushed
+- Agent 13 (background `worker`, fresh id) fixed B8 + B9 cleanly; handoff `.qwen/handoffs/12-task9-hexview.md` (STATUS: COMPLETE) is thorough (findings on the vaddr→file-offset convention, per-edit notes, verification output, manual UI smoke steps).
+- B8 (AetherKit schema): `read(at:count:)`/`readString(at:)` now delegate to the bounds-guarded `data(in:)` (baseAddress mapping, the app-wide convention); signatures unchanged → ScriptingEngine/ObjCAnalyzer/SwiftAnalyzer/SignatureMatcher compile as-is. `readString` maxLength now enforced (was ignored). Legacy `BinaryFile.read/readString` still has the identical bug — intentionally left (Task 11/12 territory).
+- B9 (`Aether/UI/DisassemblyView/HexView.swift`, note: real path, not `UI/HexView/`): `data = section.binary.data` → `data(in: section.addressRange) ?? Data()` — section's own bytes only; empty/unbacked sections hit the existing "No data" state.
+- Orchestrator re-verified: app build green, `cd AetherKit && swift build` green, `swift build --package-path aether-cli` green; reviewed both diffs — minimal, match handoff. `Package.resolved` not churned.
+- Endorsed design decision (handoff §1.1): keep baseAddress mapping rather than section-`offset`-based — app-consistent; documented limitation for non-packed layouts (PE image-base, gaps) = Task 12 territory.
+- Manual UI smoke steps for user: handoff 12 §4 (open thin_test, select __TEXT,__cstring, first row = 0x100000B00, compare `xxd -s 0xb00 .qwen/tmp/thin_test`).
+- **Next: Task 10 (operand resolution B10)** per PLAN.md — OperandsView reads never-populated AppState caches (DisassemblyView).

@@ -133,10 +133,18 @@ final class AppState {
 	var recognizedIdioms: [IdiomRecognizer.Idiom] = []
 	var structuredCode: String = ""
 
-	// MARK: - Lookup Caches (for O(1) access)
-	@ObservationIgnored var symbolsByAddress: [UInt64: Symbol] = [:]
-	@ObservationIgnored var symbolsByName: [String: Symbol] = [:]
-	@ObservationIgnored var functionsByAddress: [UInt64: Function] = [:]
+	// MARK: - Operand Symbol Resolution (Task 10)
+	//
+	// O(1) lookups behind OperandsView, built lazily on the MainActor from
+	// the models (the `symbols` / `procedures` relationships are already in
+	// memory — no fetch needed). Live `SymbolModel` refs (not copied
+	// strings) so a user rename stays fresh: `displayName` reads `name` at
+	// render time. A re-Load keeps the same `BinaryModel`, so the tables
+	// are also dropped by `resetDisassemblyCache()` — otherwise the
+	// reset-first re-parse (new symbol rows) would never be seen.
+	@ObservationIgnored private var operandSymbolsByAddress: [UInt64: SymbolModel] = [:]
+	@ObservationIgnored private var operandSymbolsByName: [String: SymbolModel] = [:]
+	@ObservationIgnored private var operandLookupsFor: PersistentIdentifier?
 
 	// MARK: - Disassembly Cache
 	var decompilerOutput: String = ""
@@ -1298,7 +1306,10 @@ final class AppState {
 	/// Clears the transient disassembly cache (address ranges, instructions,
 	/// p-code). Called from the Load path: after a re-Load the bytes backing
 	/// the addresses may have changed, and an in-memory cache is union-only,
-	/// so it must be dropped rather than kept.
+	/// so it must be dropped rather than kept. Also drops the operand symbol
+	/// lookups (Task 10): the re-Load keeps the same `BinaryModel`, but its
+	/// symbol rows are re-parsed, so a persistentModelID-keyed cache would
+	/// serve stale entries.
 	func resetDisassemblyCache() {
 		disassembled = RangeSet()
 		disassembledFor = nil
@@ -1306,6 +1317,9 @@ final class AppState {
 		instructionMap.removeAll()
 		instructions.removeAll()
 		pcode.removeAll()
+		operandSymbolsByAddress.removeAll()
+		operandSymbolsByName.removeAll()
+		operandLookupsFor = nil
 	}
 
 	func instruction(at address: UInt64) -> Instruction? {
@@ -1391,6 +1405,46 @@ final class AppState {
 	func disassembleRange(start: UInt64, end: UInt64) async -> ArraySlice<Instruction> {
 		await disassembleIfNecessary(start..<end)
 		return instructions(in: start..<end)
+	}
+
+	// MARK: - Operand Symbol Resolution (Task 10)
+
+	/// The symbol at an address, for call/branch operand display.
+	/// Procedure-backed symbols win when both cover the address, so a
+	/// function target shows the function's display name.
+	func operandSymbol(at address: UInt64) -> SymbolModel? {
+		ensureOperandSymbolLookups()
+		return operandSymbolsByAddress[address]
+	}
+
+	/// The symbol whose name (current or original `identifier`) matches an
+	/// operand's text, for operands emitted as a symbol name.
+	func operandSymbol(named name: String) -> SymbolModel? {
+		ensureOperandSymbolLookups()
+		return operandSymbolsByName[name]
+	}
+
+	private func ensureOperandSymbolLookups() {
+		guard let binary = selectedBinary else { return }
+		if operandLookupsFor == binary.persistentModelID { return }
+		operandSymbolsByAddress.removeAll()
+		operandSymbolsByName.removeAll()
+		// Plain symbols first; procedures overwrite at the same address so
+		// the function's display name is preferred (it also falls back to
+		// `sub_<addr>` for unnamed procedures, which plain symbols don't).
+		for symbol in binary.symbols {
+			operandSymbolsByAddress[symbol.address] = symbol
+			if !symbol.name.isEmpty {
+				operandSymbolsByName[symbol.name] = symbol
+				if !symbol.identifier.isEmpty, symbol.identifier != symbol.name {
+					operandSymbolsByName[symbol.identifier] = symbol
+				}
+			}
+		}
+		for procedure in binary.procedures {
+			operandSymbolsByAddress[procedure.symbol.address] = procedure.symbol
+		}
+		operandLookupsFor = binary.persistentModelID
 	}
 
 	// MARK: - Rename Functions/Symbols

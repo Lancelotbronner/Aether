@@ -286,19 +286,16 @@ struct OperandsView: View {
 		if text.hasPrefix("0x") || text.hasPrefix("#") || text.first?.isNumber == true {
 			// Check if it's a branch target
 			if let target = instruction.branchTarget {
-				// Use cached O(1) lookups instead of O(n) searches
-				if let symbol = appState.symbolsByAddress[target] {
+				// O(1) lookup against the models (procedure-preferred)
+				if let symbol = appState.operandSymbol(at: target) {
 					return Operand(text: symbol.displayName, type: .symbol, address: target)
-				}
-				if let func_ = appState.functionsByAddress[target] {
-					return Operand(text: func_.displayName, type: .function, address: target)
 				}
 			}
 			return Operand(text: text, type: .immediate)
 		}
 
-		// Symbol reference - use cached O(1) lookup
-		if let symbol = appState.symbolsByName[text] {
+		// Symbol reference - O(1) lookup against the models
+		if let symbol = appState.operandSymbol(named: text) {
 			return Operand(text: symbol.displayName, type: .symbol, address: symbol.address)
 		}
 
