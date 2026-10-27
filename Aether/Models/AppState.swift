@@ -149,31 +149,20 @@ final class AppState {
 	// MARK: - Disassembly Cache
 	var decompilerOutput: String = ""
 
-	// MARK: - Patching State
-	var patcher: BinaryPatcher?
-	var patches: [BinaryPatcher.Patch] = []
-	var hasUnsavedChanges = false
-
 	// MARK: - User Annotations
 	// Renames, comments, and bookmarks are SwiftData rows now
 	// (SymbolModel.name, AnnotationModel, BookmarkModel) — the model-backed
 	// mutators below keep them in the document, with undo through the
 	// window's UndoManager via registerUndoRedo.
 
-	// MARK: - Search State
-	var searchResults: [SearchResult] = []
-	var isSearching = false
-
 	// MARK: - Services
 	@ObservationIgnored var undoManager: UndoManager?
 	@ObservationIgnored var modelContext: ModelContext?
-	private let binaryLoader = BinaryLoader()
 	private let disassembler = DisassemblerEngine()
 	private let functionAnalyzer = FunctionAnalyzer()
 	private let stringAnalyzer = StringAnalyzer()
 	private let xrefAnalyzer = XRefAnalyzer()
 	private let decompiler = Decompiler()
-	private let javaDecompiler = JavaDecompiler()
 	private let fridaGenerator = FridaScriptGenerator()
 
 	// MARK: - Malware Analysis
@@ -772,52 +761,6 @@ final class AppState {
 		)
 	}
 
-	private func decompileJavaMethod(function: Function, javaClasses: [JARLoader.JavaClass]) {
-		let functionName = function.name
-
-		// Find matching class and method - use exact matching
-		for javaClass in javaClasses {
-			let className = javaClass.thisClass.replacingOccurrences(of: "/", with: ".")
-
-			for method in javaClass.methods {
-				let methodFullName = "\(className).\(method.name)\(method.descriptor)"
-
-				if methodFullName == functionName {
-					// Found the exact method - decompile just this method
-					let decompiledMethod = javaDecompiler.decompileMethod(method, in: javaClass)
-
-					var output = "// Function at 0x\(String(format: "%X", function.startAddress))\n"
-					output += "// Size: \(method.code?.code.count ?? 0) bytes (bytecode)\n"
-					output += "// Class: \(className)\n"
-					output += "// Method: \(method.name)\(method.descriptor)\n\n"
-					output += "\(decompiledMethod.signature) {\n"
-
-					let bodyLines = decompiledMethod.body.split(separator: "\n", omittingEmptySubsequences: false)
-					for line in bodyLines {
-						if !line.isEmpty {
-							output += "    \(line)\n"
-						} else {
-							output += "\n"
-						}
-					}
-					output += "}\n"
-
-					decompilerOutput = output
-					return
-				}
-			}
-		}
-
-		// Fallback: couldn't find the method
-		decompilerOutput = "// Could not find Java method for: \(functionName)\n// Available methods in loaded classes:\n"
-		for javaClass in javaClasses.prefix(5) {
-			let className = javaClass.thisClass.replacingOccurrences(of: "/", with: ".")
-			for method in javaClass.methods.prefix(3) {
-				decompilerOutput += "//   \(className).\(method.name)\(method.descriptor)\n"
-			}
-		}
-	}
-
 	// MARK: - AI Security Analysis
 
 	var hasAIAPIKey: Bool {
@@ -1246,49 +1189,6 @@ final class AppState {
 //		}
 	}
 
-	// MARK: - Patching
-
-	func patchBytes(at address: UInt64, newBytes: [UInt8], description: String) {
-//		guard let patcher = patcher else { return }
-//
-//		do {
-//			let patch = try patcher.createPatch(at: address, newBytes: newBytes, description: description)
-//			try patcher.applyPatch(patch)
-//			patches = patcher.getAllPatches()
-//			hasUnsavedChanges = true
-//		} catch {
-//			errorMessage = error.localizedDescription
-//			showError = true
-//		}
-	}
-
-	func nopInstruction(at address: UInt64, size: Int) {
-//		guard let patcher = patcher else { return }
-//
-//		do {
-//			let patch = try patcher.createNOPPatch(at: address, size: size, description: "NOP at \(String(format: "0x%llX", address))")
-//			try patcher.applyPatch(patch)
-//			patches = patcher.getAllPatches()
-//			hasUnsavedChanges = true
-//		} catch {
-//			errorMessage = error.localizedDescription
-//			showError = true
-//		}
-	}
-
-	func revertPatch(_ patch: BinaryPatcher.Patch) {
-//		guard let patcher = patcher else { return }
-//
-//		do {
-//			try patcher.revertPatch(patch)
-//			patches = patcher.getAllPatches()
-//			hasUnsavedChanges = patches.contains { $0.isApplied }
-//		} catch {
-//			errorMessage = error.localizedDescription
-//			showError = true
-//		}
-	}
-
 	// MARK: - Disassembly
 
 	@ObservationIgnored var disassembled = RangeSet<UInt64>()
@@ -1547,133 +1447,6 @@ final class AppState {
 		}
 	}
 
-	// MARK: - Search
-
-	func search(query: String, type: SearchType) async {
-		guard let binary = selectedBinary else { return }
-
-		isSearching = true
-		searchResults = []
-
-		switch type {
-		case .all:
-//			await searchAll(query: query, binary: binary)
-			break
-		case .functions:
-			searchResults = searchFunctions(query: query)
-		case .strings:
-			searchResults = searchStrings(query: query)
-		case .symbols:
-			searchResults = searchSymbols(query: query)
-		case .bytes:
-//			searchResults = await searchBytes(query: query, binary: binary)
-			break
-		case .address:
-			if let address = parseAddress(query) {
-				searchResults = [SearchResult(name: String(format: "0x%llX", address), address: address, type: .address)]
-			}
-		}
-
-		isSearching = false
-	}
-
-	private func searchAll(query: String, binary: BinaryFile) async {
-		var results: [SearchResult] = []
-
-		// Search functions
-		results.append(contentsOf: searchFunctions(query: query))
-
-		// Search strings
-		results.append(contentsOf: searchStrings(query: query))
-
-		// Search symbols
-		results.append(contentsOf: searchSymbols(query: query))
-
-		// Check if it's an address
-		if let address = parseAddress(query) {
-			results.insert(SearchResult(name: String(format: "0x%llX", address), address: address, type: .address), at: 0)
-		}
-
-		searchResults = results
-	}
-
-	private func searchFunctions(query: String) -> [SearchResult] {
-//		let lowercaseQuery = query.lowercased()
-//		return functions.filter {
-//			$0.displayName.lowercased().contains(lowercaseQuery) ||
-//			getDisplayName(forFunctionAt: $0.startAddress).lowercased().contains(lowercaseQuery)
-//		}.map {
-//			SearchResult(name: getDisplayName(forFunctionAt: $0.startAddress), address: $0.startAddress, type: .function)
-//		}
-		[]
-	}
-
-	private func searchStrings(query: String) -> [SearchResult] {
-//		let lowercaseQuery = query.lowercased()
-//		return strings.filter {
-//			$0.value.lowercased().contains(lowercaseQuery)
-//		}.map {
-//			SearchResult(name: $0.value, address: $0.address, type: .string)
-//		}
-		[]
-	}
-
-	private func searchSymbols(query: String) -> [SearchResult] {
-//		let lowercaseQuery = query.lowercased()
-//		return symbols.filter {
-//			$0.displayName.lowercased().contains(lowercaseQuery)
-//		}.map {
-//			SearchResult(name: $0.displayName, address: $0.address, type: .symbol)
-//		}
-		[]
-	}
-
-	private func searchBytes(query: String, binary: BinaryFile) async -> [SearchResult] {
-		// Parse hex bytes
-		let hexParts = query.uppercased().components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-		var bytes: [UInt8] = []
-
-		for hex in hexParts {
-			if let byte = UInt8(hex, radix: 16) {
-				bytes.append(byte)
-			}
-		}
-
-		guard !bytes.isEmpty else { return [] }
-
-		var results: [SearchResult] = []
-
-		for section in binary.sections {
-			let data = section.data
-			let bytesData = Data(bytes)
-
-			var searchRange = data.startIndex..<data.endIndex
-			while let range = data.range(of: bytesData, options: [], in: searchRange) {
-				let offset = data.distance(from: data.startIndex, to: range.lowerBound)
-				let address = section.address + UInt64(offset)
-				results.append(SearchResult(
-					name: bytes.map { String(format: "%02X", $0) }.joined(separator: " "),
-					address: address,
-					type: .bytes
-				))
-				searchRange = range.upperBound..<data.endIndex
-
-				if results.count >= 100 { break } // Limit results
-			}
-			if results.count >= 100 { break }
-		}
-
-		return results
-	}
-
-	private func parseAddress(_ string: String) -> UInt64? {
-		let clean = string.trimmingCharacters(in: .whitespaces)
-		if clean.hasPrefix("0x") || clean.hasPrefix("0X") {
-			return UInt64(clean.dropFirst(2), radix: 16)
-		}
-		return UInt64(clean, radix: 16)
-	}
-
 	// MARK: - Cross References
 
 	func getXRefsTo(address: UInt64) -> [CrossReference] {
@@ -1697,111 +1470,4 @@ final class AppState {
 		}
 		redo()
 	}
-
-	// MARK: - Project Save/Load
-
-	func saveProject(to url: URL) throws {
-		let project = ProjectData(
-			binaryData: selectedBinary?.data ?? Data(),
-			patches: patches.map { PatchData(address: $0.address, bytes: $0.newBytes, description: $0.description) }
-		)
-
-		let encoder = JSONEncoder()
-		encoder.outputFormatting = .prettyPrinted
-		let data = try encoder.encode(project)
-		try data.write(to: url)
-		hasUnsavedChanges = false
-	}
-
-	func loadProject(data: Data) async throws {
-		let decoder = JSONDecoder()
-		let project = try decoder.decode(ProjectData.self, from: data)
-
-		// Load the binary first
-//		await loadFile(data: project.binaryData)
-
-		// Renames/comments/bookmarks live in the SwiftData models now —
-		// they persist with the document itself, nothing to restore here.
-
-		// Re-apply patches
-		for patchData in project.patches {
-			patchBytes(at: patchData.address, newBytes: patchData.bytes, description: patchData.description)
-		}
-
-		hasUnsavedChanges = false
-	}
-
-	func openProject() {
-		let panel = NSOpenPanel()
-		panel.allowedContentTypes = [.json]
-		panel.message = "Open Aether Project"
-
-		if panel.runModal() == .OK, let url = panel.url {
-			Task {
-				let data = try Data(contentsOf: url)
-				try? await loadProject(data: data)
-			}
-		}
-	}
-
-	func saveProjectAs() {
-		let panel = NSSavePanel()
-		panel.allowedContentTypes = [.json]
-		panel.nameFieldStringValue = "\(selectedBinary?.name ?? "project").dproj"
-		panel.message = "Save Aether Project"
-
-		if panel.runModal() == .OK, let url = panel.url {
-			try? saveProject(to: url)
-		}
-	}
-}
-
-// MARK: - Supporting Types
-
-// Using Bookmark from Project.swift
-
-struct SearchResult: Identifiable {
-	let id = UUID()
-	let name: String
-	let address: UInt64
-	let type: SearchResultType
-}
-
-enum SearchResultType {
-	case function
-	case string
-	case symbol
-	case bytes
-	case address
-}
-
-enum SearchType: String, CaseIterable {
-	case all = "All"
-	case functions = "Functions"
-	case strings = "Strings"
-	case symbols = "Symbols"
-	case bytes = "Bytes"
-	case address = "Address"
-}
-
-enum UndoAction {
-	case renameFunction(address: UInt64, oldName: String?, newName: String?)
-	case renameSymbol(address: UInt64, oldName: String?, newName: String?)
-	case setComment(address: UInt64, oldComment: String?, newComment: String?)
-	case addBookmark(bookmark: Bookmark)
-	case removeBookmark(bookmark: Bookmark)
-	case patchBytes(address: UInt64, oldBytes: [UInt8], newBytes: [UInt8])
-}
-
-struct ProjectData: Codable {
-	let binaryData: Data
-	let patches: [PatchData]
-	// Renames/comments/bookmarks no longer serialize here: they live in the
-	// SwiftData models and persist with the document (Task 5).
-}
-
-struct PatchData: Codable {
-	let address: UInt64
-	let bytes: [UInt8]
-	let description: String
 }

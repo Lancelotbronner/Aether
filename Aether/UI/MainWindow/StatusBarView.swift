@@ -21,7 +21,7 @@ struct StatusBarView: View {
 				.frame(height: 12)
 
 			// File info
-			if let file = appState.currentFile {
+			if let file = appState.selectedBinary {
 				HStack(spacing: 16) {
 					// Filename
 					Label(file.name, systemImage: "doc")
@@ -48,7 +48,7 @@ struct StatusBarView: View {
 						.frame(height: 12)
 
 					// Size
-					Label(formatSize(file.fileSize), systemImage: "doc.text")
+					Label(formatSize(file.data.count), systemImage: "doc.text")
 						.font(.caption)
 						.foregroundColor(.secondary)
 				}
@@ -57,7 +57,7 @@ struct StatusBarView: View {
 			Spacer()
 
 			// Analysis stats
-			if appState.currentFile != nil {
+			if appState.selectedBinary != nil {
 				HStack(spacing: 16) {
 					StatBadge(
 						icon: "function",
@@ -97,7 +97,7 @@ struct StatusBarView: View {
 	private var statusColor: Color {
 		if appState.isLoading {
 			return .yellow
-		} else if appState.currentFile != nil {
+		} else if appState.selectedBinary != nil {
 			return .green
 		} else {
 			return .gray
@@ -108,7 +108,7 @@ struct StatusBarView: View {
 		if appState.isLoading {
 //			return appState.loadingMessage
 			return "Loading"
-		} else if appState.currentFile != nil {
+		} else if appState.selectedBinary != nil {
 			return "Ready"
 		} else {
 			return "No file loaded"

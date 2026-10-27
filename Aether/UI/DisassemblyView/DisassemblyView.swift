@@ -347,7 +347,6 @@ struct Operand {
 		case immediate
 		case memory
 		case symbol
-		case function
 		case other
 	}
 }
@@ -359,7 +358,7 @@ struct OperandText: View {
 
 	var body: some View {
 		Group {
-			if operand.type == .symbol || operand.type == .function {
+			if operand.type == .symbol {
 				Button {
 					if let addr = operand.address {
 						appState.goToAddress(addr)
@@ -390,7 +389,7 @@ struct OperandText: View {
 			return .immediateColor
 		case .memory:
 			return .memoryColor
-		case .symbol, .function:
+		case .symbol:
 			return .accent
 		case .other:
 			return .primary

@@ -1,4 +1,5 @@
 import SwiftUI
+import AetherKit
 
 // MARK: - Conditional Jump Patcher
 
@@ -179,12 +180,12 @@ struct ConditionalJumpsView: View {
 	}
 
 	private func analyzeJumps() {
-		guard let currentFile = appState.currentFile else { return }
+		guard let currentFile = appState.selectedBinary else { return }
 		jumps = []
 
 		for insn in instructions {
 			guard insn.type == .conditionalJump else { continue }
-			let bytes = currentFile.data(in: insn.addressRange)
+			guard let bytes = currentFile.data(in: insn.addressRange) else { continue }
 
 			// Get opcode from instruction bytes
 			guard let firstByte = bytes.first else { continue }
@@ -219,7 +220,7 @@ struct ConditionalJumpsView: View {
 		let jump = jumps[index]
 
 		// Calculate file offset
-		guard let binary = appState.currentFile,
+		guard let binary = appState.selectedBinary,
 			  let section = binary.sections.first(where: { $0.contains(address: jump.address) }) else {
 			patchStatus = "Error: Cannot find section for address"
 			return

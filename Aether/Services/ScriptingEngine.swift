@@ -69,14 +69,14 @@ class ScriptingEngine: ObservableObject {
 
         // Get current binary info
         let getCurrentBinary: @convention(block) () -> [String: Any]? = { [weak self] in
-            guard let binary = self?.appState?.currentFile else { return nil }
+            guard let binary = self?.appState?.selectedBinary else { return nil }
             return [
                 "name": binary.name,
                 "format": binary.format.rawValue,
                 "architecture": binary.architecture.rawValue,
                 "entryPoint": String(format: "0x%llX", binary.entryPoint),
                 "baseAddress": String(format: "0x%llX", binary.baseAddress),
-                "fileSize": binary.fileSize
+                "fileSize": binary.data.count
             ]
         }
         context.setObject(getCurrentBinary, forKeyedSubscript: "getCurrentBinary" as NSString)
@@ -129,7 +129,7 @@ class ScriptingEngine: ObservableObject {
 
         // Read bytes at address
         let readBytes: @convention(block) (String, Int) -> [UInt8]? = { [weak self] addressStr, count in
-            guard let binary = self?.appState?.currentFile else { return nil }
+            guard let binary = self?.appState?.selectedBinary else { return nil }
             let address = UInt64(addressStr.replacingOccurrences(of: "0x", with: ""), radix: 16) ?? 0
             guard let data = binary.read(at: address, count: count) else { return nil }
             return Array(data)
@@ -138,7 +138,7 @@ class ScriptingEngine: ObservableObject {
 
         // Read string at address
         let readString: @convention(block) (String) -> String? = { [weak self] addressStr in
-            guard let binary = self?.appState?.currentFile else { return nil }
+            guard let binary = self?.appState?.selectedBinary else { return nil }
             let address = UInt64(addressStr.replacingOccurrences(of: "0x", with: ""), radix: 16) ?? 0
             return binary.readString(at: address)
         }

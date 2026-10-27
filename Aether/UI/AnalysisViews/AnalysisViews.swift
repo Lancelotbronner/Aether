@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AetherKit
 
 // MARK: - Crypto Detection View
 
@@ -490,7 +491,7 @@ struct ExportSheetView: View {
     private func exportFile() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.data]
-        panel.nameFieldStringValue = "\(appState.currentFile?.name ?? "export").\(selectedFormat.fileExtension)"
+        panel.nameFieldStringValue = "\(appState.selectedBinary?.name ?? "export").\(selectedFormat.fileExtension)"
 
         if panel.runModal() == .OK, let url = panel.url {
             appState.exportTo(format: selectedFormat, url: url)

@@ -79,8 +79,6 @@ struct AetherContentView: View {
 //		.sheet(isPresented: $appState.showMalwareFlow) {
 //			MalwareFlowView()
 //		}
-//		.modifier(LoadOnDropModifier())
-//		.modifier(OverlayModifier())
 //		.alert("Error", isPresented: $appState.showError) {
 //			Button("OK") {
 //				appState.showError = false
@@ -121,69 +119,6 @@ private struct DetailView: View {
 			}
 			
 			StatusBarView()
-		}
-	}
-}
-
-//private struct LoadOnDropModifier: ViewModifier {
-//	@Environment(AppState.self) private var appState
-//	@State private var isTargeted = false
-//
-//	func body(content: Content) -> some View {
-//		content.onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
-//			handleDrop(providers: providers)
-//		}
-//	}
-//
-//	private func handleDrop(providers: [NSItemProvider]) -> Bool {
-//		Logger.app.debug("handleDrop: \(providers.count) provider(s)")
-//		guard let provider = providers.first else {
-//			Logger.app.debug("handleDrop: no provider")
-//			return false
-//		}
-//
-//		_ = provider.loadObject(ofClass: URL.self) { url, error in
-//			if let url {
-//				Logger.app.info("Drop: loading \(url.lastPathComponent)")
-//				Task {
-//					do {
-//						// Read off the main actor so large files don't freeze the UI
-//						let start = ContinuousClock.now
-//						let data = try await Task.detached(priority: .userInitiated) {
-//							// Memory-map when possible so large binaries are not copied from disk
-//							try Data(contentsOf: url, options: .mappedIfSafe)
-//						}.value
-//						Logger.app.info("Drop: read \(data.count) bytes in \(start.duration(to: .now).logDescription)")
-//						await appState.loadFile(data: data)
-//					} catch {
-//						Logger.app.error("Drop: failed to read \(url.lastPathComponent): \(error.localizedDescription)")
-//					}
-//				}
-//			} else if let error {
-//				Logger.app.error("Drop: \(error.localizedDescription)")
-//			}
-//		}
-//
-//		return true
-//	}
-//}
-
-private struct OverlayModifier: ViewModifier {
-	@Environment(AppState.self) private var appState
-
-	func body(content: Content) -> some View {
-		content.overlay {
-//			if appState.isLoading {
-//				LoadingOverlay(
-//					message: appState.loadingMessage,
-//					progress: appState.loadingProgress
-//				)
-//			}
-
-			// Show welcome message when no file is loaded
-//			if appState.currentFile == nil && !appState.isLoading {
-//				WelcomeView()
-//			}
 		}
 	}
 }

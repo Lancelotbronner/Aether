@@ -334,8 +334,9 @@ public extension SymbolModel {
 	@Relationship(deleteRule: .nullify, inverse: \ProcedureModel.callees)
 	public var callers: [ProcedureModel] = []
 
-	/// Procedures this function calls
-	//	@Relationship(deleteRule: .nullify, inverse: \ProcedureModel.callers)
+	/// Procedures this function calls (SwiftData keeps this in sync with
+	/// `callers`, whose `inverse: \ProcedureModel.callees` is the only
+	/// relationship declaration for this self-referential pair)
 	public var callees: [ProcedureModel] = []
 
 	// Metadata
@@ -475,8 +476,8 @@ public extension ProcedureModel {
 	@Relationship(deleteRule: .nullify, inverse: \BlockModel.predecessors)
 	var successors: [BlockModel] = []
 
-	/// Addresses of predecessor blocks
-//	@Relationship(deleteRule: .nullify, inverse: \BlockModel.successors)
+	/// Addresses of predecessor blocks (kept in sync by SwiftData with
+	/// `successors`, the only relationship declaration for this pair)
 	var predecessors: [BlockModel] = []
 
 	var size: UInt64 { endAddress - startAddress }

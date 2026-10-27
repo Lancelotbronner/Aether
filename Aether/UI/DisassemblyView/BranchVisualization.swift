@@ -785,7 +785,7 @@ struct EnhancedOperandText: View {
 
 	var body: some View {
 		Group {
-			if operand.type == .symbol || operand.type == .function {
+			if operand.type == .symbol {
 				Button {
 					if let addr = operand.address {
 						appState.goToAddress(addr)
@@ -827,7 +827,7 @@ struct EnhancedOperandText: View {
 		case .register: return .registerColor
 		case .immediate: return .immediateColor
 		case .memory: return .memoryColor
-		case .symbol, .function: return .accent
+		case .symbol: return .accent
 		case .other: return .primary
 		}
 	}
