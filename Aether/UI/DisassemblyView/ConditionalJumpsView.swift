@@ -64,7 +64,7 @@ struct ConditionalJumpInfo: Identifiable {
 // MARK: - Conditional Jumps View
 
 struct ConditionalJumpsView: View {
-	let instructions: ArraySlice<Instruction>
+	let instructions: ArraySlice<DisassembledInstruction>
 	@Environment(AppState.self) private var appState
 	@Environment(\.dismiss) var dismiss
 	@State private var jumps: [ConditionalJumpInfo] = []

@@ -30,62 +30,6 @@ struct AetherContentView: View {
 		.modifier(GoToAddressSheetModifier())
 		.modifier(SearchSheetModifier())
 		.modifier(CallGraphModifier())
-//		.sheet(isPresented: $appState.showCryptoDetection) {
-//			CryptoDetectionView()
-//		}
-//		.sheet(isPresented: $appState.showDeobfuscation) {
-//			DeobfuscationView()
-//		}
-//		.sheet(isPresented: $appState.showTypeRecovery) {
-//			TypeRecoveryView()
-//		}
-//		.sheet(isPresented: $appState.showIdiomRecognition) {
-//			IdiomRecognitionView()
-//		}
-//		.sheet(isPresented: $appState.showPseudoCode) {
-//			PseudoCodeView()
-//		}
-//		.sheet(isPresented: $appState.showExportSheet) {
-//			ExportSheetView()
-//		}
-//		.sheet(isPresented: $appState.showSecurityAnalysis) {
-//			SecurityAnalysisView(
-//				result: appState.securityAnalysisResult,
-//				isLoading: appState.isAnalyzingWithAI,
-//				error: appState.securityAnalysisError
-//			)
-//		}
-//		.sheet(isPresented: $appState.showFridaScript) {
-//			FridaScriptView()
-//		}
-//		.sheet(isPresented: $appState.showAIChat) {
-//			AIChatView()
-//		}
-//		.sheet(isPresented: $appState.showExplainCode) {
-//			ExplainCodeView()
-//		}
-//		.sheet(isPresented: $appState.showAIRename) {
-//			AIRenameView()
-//		}
-//		.sheet(isPresented: $appState.showMalwareDashboard) {
-//			MalwareDashboardView()
-//		}
-//		.sheet(isPresented: $appState.showImportExportBrowser) {
-//			ImportExportBrowserView()
-//		}
-//		.sheet(isPresented: $appState.showEntropyView) {
-//			EntropyView()
-//		}
-//		.sheet(isPresented: $appState.showMalwareFlow) {
-//			MalwareFlowView()
-//		}
-//		.alert("Error", isPresented: $appState.showError) {
-//			Button("OK") {
-//				appState.showError = false
-//			}
-//		} message: {
-//			Text(appState.errorMessage ?? "Unknown error")
-//		}
 	}
 }
 

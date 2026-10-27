@@ -69,7 +69,7 @@ nonisolated enum InstructionKind: Equatable, Codable {
 }
 
 nonisolated extension InstructionKind {
-	var type: InstructionType {
+	var type: InstructionCategory {
 		switch self {
 		case .move: .move
 		case .arithmetic: .arithmetic

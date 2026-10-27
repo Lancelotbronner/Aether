@@ -460,11 +460,11 @@ public extension ProcedureModel {
 /// A basic block within a function (for CFG)
 @Model public final class BlockModel {
 	var procedure: ProcedureModel
-	var startAddress: UInt64 = 0
-	var endAddress: UInt64 = 0
+	public var startAddress: UInt64 = 0
+	public var endAddress: UInt64 = 0
 
 	// Block type
-	var type = BasicBlockType.normal
+	public var type = BasicBlockType.normal
 
 	init(in procedure: ProcedureModel) {
 		self.procedure = procedure
@@ -474,11 +474,11 @@ public extension ProcedureModel {
 
 	/// Addresses of successor blocks
 	@Relationship(deleteRule: .nullify, inverse: \BlockModel.predecessors)
-	var successors: [BlockModel] = []
+	public var successors: [BlockModel] = []
 
 	/// Addresses of predecessor blocks (kept in sync by SwiftData with
 	/// `successors`, the only relationship declaration for this pair)
-	var predecessors: [BlockModel] = []
+	public var predecessors: [BlockModel] = []
 
 	var size: UInt64 { endAddress - startAddress }
 }

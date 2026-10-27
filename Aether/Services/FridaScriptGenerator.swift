@@ -31,25 +31,3 @@ enum FridaHookType: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Result Structures
-
-struct FridaScriptResult: Identifiable {
-    let id = UUID()
-    let script: String
-    let platform: FridaPlatform
-    let hookType: FridaHookType
-    let targetFunctions: [String]
-    let description: String
-    let moduleName: String
-    let offsets: [UInt64]
-}
-
-struct AIFridaScriptResult: Identifiable {
-    let id = UUID()
-    let script: String
-    let explanation: String
-    let hookPoints: [String]
-    let bypassImplemented: [String]
-    let warnings: [String]
-}
-

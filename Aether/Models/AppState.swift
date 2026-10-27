@@ -43,7 +43,7 @@ final class AppState {
 	}
 
 	@ObservationIgnored
-	var selectedInstruction: Instruction? {
+	var selectedInstruction: DisassembledInstruction? {
 		_read {
 			let selected = instructions(in: selectedAddressRange)
 			if selected.count == 1 {
@@ -865,7 +865,7 @@ final class AppState {
 	/// so a disassembly suspended at an `await` can detect a reset mid-flight.
 	@ObservationIgnored var disassemblyCacheGeneration = 0
 	var instructionMap: [UInt64: Int] = [:]
-	@ObservationIgnored var instructions: [Instruction] = []
+	@ObservationIgnored var instructions: [DisassembledInstruction] = []
 	@ObservationIgnored var pcode: [Pcode] = []
 
 	/// Clears the transient disassembly cache (address ranges, instructions,
@@ -887,11 +887,11 @@ final class AppState {
 		operandLookupsFor = nil
 	}
 
-	func instruction(at address: UInt64) -> Instruction? {
+	func instruction(at address: UInt64) -> DisassembledInstruction? {
 		instructionMap[address].map { instructions[$0] }
 	}
 
-	func instructions(in range: Range<UInt64>) -> ArraySlice<Instruction> {
+	func instructions(in range: Range<UInt64>) -> ArraySlice<DisassembledInstruction> {
 		guard let lowerBound = instructionMap[range.lowerBound] else { return [] }
 		var upperBound = lowerBound
 		var remaining = range.count
@@ -957,17 +957,17 @@ final class AppState {
 		disassembledFor = selectedBinary.persistentModelID
 	}
 
-	func disassemble(section: SectionModel) async -> ArraySlice<Instruction> {
+	func disassemble(section: SectionModel) async -> ArraySlice<DisassembledInstruction> {
 		await disassembleIfNecessary(section.addressRange)
 		return instructions(in: section.addressRange)
 	}
 
-	func disassembleFunction(_ function: ProcedureModel) async -> ArraySlice<Instruction> {
+	func disassembleFunction(_ function: ProcedureModel) async -> ArraySlice<DisassembledInstruction> {
 		await disassembleIfNecessary(function.symbol.addressRange)
 		return instructions(in: function.symbol.addressRange)
 	}
 
-	func disassembleRange(start: UInt64, end: UInt64) async -> ArraySlice<Instruction> {
+	func disassembleRange(start: UInt64, end: UInt64) async -> ArraySlice<DisassembledInstruction> {
 		await disassembleIfNecessary(start..<end)
 		return instructions(in: start..<end)
 	}

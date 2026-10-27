@@ -14,7 +14,7 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	var instruction = DisassemblyInstruction()
 	var xrefsTo: [UInt64] = []
 	var xrefsFrom: [UInt64] = []
-	var submitted: [Instruction] = []
+	var submitted: [DisassembledInstruction] = []
 	/// Pseudo-instructions.
 	var pcode: [Pcode] = []
 	var pcodeIndex = 0
@@ -32,7 +32,7 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 
 	func submit() {
 		let bytes = UInt64(lastInstructionByteRange.lowerBound)..<UInt64(remainingByteRange.lowerBound)
-		let next = Instruction(instruction, with: bytes, at: currentAddress, for: architecture, pcode: pcodeIndex..<pcode.count)
+		let next = DisassembledInstruction(instruction, with: bytes, at: currentAddress, for: architecture, pcode: pcodeIndex..<pcode.count)
 		submitted.append(next)
 
 		//TODO: register xrefs
@@ -59,7 +59,7 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 }
 
 struct DisassemblyResult {
-	var instructions: [Instruction]
+	var instructions: [DisassembledInstruction]
 	var pcode: [Pcode]
 }
 
@@ -86,7 +86,7 @@ actor DisassemblerEngine {
 			}
 			return DisassemblyResult(instructions: context.submitted, pcode: context.pcode)
 		}
-		let instructions: [Instruction]
+		let instructions: [DisassembledInstruction]
 		switch architecture {
 		case .jvm:
 			instructions = disassembleJVM(data: data, address: address)

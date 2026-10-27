@@ -2,6 +2,82 @@ import Foundation
 import AetherKit
 import SwiftData
 
+// Task 12c: re-homed from the deleted `Models/Architecture.swift` — only the
+// members the Decompiler reads were kept (the other 5 had zero consumers).
+extension Architecture {
+	/// Stack pointer register name
+	var stackPointerName: String {
+		switch self {
+		case .x86_64:
+			return "rsp"
+		case .i386:
+			return "esp"
+		case .arm64, .arm64e, .appleSilicon:
+			return "sp"
+		case .armv7:
+			return "sp"
+		case .jvm:
+			return "stack"
+		case .unknown:
+			return "sp"
+		}
+	}
+
+	/// Frame pointer register name
+	var framePointerName: String {
+		switch self {
+		case .x86_64:
+			return "rbp"
+		case .i386:
+			return "ebp"
+		case .arm64, .arm64e, .appleSilicon:
+			return "x29"
+		case .armv7:
+			return "r11"
+		case .jvm:
+			return "locals"
+		case .unknown:
+			return "fp"
+		}
+	}
+
+	/// Calling convention argument registers
+	var argumentRegisters: [String] {
+		switch self {
+		case .x86_64:
+			return ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]  // System V AMD64 ABI
+		case .i386:
+			return []  // Arguments on stack
+		case .arm64, .arm64e, .appleSilicon:
+			return ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+		case .armv7:
+			return ["r0", "r1", "r2", "r3"]
+		case .jvm:
+			return []  // Arguments passed via locals
+		case .unknown:
+			return []
+		}
+	}
+
+	/// Return value register
+	var returnValueRegister: String {
+		switch self {
+		case .x86_64:
+			return "rax"
+		case .i386:
+			return "eax"
+		case .arm64, .arm64e, .appleSilicon:
+			return "x0"
+		case .armv7:
+			return "r0"
+		case .jvm:
+			return "stack[0]"
+		case .unknown:
+			return "unknown"
+		}
+	}
+}
+
 /// Enhanced pseudo-code decompiler with control flow recovery
 nonisolated final class Decompiler {
 
@@ -13,7 +89,7 @@ nonisolated final class Decompiler {
 	private var cachedBinaryID: PersistentIdentifier?
 
 	/// Decompile a procedure to pseudo-C code
-	func decompile(procedure: ProcedureModel, instructions: ArraySlice<Instruction>, binary: BinaryModel) -> String {
+	func decompile(procedure: ProcedureModel, instructions: ArraySlice<DisassembledInstruction>, binary: BinaryModel) -> String {
 		self.binary = binary
 		self.variableNames = [:]
 		self.variableCounter = 0
@@ -110,7 +186,7 @@ nonisolated final class Decompiler {
 
 	// MARK: - Type Inference
 
-	private func inferReturnType(instructions: ArraySlice<Instruction>, architecture: Architecture) -> String {
+	private func inferReturnType(instructions: ArraySlice<DisassembledInstruction>, architecture: Architecture) -> String {
 		for insn in instructions.reversed() {
 			if insn.type == .return {
 				continue
@@ -140,7 +216,7 @@ nonisolated final class Decompiler {
 		return "void"
 	}
 
-	private func inferParameters(instructions: ArraySlice<Instruction>, architecture: Architecture) -> [String] {
+	private func inferParameters(instructions: ArraySlice<DisassembledInstruction>, architecture: Architecture) -> [String] {
 		var params: [String] = []
 		let argRegs = architecture.argumentRegisters
 
@@ -171,7 +247,7 @@ nonisolated final class Decompiler {
 		return params
 	}
 
-	private func inferOperandType(insn: Instruction, operand: String) -> String {
+	private func inferOperandType(insn: DisassembledInstruction, operand: String) -> String {
 		let mnem = insn.mnemonic.lowercased()
 
 		// Floating point operations
@@ -192,7 +268,7 @@ nonisolated final class Decompiler {
 		return "int64_t"
 	}
 
-	private func inferLocalVariables(instructions: ArraySlice<Instruction>, architecture: Architecture) -> [DecompilerLocalVar] {
+	private func inferLocalVariables(instructions: ArraySlice<DisassembledInstruction>, architecture: Architecture) -> [DecompilerLocalVar] {
 		var locals: [DecompilerLocalVar] = []
 		var seenOffsets = Set<Int>()
 
@@ -249,7 +325,7 @@ nonisolated final class Decompiler {
 		return locals.sorted { $0.stackOffset > $1.stackOffset }
 	}
 
-	private func inferLocalType(insn: Instruction) -> String {
+	private func inferLocalType(insn: DisassembledInstruction) -> String {
 		let mnem = insn.mnemonic.lowercased()
 
 		if mnem.contains("movs") || mnem.contains("cvt") {
@@ -270,9 +346,9 @@ nonisolated final class Decompiler {
 		return "int64_t"
 	}
 
-	// MARK: - Instruction Decompilation
+	// MARK: - Disassembly Decompilation
 
-	private func decompileInstructions(_ instructions: ArraySlice<Instruction>, indent: Int, binary: BinaryModel) -> String {
+	private func decompileInstructions(_ instructions: ArraySlice<DisassembledInstruction>, indent: Int, binary: BinaryModel) -> String {
 		var output = ""
 		let ind = String(repeating: "    ", count: indent)
 
@@ -309,7 +385,7 @@ nonisolated final class Decompiler {
 		return output
 	}
 
-	private func isPrologueEpilogue(_ insn: Instruction) -> Bool {
+	private func isPrologueEpilogue(_ insn: DisassembledInstruction) -> Bool {
 		let mnem = insn.mnemonic.lowercased()
 		let ops = insn.operands.lowercased()
 
@@ -329,7 +405,7 @@ nonisolated final class Decompiler {
 		return false
 	}
 
-	private func buildCondition(cmp: Instruction, jump: Instruction) -> String {
+	private func buildCondition(cmp: DisassembledInstruction, jump: DisassembledInstruction) -> String {
 		let parts = cmp.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count >= 2 else { return "condition" }
 
@@ -354,7 +430,7 @@ nonisolated final class Decompiler {
 		return "\(left) \(op) \(right)"
 	}
 
-	private func decompileInstruction(_ insn: Instruction, binary: BinaryModel) -> String {
+	private func decompileInstruction(_ insn: DisassembledInstruction, binary: BinaryModel) -> String {
 		switch insn.type {
 		case .call:
 			return decompileCall(insn, binary: binary)
@@ -388,7 +464,7 @@ nonisolated final class Decompiler {
 		}
 	}
 
-	private func decompileCall(_ insn: Instruction, binary: BinaryModel) -> String {
+	private func decompileCall(_ insn: DisassembledInstruction, binary: BinaryModel) -> String {
 		var funcName = "unknown"
 		var args = ""
 
@@ -442,7 +518,7 @@ nonisolated final class Decompiler {
 		return result
 	}
 
-	private func decompileReturn(_ insn: Instruction, binary: BinaryModel) -> String {
+	private func decompileReturn(_ insn: DisassembledInstruction, binary: BinaryModel) -> String {
 		// Check return register for value
 		let returnReg = binary.architecture.returnValueRegister.lowercased()
 
@@ -450,7 +526,7 @@ nonisolated final class Decompiler {
 		return "return result;"
 	}
 
-	private func decompileMove(_ insn: Instruction, binary: BinaryModel) -> String {
+	private func decompileMove(_ insn: DisassembledInstruction, binary: BinaryModel) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count == 2 else { return "// \(insn.text)" }
 
@@ -472,7 +548,7 @@ nonisolated final class Decompiler {
 		return "\(dest) = \(src);"
 	}
 
-	private func decompileArithmetic(_ insn: Instruction) -> String {
+	private func decompileArithmetic(_ insn: DisassembledInstruction) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
 		let op: String
@@ -516,7 +592,7 @@ nonisolated final class Decompiler {
 		return "// \(insn.text)"
 	}
 
-	private func decompileLogic(_ insn: Instruction) -> String {
+	private func decompileLogic(_ insn: DisassembledInstruction) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
 		let op: String
@@ -556,7 +632,7 @@ nonisolated final class Decompiler {
 		return "// \(insn.text)"
 	}
 
-	private func decompileLoad(_ insn: Instruction, binary: BinaryModel) -> String {
+	private func decompileLoad(_ insn: DisassembledInstruction, binary: BinaryModel) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count >= 2 else { return "// \(insn.text)" }
 
@@ -580,7 +656,7 @@ nonisolated final class Decompiler {
 		return "\(dest) = \(src);"
 	}
 
-	private func decompileStore(_ insn: Instruction, binary: BinaryModel) -> String {
+	private func decompileStore(_ insn: DisassembledInstruction, binary: BinaryModel) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 		guard parts.count >= 2 else { return "// \(insn.text)" }
 
@@ -894,7 +970,7 @@ nonisolated final class EnhancedCodePrinter {
 		return lines.joined(separator: "\n")
 	}
 
-	private func decompileInstruction(_ insn: Instruction) -> String {
+	private func decompileInstruction(_ insn: DisassembledInstruction) -> String {
 		let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
 		switch insn.type {
@@ -940,7 +1016,7 @@ nonisolated final class EnhancedCodePrinter {
 		}
 	}
 
-	private func decompileArithmetic(_ insn: Instruction, parts: [String]) -> String {
+	private func decompileArithmetic(_ insn: DisassembledInstruction, parts: [String]) -> String {
 		let mnem = insn.mnemonic.lowercased()
 
 		switch mnem {
@@ -981,7 +1057,7 @@ nonisolated final class EnhancedCodePrinter {
 		return ""
 	}
 
-	private func decompileLogic(_ insn: Instruction, parts: [String]) -> String {
+	private func decompileLogic(_ insn: DisassembledInstruction, parts: [String]) -> String {
 		let mnem = insn.mnemonic.lowercased()
 
 		// XOR with self = zero
@@ -1017,7 +1093,7 @@ nonisolated final class EnhancedCodePrinter {
 		return ""
 	}
 
-	private func decompileCall(_ insn: Instruction) -> String {
+	private func decompileCall(_ insn: DisassembledInstruction) -> String {
 		var funcName = "unknown"
 
 		if let target = insn.branchTarget {
@@ -1079,7 +1155,7 @@ nonisolated final class EnhancedCodePrinter {
 		return "*(\(mapOperand(o)))"
 	}
 
-	private func isPrologueEpilogue(_ insn: Instruction) -> Bool {
+	private func isPrologueEpilogue(_ insn: DisassembledInstruction) -> Bool {
 		let mnem = insn.mnemonic.lowercased()
 		let ops = insn.operands.lowercased()
 

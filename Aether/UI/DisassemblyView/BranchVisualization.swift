@@ -83,7 +83,7 @@ struct BranchInfo: Identifiable {
 // MARK: - Branch Analyzer
 
 class BranchAnalyzer {
-	static func analyzeBranches(instructions: ArraySlice<Instruction>) -> [BranchInfo] {
+	static func analyzeBranches(instructions: ArraySlice<DisassembledInstruction>) -> [BranchInfo] {
 		var branches: [BranchInfo] = []
 
 		for insn in instructions {
@@ -106,7 +106,7 @@ class BranchAnalyzer {
 		return branches
 	}
 
-	private static func determineBranchType(_ insn: Instruction) -> BranchInfo.BranchType {
+	private static func determineBranchType(_ insn: DisassembledInstruction) -> BranchInfo.BranchType {
 		switch insn.type {
 		case .call:
 			return .call
@@ -127,7 +127,7 @@ class BranchAnalyzer {
 		}
 	}
 
-	private static func estimateProbability(_ insn: Instruction, type: BranchInfo.BranchType) -> BranchInfo.BranchProbability {
+	private static func estimateProbability(_ insn: DisassembledInstruction, type: BranchInfo.BranchType) -> BranchInfo.BranchProbability {
 		let mnemonic = insn.mnemonic.lowercased()
 
 		// Loop back edges are usually taken (loop continues)
@@ -158,7 +158,7 @@ class BranchAnalyzer {
 // MARK: - Branch Arrow View
 
 struct BranchArrowColumn: View {
-	let instructions: [Instruction]
+	let instructions: [DisassembledInstruction]
 	let branches: [BranchInfo]
 	let visibleRange: Range<Int>
 
@@ -427,7 +427,7 @@ struct JumpTableRow: View {
 
 struct BranchTooltip: View {
 	let branch: BranchInfo
-	let targetInstructions: [Instruction]
+	let targetInstructions: [DisassembledInstruction]
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 8) {
@@ -509,13 +509,13 @@ struct BranchTooltip: View {
 	}
 }
 
-// MARK: - Enhanced Instruction Row with Branch Info
+// MARK: - Enhanced Disassembly Row with Branch Info
 
 struct EnhancedInstructionRow: View {
-	let instruction: Instruction
+	let instruction: DisassembledInstruction
 	let isSelected: Bool
 	let branchInfo: BranchInfo?
-	let allInstructions: ArraySlice<Instruction>
+	let allInstructions: ArraySlice<DisassembledInstruction>
 	@Environment(AppState.self) private var appState
 	@State private var showTooltip = false
 	@State private var showEditSheet = false
@@ -640,7 +640,7 @@ struct EnhancedInstructionRow: View {
 		}
 	}
 
-	private func getTargetInstructions(_ branch: BranchInfo) -> [Instruction] {
+	private func getTargetInstructions(_ branch: BranchInfo) -> [DisassembledInstruction] {
 		guard let startIdx = allInstructions.firstIndex(where: { $0.address == branch.targetAddress }) else {
 			return []
 		}
@@ -701,7 +701,7 @@ struct ProbabilityBadge: View {
 // MARK: - Enhanced Operands View
 
 struct EnhancedOperandsView: View {
-	let instruction: Instruction
+	let instruction: DisassembledInstruction
 	let branchInfo: BranchInfo?
 	@Environment(AppState.self) private var appState
 

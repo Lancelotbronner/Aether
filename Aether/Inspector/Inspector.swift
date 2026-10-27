@@ -18,7 +18,7 @@ struct Inspector: View {
 
 private struct InstructionInspector: View {
 	@Environment(AppState.self) private var appState
-	let instruction: Instruction
+	let instruction: DisassembledInstruction
 
 	var body: some View {
 		Form {

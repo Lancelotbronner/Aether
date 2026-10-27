@@ -2,8 +2,8 @@ import Foundation
 import AetherKit
 
 extension DisassemblerEngine {
-	func disassembleJVM(data: Data, address: UInt64) -> [Instruction] {
-		var instructions: [Instruction] = []
+	func disassembleJVM(data: Data, address: UInt64) -> [DisassembledInstruction] {
+		var instructions: [DisassembledInstruction] = []
 		var offset = 0
 		var currentAddress = address
 
@@ -24,10 +24,10 @@ extension DisassemblerEngine {
 			if let target {
 				result.kind = .branch(.jmp, target)
 			}
-			let instruction = Instruction(
+			let instruction = DisassembledInstruction(
 				result,
 				with: byteOffsets, at: address, for: .jvm)
-			//                Instruction(
+			//                DisassembledInstruction(
 			//					address: currentAddress,
 			//                size: size,
 			//                bytes: bytes,
@@ -45,7 +45,7 @@ extension DisassemblerEngine {
 		return instructions
 	}
 
-	private func decodeJVMInstruction(opcode: UInt8, data: Data, offset: Int, address: UInt64) -> (String, Int, String, InstructionType, UInt64?) {
+	private func decodeJVMInstruction(opcode: UInt8, data: Data, offset: Int, address: UInt64) -> (String, Int, String, InstructionCategory, UInt64?) {
 		switch opcode {
 			// Constants
 		case 0x00: return ("nop", 0, "", .nop, nil)

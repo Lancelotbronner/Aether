@@ -3,7 +3,7 @@ import AetherKit
 
 struct DisassemblyView: View {
 	@Environment(AppState.self) private var appState
-	@State private var instructions: ArraySlice<Instruction> = []
+	@State private var instructions: ArraySlice<DisassembledInstruction> = []
 	@State private var branches: [BranchInfo] = []
 	@State private var isLoading = false
 	@State private var maxInstructions = 500  // Limit to prevent freezing
@@ -94,7 +94,7 @@ struct DisassemblyView: View {
 		isLoading = true
 
 		Task {
-			var result: ArraySlice<Instruction> = []
+			var result: ArraySlice<DisassembledInstruction> = []
 
 			if let function = appState.selectedFunction {
 				result = await appState.disassembleFunction(function)
@@ -119,7 +119,7 @@ private struct DisassemblyHeader: View {
 	@Binding var showJumpTable: Bool
 	@Binding var showConditionalJumps: Bool
 	let branches: [BranchInfo]
-	let instructions: ArraySlice<Instruction>
+	let instructions: ArraySlice<DisassembledInstruction>
 
 	var body: some View {
 		// Header
@@ -242,7 +242,7 @@ struct ProbabilityLegendItem: View {
 // MARK: - Operands View
 
 struct OperandsView: View {
-	let instruction: Instruction
+	let instruction: DisassembledInstruction
 	@Environment(AppState.self) private var appState
 
 	var body: some View {

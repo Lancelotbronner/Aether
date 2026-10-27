@@ -9,26 +9,10 @@ import AetherKit
 struct CFGBlock {
 	let startAddress: UInt64
 	let endAddress: UInt64
-	let instructions: [Instruction]
+	let instructions: [DisassembledInstruction]
 	let successors: [UInt64]
 	let predecessors: [UInt64]
 	let type: BasicBlockType
-}
-
-// Task 12b workaround: AetherKit's `BlockModel` fields are `internal` (the
-// class is `public` but its stored properties are not), and this task may not
-// touch AetherKit. Reflection reads work across access levels. Replace with
-// direct field access (`block.startAddress`, ...) once AetherKit exposes them.
-private extension BlockModel {
-	var cfgStartAddress: UInt64 { cfgField("startAddress") ?? 0 }
-	var cfgEndAddress: UInt64 { cfgField("endAddress") ?? 0 }
-	var cfgType: BasicBlockType { cfgField("type") ?? .normal }
-	var cfgSuccessors: [BlockModel] { cfgField("successors") ?? [] }
-	var cfgPredecessors: [BlockModel] { cfgField("predecessors") ?? [] }
-
-	private func cfgField<T>(_ label: String) -> T? {
-		Mirror(reflecting: self).children.first { $0.label == label }?.value as? T
-	}
 }
 
 /// Recovers high-level control flow structures (if/else, while, for, switch)
@@ -167,7 +151,7 @@ nonisolated final class ControlFlowStructurer {
 	///   - procedure: the procedure whose `blocks` form the CFG (entry is the first block).
 	///   - instructions: the disassembled instructions; each is assigned to the block
 	///     whose address range contains it.
-	func structure(procedure: ProcedureModel, instructions: ArraySlice<Instruction>) -> ControlStructure {
+	func structure(procedure: ProcedureModel, instructions: ArraySlice<DisassembledInstruction>) -> ControlStructure {
 		guard let first = procedure.blocks.first else {
 			return .sequence([])
 		}
@@ -175,14 +159,14 @@ nonisolated final class ControlFlowStructurer {
 		// Derive value-type CFG nodes from the model blocks
 		orderedBlocks = procedure.blocks.map { block in
 			CFGBlock(
-				startAddress: block.cfgStartAddress,
-				endAddress: block.cfgEndAddress,
+				startAddress: block.startAddress,
+				endAddress: block.endAddress,
 				instructions: instructions.filter { insn in
-					insn.address >= block.cfgStartAddress && insn.address < block.cfgEndAddress
+					insn.address >= block.startAddress && insn.address < block.endAddress
 				},
-				successors: block.cfgSuccessors.map { $0.cfgStartAddress },
-				predecessors: block.cfgPredecessors.map { $0.cfgStartAddress },
-				type: block.cfgType
+				successors: block.successors.map { $0.startAddress },
+				predecessors: block.predecessors.map { $0.startAddress },
+				type: block.type
 			)
 		}
 
@@ -199,7 +183,7 @@ nonisolated final class ControlFlowStructurer {
 		computePostDominators()
 
 		// Structure the CFG
-		let entryAddr = first.cfgStartAddress
+		let entryAddr = first.startAddress
 		return structureRegion(entry: entryAddr, exits: [], visited: [])
 	}
 
@@ -647,8 +631,8 @@ nonisolated final class ControlFlowStructurer {
 
 	private func extractCondition(from block: CFGBlock) -> Condition {
 		// Find compare instruction and conditional jump
-		var compareInsn: Instruction?
-		var jumpInsn: Instruction?
+		var compareInsn: DisassembledInstruction?
+		var jumpInsn: DisassembledInstruction?
 
 		for insn in block.instructions.reversed() {
 			if insn.type == .conditionalJump {
