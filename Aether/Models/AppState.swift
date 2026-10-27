@@ -68,44 +68,19 @@ final class AppState {
 
 	// MARK: - Advanced Analysis UI State
 	var showCallGraph = false
-	var showCryptoDetection = false
-	var showDeobfuscation = false
-	var showTypeRecovery = false
-	var showIdiomRecognition = false
 	var showExportSheet = false
-	var showPseudoCode = false
 	var showJumpTable = false
 	var showSettings = false
-	var showSecurityAnalysis = false
-	var showFridaScript = false
 
 	// MARK: - Frida Script Generation State
-	var isGeneratingFridaScript = false
-	var fridaScriptResult: FridaScriptResult?
-	var aiFridaScriptResult: AIFridaScriptResult?
-	var fridaScriptError: String?
 	var selectedFridaPlatform: FridaPlatform = .macOS
 	var selectedFridaHookType: FridaHookType = .trace
-	var preConfiguredBypassTechniques: [String] = []
-	var preConfiguredPatchPoints: [String] = []
 
 	// MARK: - AI Analysis State
-	var isAnalyzingWithAI = false
-	var securityAnalysisResult: SecurityAnalysisResult?
-	var securityAnalysisError: String?
 	private let aiClient = AIClient()
 
 	// MARK: - AI Chat State
 	var showAIChat = false
-	var chatMessages: [ChatMessage] = []
-	var isChatLoading = false
-	var chatError: String?
-
-	// MARK: - AI Explain Code State
-	var showExplainCode = false
-	var codeExplanation: CodeExplanation?
-	var isExplainingCode = false
-	var explainError: String?
 
 	// MARK: - AI Variable Rename State
 	var showAIRename = false
@@ -117,21 +92,10 @@ final class AppState {
 	var showMalwareDashboard = false
 	var showImportExportBrowser = false
 	var showEntropyView = false
-	var isAnalyzingMalware = false
 	var malwareReport: MalwareReport?
 
 	// MARK: - Malware Flow State
 	var showMalwareFlow = false
-	var isAnalyzingMalwareFlow = false
-	var malwareFlowResult: MalwareFlowResult?
-	var malwareFlowError: String?
-
-	// MARK: - Advanced Analysis Results
-	var cryptoFindings: [AdvancedCryptoDetector.CryptoFinding] = []
-	var deobfuscationReport: DeobfuscationReportWrapper?
-	var recoveredTypes: [RecoveredTypeWrapper] = []
-	var recognizedIdioms: [IdiomRecognizer.Idiom] = []
-	var structuredCode: String = ""
 
 	// MARK: - Operand Symbol Resolution (Task 10)
 	//
@@ -159,11 +123,7 @@ final class AppState {
 	@ObservationIgnored var undoManager: UndoManager?
 	@ObservationIgnored var modelContext: ModelContext?
 	private let disassembler = DisassemblerEngine()
-	private let functionAnalyzer = FunctionAnalyzer()
-	private let stringAnalyzer = StringAnalyzer()
-	private let xrefAnalyzer = XRefAnalyzer()
 	private let decompiler = Decompiler()
-	private let fridaGenerator = FridaScriptGenerator()
 
 	// MARK: - Malware Analysis
 
@@ -411,184 +371,6 @@ final class AppState {
 //		}
 	}
 
-	private func buildBasicBlocks(from instructions: ArraySlice<Instruction>, function: Function) -> [BasicBlock] {
-		guard !instructions.isEmpty else { return [] }
-
-		var blocks: [BasicBlock] = []
-		var currentBlockStart = 0
-		var leaders: Set<UInt64> = [instructions[0].address]
-
-		// Find all leaders (start of basic blocks)
-		for (index, insn) in instructions.enumerated() {
-			// After a branch/jump, the next instruction is a leader
-			if insn.type == .jump || insn.type == .conditionalJump || insn.type == .call || insn.type == .return {
-				if index + 1 < instructions.count {
-					leaders.insert(instructions[index + 1].address)
-				}
-				// Target of jump is also a leader
-				if let target = insn.branchTarget {
-					leaders.insert(target)
-				}
-			}
-		}
-
-		// Create basic blocks
-		let sortedLeaders = leaders.sorted()
-		for (i, leaderAddr) in sortedLeaders.enumerated() {
-			guard let startIdx = instructions.firstIndex(where: { $0.address == leaderAddr }) else { continue }
-
-			let endIdx: Int
-			if i + 1 < sortedLeaders.count {
-				let nextLeader = sortedLeaders[i + 1]
-				endIdx = instructions.firstIndex(where: { $0.address >= nextLeader }) ?? instructions.count
-			} else {
-				endIdx = instructions.count
-			}
-
-			if startIdx < endIdx {
-				let blockInsns = instructions[startIdx..<endIdx]
-				let endAddr = blockInsns.last.map { $0.address + UInt64($0.size) } ?? leaderAddr
-				let bb = BasicBlock(startAddress: leaderAddr, endAddress: endAddr, instructions: blockInsns)
-				blocks.append(bb)
-			}
-		}
-
-		return blocks
-	}
-
-	private func generatePseudoCodeFromInstructions(_ instructions: ArraySlice<Instruction>, function: Function, binary: BinaryFile) -> String {
-		var output = "// Function: \(function.displayName)\n"
-		output += "// Address: 0x\(String(format: "%llX", function.startAddress))\n"
-		output += "// Size: \(function.size) bytes\n\n"
-
-		// Generate function signature
-		output += "void \(function.displayName.replacingOccurrences(of: "-", with: "_").replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "").replacingOccurrences(of: " ", with: "_"))() {\n"
-
-		var indent = "    "
-		var pendingElse = false
-		var loopStack: [UInt64] = []
-
-		for (index, insn) in instructions.enumerated() {
-			let addr = String(format: "0x%llX", insn.address)
-
-			switch insn.type {
-			case .conditionalJump:
-				// Generate if statement
-				let condition = extractCondition(from: insn)
-				if let target = insn.branchTarget, target < insn.address {
-					// Backward jump = loop
-					output += "\(indent)// Loop back to \(String(format: "0x%llX", target))\n"
-					output += "\(indent)} // end loop\n"
-				} else {
-					output += "\(indent)if (\(condition)) {\n"
-					indent += "    "
-					pendingElse = true
-				}
-
-			case .jump:
-				if let target = insn.branchTarget {
-					if target < insn.address {
-						// Backward jump = loop
-						output += "\(indent)// Continue loop\n"
-					} else if pendingElse {
-						indent = String(indent.dropLast(4))
-						output += "\(indent)} else {\n"
-						indent += "    "
-						pendingElse = false
-					} else {
-						output += "\(indent)goto loc_\(String(format: "%llX", target));\n"
-					}
-				}
-
-			case .call:
-				let target = insn.operands
-				output += "\(indent)\(target)();  // call\n"
-
-			case .return:
-				if indent.count > 4 {
-					indent = String(indent.dropLast(4))
-					output += "\(indent)}\n"
-				}
-				output += "\(indent)return;\n"
-
-			case .move:
-				let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-				if parts.count >= 2 {
-					output += "\(indent)\(parts[0]) = \(parts[1]);\n"
-				}
-
-			case .arithmetic:
-				output += "\(indent)// \(insn.mnemonic) \(insn.operands)\n"
-				let parts = insn.operands.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-				if parts.count >= 2 {
-					let op = arithmeticOp(insn.mnemonic)
-					output += "\(indent)\(parts[0]) \(op)= \(parts[1]);\n"
-				}
-
-			case .compare:
-				// Just a comment, the condition will be used by the next branch
-				output += "\(indent)// compare \(insn.operands)\n"
-
-			case .push:
-				output += "\(indent)push(\(insn.operands));\n"
-
-			case .pop:
-				output += "\(indent)\(insn.operands) = pop();\n"
-
-			default:
-				// Generic instruction as comment
-				if !insn.mnemonic.isEmpty {
-					output += "\(indent)// \(insn.mnemonic) \(insn.operands)\n"
-				}
-			}
-		}
-
-		// Close any remaining blocks
-		while indent.count > 4 {
-			indent = String(indent.dropLast(4))
-			output += "\(indent)}\n"
-		}
-
-		output += "}\n"
-		return output
-	}
-
-	private func extractCondition(from insn: Instruction) -> String {
-		let mnemonic = insn.mnemonic.lowercased()
-
-		switch mnemonic {
-		case "je", "jz": return "zero_flag"
-		case "jne", "jnz": return "!zero_flag"
-		case "jg", "jnle": return "greater"
-		case "jge", "jnl": return "greater_or_equal"
-		case "jl", "jnge": return "less"
-		case "jle", "jng": return "less_or_equal"
-		case "ja", "jnbe": return "above"  // unsigned
-		case "jae", "jnb", "jnc": return "above_or_equal"
-		case "jb", "jnae", "jc": return "below"
-		case "jbe", "jna": return "below_or_equal"
-		case "js": return "sign_flag"
-		case "jns": return "!sign_flag"
-		case "jo": return "overflow_flag"
-		case "jno": return "!overflow_flag"
-		default: return "condition"
-		}
-	}
-
-	private func arithmeticOp(_ mnemonic: String) -> String {
-		switch mnemonic.lowercased() {
-		case "add": return "+"
-		case "sub": return "-"
-		case "imul", "mul": return "*"
-		case "idiv", "div": return "/"
-		case "and": return "&"
-		case "or": return "|"
-		case "xor": return "^"
-		case "shl", "sal": return "<<"
-		case "shr", "sar": return ">>"
-		default: return "?"
-		}
-	}
 
 	func exportTo(format: ExportManager.ExportFormat, url: URL) {
 //		guard let binary = selectedBinary else { return }
@@ -626,10 +408,6 @@ final class AppState {
 	func select(_ range: Range<UInt64>) {
 		goToAddress(range.lowerBound)
 		selectedAddressRange = range
-	}
-
-	func selectFunction(_ function: Function) {
-//		functionNavigator = function
 	}
 
 	// MARK: - Decompilation
@@ -871,57 +649,6 @@ final class AppState {
 //		}
 	}
 
-	// MARK: - AI Chat
-
-	func sendChatMessage(_ message: String) {
-//		guard let apiKey = KeychainHelper.load(key: "AIAPIKey") else {
-//			chatError = "No API key configured. Please add your AI API key in Settings."
-//			return
-//		}
-//
-//		// Add user message
-//		let userMessage = ChatMessage(role: "user", content: message)
-//		chatMessages.append(userMessage)
-//		isChatLoading = true
-//		chatError = nil
-//
-//		Task {
-//			do {
-//				// Build context
-//				let context = BinaryContext(
-//					name: selectedBinary?.name ?? "Unknown",
-//					architecture: selectedBinary?.architecture.rawValue ?? "Unknown",
-//					functionCount: functions.count,
-//					currentFunction: selectedFunction?.displayName,
-//					decompiledCode: decompilerOutput.isEmpty ? nil : decompilerOutput,
-//					relevantStrings: strings.prefix(30).map { $0.value }
-//				)
-//
-//				let response = try await aiClient.chatAsync(
-//					messages: chatMessages,
-//					context: context,
-//					apiKey: apiKey
-//				)
-//
-//				await MainActor.run {
-//					let assistantMessage = ChatMessage(role: "assistant", content: response)
-//					chatMessages.append(assistantMessage)
-//					isChatLoading = false
-//				}
-//			} catch {
-//				await MainActor.run {
-//					chatError = error.localizedDescription
-//					isChatLoading = false
-//				}
-//			}
-//		}
-	}
-
-	func clearChat() {
-		chatMessages = []
-		chatError = nil
-	}
-
 	// MARK: - AI Explain Code
 
 	func explainCurrentFunction() {
@@ -1140,19 +867,6 @@ final class AppState {
 //		}
 	}
 
-	func generateFridaFromSecurityAnalysis(_ securityResult: SecurityAnalysisResult) {
-//		// Pre-configure the generator with security analysis results
-//		selectedFridaHookType = .bypass
-//		preConfiguredBypassTechniques = securityResult.bypassTechniques
-//		preConfiguredPatchPoints = securityResult.patchPoints
-//
-//		// Generate with AI if available, otherwise basic
-//		if hasAIAPIKey {
-//			generateFridaScriptWithAI()
-//		} else {
-//			generateFridaScript()
-//		}
-	}
 
 	func generateMultiFunctionFridaScript() {
 //		guard let binary = selectedBinary else {
@@ -1447,15 +1161,6 @@ final class AppState {
 		}
 	}
 
-	// MARK: - Cross References
-
-	func getXRefsTo(address: UInt64) -> [CrossReference] {
-		[]
-	}
-
-	func getXRefsFrom(address: UInt64) -> [CrossReference] {
-		[]
-	}
 
 	// MARK: - Undo/Redo
 
