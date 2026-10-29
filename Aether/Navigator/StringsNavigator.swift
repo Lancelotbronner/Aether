@@ -6,15 +6,19 @@ struct StringsListView: View {
 	@Environment(AppState.self) private var appState
 	@State private var searchText = ""
 
-	@Query private var strings: [StringModel]
+	@Query private var symbols: [SymbolModel]
 
-	// MUST be in-memory (Task 7, handoff 07 §4): `StringModel.value` derives
-	// from `@Transient cached`, which is not persisted, so a #Predicate
-	// cannot query it.
-	var filteredStrings: [StringModel] {
+	// Strings are now `SymbolModel` rows with a string `type`.
+	var strings: [SymbolModel] {
+		symbols.filter { $0.type.isString }
+	}
+
+	// MUST be in-memory: filtering on a computed/display value, matching
+	// the other navigators.
+	var filteredStrings: [SymbolModel] {
 		guard !searchText.isEmpty else { return strings }
 		return strings.filter {
-			$0.value.localizedCaseInsensitiveContains(searchText)
+			$0.stringValue.localizedCaseInsensitiveContains(searchText)
 		}
 	}
 
@@ -27,7 +31,7 @@ struct StringsListView: View {
 					appState.goToAddress(str.address)
 				} label: {
 					VStack(alignment: .leading) {
-						Text(str.value)
+						Text(str.stringValue)
 							.font(.caption)
 						Spacer()
 						Text("0x\(String(str.address, radix: 16))")

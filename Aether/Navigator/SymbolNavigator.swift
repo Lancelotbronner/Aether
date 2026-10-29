@@ -56,9 +56,9 @@ struct SymbolRow: View {
 
 	private var symbolColor: Color {
 		switch model.type {
-		case .function: .accent
-		case .data, .object: .green
-		default: .secondary
+		case .function: .accentColor
+		case .ascii, .utf8, .utf16, .u8, .u16, .u32, .u64, .u128, .ptr: .green
+		case .unknown: .secondary
 		}
 	}
 }

@@ -55,7 +55,6 @@ public nonisolated extension MachOLoader {
 			model.symbols.removeAll()
 			model.sections.removeAll()
 			model.segments.removeAll()
-			model.strings.removeAll()
 			model.entryPoint = 0
 			model.stackSize = 0
 			model.baseAddress = 0
@@ -247,23 +246,26 @@ public nonisolated extension MachOLoader {
 					case .N_ABS:
 						// Absolute symbols: n_value is a constant, not a load
 						// address — never treat as a function.
-						symbol.type = .unknown
+						symbol.kind = .unknown
 						symbol.size = 0
 						symbol.binding = isExternal ? .global : .local
 					case .N_SECT:
-						// Check if this looks like a function (in __TEXT,__text)
-						symbol.type = sym.n_sect == 1 ? .function : .data
+						// Check if this looks like a function (in __TEXT,__text).
+						// Named data symbols keep `type: .unknown`: their extent
+						// is usually not a single fixed-width element.
+						symbol.kind = sym.n_sect == 1 ? .function : .data
+						symbol.type = sym.n_sect == 1 ? .function : .unknown
 						symbol.binding = isExternal ? .global : .local
 					default:
 						// N_UNDF and the rest: no body in this file.
-						symbol.type = .unknown
+						symbol.kind = .unknown
 						symbol.size = 0
 						symbol.binding = isExternal ? .external : .undefined
 					}
 
 					symbol.refresh()
 
-					if symbol.type == .function && symbol.address != 0 {
+					if symbol.kind == .function && symbol.address != 0 {
 						let procedure = ProcedureModel(is: symbol, in: model)
 						model.procedures.append(procedure)
 					}
@@ -289,9 +291,10 @@ public nonisolated extension MachOLoader {
 			bytes = bytes.extracting(droppingFirst: Int(item.cmdsize))
 		}
 
-		model.strings = scanStrings(in: model)
+		let generated = symbolize(in: model)
+		model.symbols.append(contentsOf: generated)
 
-		log += "Parsed \(model.segments.count) segments, \(model.sections.count) sections, \(model.symbols.count) symbols, \(model.strings.count) strings in \(start.duration(to: .now).logDescription)"
+		log += "Parsed \(model.segments.count) segments, \(model.sections.count) sections, \(model.symbols.count) symbols (\(generated.count) generated) in \(start.duration(to: .now).logDescription)"
 		Logger.app.info("\(log)")
 		print(log)
 
@@ -304,61 +307,154 @@ public nonisolated extension MachOLoader {
 		model.architecture = mapCPUType(UInt32(header.cputype))
 	}
 
-	/// Eager C-string scan (Task 6, B11).
+	/// Eager memory-map symbolization (supersedes the printable-ASCII
+	/// `scanStrings` pass).
 	///
-	/// Scans the `__TEXT` segment's file bytes in a single linear pass for
-	/// printable-ASCII runs of at least 4 bytes and inserts one `StringModel`
-	/// per hit with `cached` set, so the Strings tab is populated immediately
-	/// at Load.
+	/// Walks every non-executable section and emits `SymbolModel` rows typed
+	/// by the section's Mach-O type (low byte of `flags`):
+	/// - `S_CSTRING_LITERALS`: one symbol per NUL-terminated run —
+	///   `__cstring` → `.ascii` (min 4 bytes), `__ustring` → `.utf16`
+	///   (min 2 characters).
+	/// - Pointer sections (`S_LITERAL_POINTERS`, symbol-pointer tables,
+	///   `S_MOD_*_FUNC_POINTERS`, `S_INTERPOSING`,
+	///   `S_LAZY_DYLIB_SYMBOL_POINTERS`) → `.ptr` per 8 bytes.
+	/// - `S_4BYTE_LITERALS` / `S_INIT_FUNC_OFFSETS` → `.u32` per 4 bytes.
+	/// - `S_8BYTE_LITERALS` → `.u64` per 8 bytes (the flag says literal,
+	///   not pointer — no guessing).
+	/// - `S_16BYTE_LITERALS` → `.u128` per 16 bytes.
+	/// - Everything else (including `S_SYMBOL_STUBS` — stub width varies per
+	///   architecture — and zerofill) → one `.unknown` symbol spanning the
+	///   section.
 	///
-	/// Refinement: if the `__TEXT` segment declares a `__cstring` section, only
-	/// that section's bytes are scanned (where the compiler puts C-strings);
-	/// otherwise the whole segment is scanned so binaries without `__cstring`
-	/// still get string coverage. Virtual address = region address + intra-region
-	/// file offset.
-	nonisolated static func scanStrings(in model: BinaryModel) -> [StringModel] {
+	/// Generated rows have `identifier == name` (`str_<vaddr>` / `DAT_<vaddr>`),
+	/// `kind: .data`, `binding: .local`. Elements overlapping a named
+	/// symbol's range are skipped, and a section that holds named symbols
+	/// gets no section-spanning `.unknown` row.
+	nonisolated static func symbolize(in model: BinaryModel) -> [SymbolModel] {
 		let data = model.data
-		guard let text = model.segments.first(where: { $0.name == "__TEXT" }),
-			  text.fileSize > 0,
-			  Int(text.fileOffset) + Int(text.fileSize) <= data.count else { return [] }
 
-		// Prefer the __cstring section if declared; else scan the whole segment.
-		let region: (address: UInt64, fileStart: Int, fileEnd: Int)
-		if let cstring = text.sections.first(where: { $0.name == "__cstring" }),
-		   cstring.size > 0,
-		   Int(cstring.offset) + Int(cstring.size) <= data.count {
-			region = (cstring.address, Int(cstring.offset), Int(cstring.offset) + Int(cstring.size))
-		} else {
-			region = (text.address, Int(text.fileOffset), Int(text.fileOffset) + Int(text.fileSize))
+		// Ranges the symtab already owns, sorted by lower bound.
+		let named: [(lo: UInt64, hi: UInt64)] = model.symbols
+			.filter { $0.address != 0 && $0.size > 0 }
+			.map { ($0.address, $0.address + $0.size) }
+			.sorted { $0.lo < $1.lo }
+
+		func overlapsNamed(_ lo: UInt64, _ hi: UInt64) -> Bool {
+			named.contains { $0.hi > lo && $0.lo < hi }
 		}
-		let bytes = data.subdata(in: region.fileStart..<region.fileEnd)
-		let minLen = 4
 
-		var result: [StringModel] = []
-		var runStart = -1
-		for i in 0..<bytes.count {
-			let b = bytes[i]
-			if b >= 0x20 && b < 0x7F {
-				if runStart < 0 { runStart = i }
+		func makeSymbol(at address: UInt64, size: UInt64, type: SymbolType, stringValue: String) -> SymbolModel {
+			let symbol = SymbolModel(in: model)
+			symbol.address = address
+			symbol.size = size
+			symbol.kind = .data
+			symbol.type = type
+			symbol.stringValue = stringValue
+			symbol.binding = .local
+			symbol.name = (type.isString ? "str_" : "DAT_") + String(format: "%llX", address)
+			symbol.identifier = symbol.name
+			return symbol
+		}
+
+		var result: [SymbolModel] = []
+
+		for section in model.sections where section.size > 0 {
+			// Code is symbolized through the symtab (procedures).
+			guard !section.isExecutable else { continue }
+
+			let stype = Int32(section.flags & 0xFF)
+			let hasNamed = overlapsNamed(section.address, section.address + section.size)
+
+			// Fixed element width from the section type (0 = no chunking).
+			var width = 0
+			var element: SymbolType = .unknown
+			// S_INTERPOSING (0x100) and S_LAZY_DYLIB_SYMBOL_POINTERS (0x200)
+			// share low byte 0x00 with S_REGULAR — test the full flags.
+			if section.flags & 0x100 != 0 || section.flags & 0x200 != 0 {
+				width = 8
+				element = .ptr
 			} else {
-				let len = i - runStart
-				if runStart >= 0 && len >= minLen {
-					let value = String(decoding: bytes[runStart..<i], as: UTF8.self)
-					let vaddr = region.address + UInt64(runStart)
-					result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, value: value))
+				switch stype {
+				case 0x08, 0x24, 0x26, 0x29, 0x2B:  // S_LITERAL_POINTERS, symbol pointers, mod init/term
+					width = 8
+					element = .ptr
+				case 0x1B, 0x22:  // S_INIT_FUNC_OFFSETS, S_4BYTE_LITERALS
+					width = 4
+					element = .u32
+				case 0x25:  // S_8BYTE_LITERALS
+					width = 8
+					element = .u64
+				case 0x2C:  // S_16BYTE_LITERALS
+					width = 16
+					element = .u128
+				default:
+					break
 				}
-				runStart = -1
+			}
+
+			let sectionSize = Int(section.size)
+			let fileBacked = Int(section.offset) + sectionSize <= data.count
+
+			if stype == 0x02, fileBacked {  // S_CSTRING_LITERALS
+				// NUL-terminated runs; UTF-16 in `__ustring`. A run ends at a
+				// zero unit; the row size includes the terminator so the
+				// memory map stays contiguous.
+				let isUTF16 = section.name == "__ustring"
+				let unit = isUTF16 ? 2 : 1
+				let minUnits = isUTF16 ? 2 : 4
+				guard sectionSize % unit == 0 else { continue }
+				let bytes = data.subdata(in: Int(section.offset)..<(Int(section.offset) + sectionSize))
+
+				func flushRun(from start: Int, to end: Int) {
+					let units = (end - start) / unit
+					guard units >= minUnits else { return }
+					let lo = section.address + UInt64(start)
+					let hi = lo + UInt64(end - start)
+					guard !overlapsNamed(lo, hi) else { return }
+					let value = isUTF16
+						? (String(data: bytes[start..<end], encoding: .utf16LittleEndian) ?? "")
+						: String(decoding: bytes[start..<end], as: UTF8.self)
+					result.append(makeSymbol(at: lo, size: UInt64(end - start), type: isUTF16 ? .utf16 : .ascii, stringValue: value))
+				}
+
+				var runStart = -1
+				for i in stride(from: 0, to: sectionSize, by: unit) {
+					let isZero = unit == 1
+						? bytes[i] == 0
+						: bytes[i] == 0 && bytes[i + 1] == 0
+					if !isZero {
+						if runStart < 0 { runStart = i }
+					} else if runStart >= 0 {
+						flushRun(from: runStart, to: i)
+						runStart = -1
+					}
+				}
+				// Flush a run that reaches the end of the section.
+				if runStart >= 0 {
+					flushRun(from: runStart, to: sectionSize)
+				}
+			} else if width > 0 {
+				if fileBacked {
+					for off in stride(from: 0, to: sectionSize, by: width) {
+						let count = min(width, sectionSize - off)
+						let lo = section.address + UInt64(off)
+						let hi = lo + UInt64(count)
+						guard !overlapsNamed(lo, hi) else { continue }
+						// A trailing partial element is not a full instance
+						// of the section's type.
+						result.append(makeSymbol(at: lo, size: UInt64(count), type: count == width ? element : .unknown, stringValue: ""))
+					}
+				} else if !hasNamed {
+					// Not file-backed (e.g. zerofill with a literal flag):
+					// nothing to chunk, fall back to a single row.
+					result.append(makeSymbol(at: section.address, size: section.size, type: .unknown, stringValue: ""))
+				}
+			} else if !hasNamed {
+				// Untyped section: one symbol spanning it.
+				result.append(makeSymbol(at: section.address, size: section.size, type: .unknown, stringValue: ""))
 			}
 		}
-		// Flush a run that reaches the end of the region.
-		if runStart >= 0 {
-			let len = bytes.count - runStart
-			if len >= minLen {
-				let value = String(decoding: bytes[runStart..<bytes.count], as: UTF8.self)
-				let vaddr = region.address + UInt64(runStart)
-				result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, value: value))
-			}
-		}
+
 		return result
 	}
 

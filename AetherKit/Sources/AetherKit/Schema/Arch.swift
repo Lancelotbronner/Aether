@@ -128,25 +128,6 @@ public extension Architecture {
 	var id: String { rawValue }
 }
 
-/// Symbol type
-public enum SymbolType: String, Codable {
-	case function = "Function"
-	case data = "Data"
-	case object = "Object"
-	case section = "Section"
-	case file = "File"
-	case unknown = "Unknown"
-}
-
-/// Symbol binding/visibility
-public enum SymbolBinding: String, Codable {
-	case local = "Local"
-	case global = "Global"
-	case weak = "Weak"
-	case external = "External"
-	case undefined = "Undefined"
-}
-
 /// Function argument
 public struct FunctionArgument: Codable, Identifiable {
 	public var id = UUID()
@@ -172,14 +153,6 @@ public enum BasicBlockType: String, Codable {
 	case exit = "Exit"
 	case conditional = "Conditional"
 	case loop = "Loop"
-}
-
-/// String encoding
-public enum StringEncoding: String, Codable {
-	case ascii = "ASCII"
-	case utf8 = "UTF-8"
-	case utf16 = "UTF-16"
-	case utf32 = "UTF-32"
 }
 
 /// Type of cross-reference

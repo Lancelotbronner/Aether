@@ -1,17 +1,14 @@
 import Foundation
 import AetherKit
 
-// Task 12c: re-homed from the deleted `Models/Symbol.swift` (the legacy
-// `Symbol` struct is gone; `SymbolModel` is the stored row). Consumed by
-// `SymbolNavigator` and `AetherToolbar`.
+// Consumed by `SymbolNavigator`.
 extension SymbolType {
 	var icon: String {
 		switch self {
 		case .function: return "f.square"
-		case .data: return "d.square"
-		case .object: return "cube"
-		case .section: return "square.stack"
-		case .file: return "doc"
+		case .ascii, .utf8, .utf16: return "text.quote"
+		case .ptr: return "arrow.up.right.square"
+		case .u8, .u16, .u32, .u64, .u128: return "d.square"
 		case .unknown: return "questionmark.square"
 		}
 	}

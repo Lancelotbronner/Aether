@@ -42,8 +42,8 @@ Every query command takes `--project <file>` (the `.aetherproj` document) and op
 | `aether segment count` | Count segments | same |
 | `aether section [fetch]` | List sections (`__TEXT,__text`, …) | same |
 | `aether section count` | Count sections | same |
-| `aether string [fetch]` | List scanned strings (address + value, see caveat below) | same |
-| `aether string count` | Count strings | same |
+| `aether string [fetch]` | List strings (address + value, sorted by address) | `--project`, `--limit`, `--offset` |
+| `aether string count` | Count strings | `--project` |
 
 See `aether <command> --help` for the full help text of any command.
 
@@ -78,7 +78,7 @@ Parsing 2 sections in __DATA
 Parsing 0 sections in __LINKEDIT
 Parsing 26 symbols
 Parsed 26 symbols in 1 ms
-Parsed 5 segments, 11 sections, 26 symbols, 1 strings in 2 ms
+Parsed 5 segments, 11 sections, 35 symbols (9 generated) in 2 ms
 Successfully imported as PersistentIdentifier(id: SwiftData.PersistentIdentifier.ID(backing: SwiftData.PersistentIdentifier.PersistentIdentifierBacking.managedObjectID(0x941149142f241db6 <x-coredata://BDB005FB-4680-49CA-98A0-698AB943E0D8/BinaryModel/p1>))).
 ```
 
@@ -122,6 +122,9 @@ $ aether section count --project ThinTest.aetherproj
 11
 $ aether string count --project ThinTest.aetherproj
 1
+$ aether string --project ThinTest.aetherproj
+Showing 1 strings:
+sumOfSquares(3, 4) =  @4294970112
 ```
 
 `--limit`/`--offset` page through results:
@@ -131,24 +134,6 @@ $ aether segment --project ThinTest.aetherproj --limit 2 --offset 1
 Showing 2 models:
 __PAGEZERO
 __TEXT
-```
-
-### Inspect an existing document
-
-`~/Downloads/TF3.aetherproj` is a Transport Fever 3 document saved by the app:
-
-```
-$ aether program --project ~/Downloads/TF3.aetherproj
-Showing 1 models:
-TransportFever3
-id: PersistentIdentifier(id: SwiftData.PersistentIdentifier.ID(backing: SwiftData.PersistentIdentifier.PersistentIdentifierBacking.managedObjectID(0x9d7f3784d0629102 <x-coredata://04A9E176-0527-49F4-A973-A8024C4E94A8/BinaryModel/p1>)))
-
-$ aether segment count --project ~/Downloads/TF3.aetherproj
-5
-$ aether section count --project ~/Downloads/TF3.aetherproj
-24
-$ aether string count --project ~/Downloads/TF3.aetherproj
-33622
 ```
 
 ### Error handling
@@ -182,8 +167,8 @@ MyDoc.aetherproj/
 
 - The CLI opens it with `ModelConfiguration(schema: .project, url: <doc>/StoreContent)` — the `.project` schema (the AetherKit model-type list) is defined in `AetherKit/Sources/AetherKit/Schema/`.
 - The imported **binary's bytes live inside the store** (`BinaryModel.data`), not as a separate file in the bundle. The original path is kept in `BinaryModel.fileURL` for reference.
-- Parsed children (`SegmentModel`, `SectionModel`, `SymbolModel`, `ProcedureModel`, `StringModel`) cascade from `BinaryModel`.
-- **String values do not round-trip.** `StringModel.cached` (the display value) is `@Transient`, so after the importing process exits every string prints as `not loaded @<vaddr>` — the address is real, the value only existed in the context that scanned it. `string count` is reliable; `string fetch` is an address listing until this is fixed.
+- Parsed children (`SegmentModel`, `SectionModel`, `SymbolModel`, `ProcedureModel`) cascade from `BinaryModel`.
+- **Strings are `SymbolModel` rows.** `MachOLoader` symbolizes data sections from their Mach-O section type (`MachOLoader.symbolize(in:)`): `__cstring`/`__ustring` runs become `.ascii`/`.utf16` symbols with the decoded text stored in `stringValue` (it round-trips), pointer/literal sections become per-element `.ptr`/`.u32`/`.u64`/`.u128` symbols, and untyped sections get one `.unknown` symbol each.
 
 ## Development
 

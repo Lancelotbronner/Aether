@@ -168,13 +168,13 @@ struct SearchSheet: View {
 				.map { SearchResult(name: $0.displayName, address: $0.address, type: "Symbol") }
 
 		case .strings:
-			// StringModel.value derives from @Transient cached (not
-			// persisted) — must be filtered in memory, not via #Predicate.
-			let strings = (try? modelContext.fetch(FetchDescriptor<StringModel>())) ?? []
-			results = strings
-				.filter { $0.value.lowercased().contains(query) }
+			// Strings are `SymbolModel` rows with a string `type`;
+			// `stringValue` is filtered in memory, not via #Predicate.
+			let symbols = (try? modelContext.fetch(FetchDescriptor<SymbolModel>())) ?? []
+			results = symbols
+				.filter { $0.type.isString && $0.stringValue.lowercased().contains(query) }
 				.prefix(50)
-				.map { SearchResult(name: $0.value, address: $0.address, type: "String") }
+				.map { SearchResult(name: $0.stringValue, address: $0.address, type: "String") }
 
 		case .functions:
 			let procedures = (try? modelContext.fetch(FetchDescriptor<ProcedureModel>())) ?? []

@@ -573,7 +573,7 @@ class CallGraphViewModel: ObservableObject {
 		}
 		
 		// Add external symbols as nodes
-		for symbol in binary.symbols where symbol.type == .function {
+		for symbol in binary.symbols where symbol.kind == .function {
 			if nodesDict[symbol.address] == nil {
 				let node = CallGraphNode(
 					address: symbol.address,
