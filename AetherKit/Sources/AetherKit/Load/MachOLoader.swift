@@ -345,7 +345,7 @@ public nonisolated extension MachOLoader {
 				if runStart >= 0 && len >= minLen {
 					let value = String(decoding: bytes[runStart..<i], as: UTF8.self)
 					let vaddr = region.address + UInt64(runStart)
-					result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, cached: value))
+					result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, value: value))
 				}
 				runStart = -1
 			}
@@ -356,7 +356,7 @@ public nonisolated extension MachOLoader {
 			if len >= minLen {
 				let value = String(decoding: bytes[runStart..<bytes.count], as: UTF8.self)
 				let vaddr = region.address + UInt64(runStart)
-				result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, cached: value))
+				result.append(StringModel(binary: model, address: vaddr, encoding: .ascii, value: value))
 			}
 		}
 		return result

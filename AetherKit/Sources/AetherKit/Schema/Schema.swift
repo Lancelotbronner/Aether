@@ -506,18 +506,13 @@ public enum AnnotationKind: Int, Codable {
 	public var binary: BinaryModel
 	public var address: UInt64
 	public var encoding: StringEncoding
+	public var value: String
 
-	public init(binary: BinaryModel, address: UInt64, encoding: StringEncoding, cached: String? = nil) {
+	public init(binary: BinaryModel, address: UInt64, encoding: StringEncoding, value: String) {
 		self.binary = binary
 		self.address = address
 		self.encoding = encoding
-		self.cached = cached
-	}
-
-	@Transient public var cached: String?
-
-	public var value: String {
-		cached ?? "not loaded"
+		self.value = value
 	}
 }
 
