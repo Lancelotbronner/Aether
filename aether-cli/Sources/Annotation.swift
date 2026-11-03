@@ -25,30 +25,26 @@ extension AnnotationModel: FetchableModel {
 		@Option(help: "Filters to a specific binary")
 		var binary: String?
 
-		@Option
+		@Option(help: "Filter to an annotation at an address (decimal; addresses print as hex)")
 		var address: UInt64?
 
-		@Option
+		@Option(help: "Filter on kind (0 inline, 1 trailing)")
 		var kind: AnnotationKind?
 	}
 
 	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<AnnotationModel>) {
-		let _text = options.text
-		let text = #Predicate<AnnotationModel> { model in
-			_text.flatMap { model.text.localizedStandardContains($0) } ?? true
-		}
-		let _binary = options.binary
-		let binary = #Predicate<AnnotationModel> { model in
-			_binary.flatMap { model.binary.name == $0 } ?? true
-		}
-		let _address = options.address
-		let address = #Predicate<AnnotationModel> { model in
-			_address.flatMap { model.address == $0 } ?? true
-		}
-		let _kind = options.kind
-		let kind = #Predicate<AnnotationModel> { model in
-			_kind.flatMap { model.rawKind == $0.rawValue } ?? true
-		}
+		let text = options.text.flatMap { filter in
+			#Predicate<AnnotationModel> { $0.text.localizedStandardContains(filter) }
+		} ?? .true
+		let binary = options.binary.flatMap { filter in
+			#Predicate<AnnotationModel> { $0.binary.name == filter }
+		} ?? .true
+		let address = options.address.flatMap { filter in
+			#Predicate<AnnotationModel> { $0.address == filter }
+		} ?? .true
+		let kind = options.kind.flatMap { filter in
+			#Predicate<AnnotationModel> { $0.rawKind == filter.rawValue }
+		} ?? .true
 		descriptor.predicate = #Predicate<AnnotationModel> {
 			text.evaluate($0) && binary.evaluate($0) && address.evaluate($0) && kind.evaluate($0)
 		}
@@ -64,16 +60,16 @@ extension AnnotationModel: InsertableModel {
 	static let singular = "annotation"
 
 	struct InsertOptions: ParsableArguments {
-		@Argument
+		@Argument(help: "Name of the program to annotate")
 		var binary: String
 
-		@Argument
+		@Argument(help: "Address to annotate (decimal; addresses print as hex)")
 		var address: UInt64
 
-		@Argument
+		@Argument(help: "Annotation text")
 		var text: String
 
-		@Option
+		@Option(help: "Kind of annotation (0 inline, 1 trailing)")
 		var kind = AnnotationKind.inline
 	}
 

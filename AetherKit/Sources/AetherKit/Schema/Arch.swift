@@ -1,16 +1,15 @@
-/// Binary file format
-
 import Foundation
-public enum BinaryFormat: String, CaseIterable, Identifiable, Codable {
-	case machO = "Mach-O"
-	case elf = "ELF"
-	case pe = "PE"
-	case java = "Java"
-	case unknown = "Unknown"
+
+public enum BinaryFormat: Int, CaseIterable, Identifiable, Codable {
+	case unknown
+	case machO
+	case elf
+	case pe
+	case java
 }
 
 public extension BinaryFormat {
-	var id: String { rawValue }
+	var id: Int { rawValue }
 
 	/// File extension hints
 	var commonExtensions: [String] {
@@ -72,7 +71,7 @@ public extension BinaryFormat {
 }
 
 /// Endianness
-public enum Endianness: String, Codable {
+public enum Endianness: Int, Codable, CaseIterable, Sendable {
 	case little
 	case big
 }
@@ -113,19 +112,19 @@ public extension Endianness {
 }
 
 /// Supported CPU architectures
-public enum Architecture: String, CaseIterable, Identifiable, Codable, Sendable {
-	case x86_64 = "x86_64"
-	case appleSilicon = "Apple Silicon"
-	case arm64 = "ARM64"
-	case arm64e = "ARM64e"
-	case i386 = "i386"
-	case armv7 = "ARMv7"
-	case jvm = "JVM"
-	case unknown = "Unknown"
+public enum Architecture: Int, CaseIterable, Identifiable, Codable, Sendable {
+	case unknown
+	case x86_64
+	case appleSilicon
+	case arm64
+	case arm64e
+	case i386
+	case armv7
+	case jvm
 }
 
 public extension Architecture {
-	var id: String { rawValue }
+	var id: Int { rawValue }
 }
 
 /// Function argument

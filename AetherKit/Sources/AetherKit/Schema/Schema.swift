@@ -162,14 +162,14 @@ public extension SegmentModel {
 }
 
 /// Symbol type
-public enum SymbolKind: Int, Codable {
+public enum SymbolKind: Int, Codable, CaseIterable, Sendable {
 	case unknown
 	case function
 	case data
 	case section
 }
 
-public enum SymbolType: Int, Codable {
+public enum SymbolType: Int, Codable, CaseIterable, Sendable {
 	case unknown
 	case u8, u16, u32, u64, u128
 	case ascii, utf8, utf16
@@ -177,7 +177,7 @@ public enum SymbolType: Int, Codable {
 }
 
 /// Symbol binding/visibility
-public enum SymbolBinding: Int, Codable {
+public enum SymbolBinding: Int, Codable, CaseIterable, Sendable {
 	case undefined
 	case local
 	case global

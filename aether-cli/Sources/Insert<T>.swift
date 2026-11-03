@@ -30,6 +30,6 @@ struct InsertCommand<Model: InsertableModel>: AsyncParsableCommand {
 			try modelContext.save()
 		}
 
-		print("Inserted \(model)!")
+		print("Inserted \(model.describe())")
 	}
 }
