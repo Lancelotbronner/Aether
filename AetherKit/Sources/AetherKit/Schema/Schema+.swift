@@ -84,12 +84,6 @@ public extension BinaryModel {
 			.joined(separator: " ")
 	}
 
-	static func hex(bytes: consuming Span<UInt8>) -> String {
-		bytes.indices
-			.map { String(format: "%02X", bytes[$0]) }
-			.joined(separator: " ")
-	}
-
 	/// Find section containing address
 	func section(containing address: UInt64) -> SectionModel? {
 		sections.first { $0.contains(address: address) }

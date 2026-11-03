@@ -10,13 +10,15 @@ struct SegmentCommand: AsyncParsableCommand {
 			FetchCommand<SegmentModel>.self,
 			CountCommand<SegmentModel>.self,
 			DeleteCommand<SegmentModel>.self,
-		],)
+		])
 }
 
 extension SegmentModel: FetchableModel {
 	static let plural = "segments"
 
 	func describe() -> String {
-		name
+		"\(name) @\(hex(address)) size=\(size) file=\(hex(fileOffset))+\(hex(fileSize))"
+			+ " prot=\(protectionString) maxprot=\(hex(maxProtection)) initprot=\(hex(initProtection))"
+			+ " sections=\(sections.count) program=\(binary.name)"
 	}
 }

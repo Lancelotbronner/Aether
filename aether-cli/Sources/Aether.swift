@@ -4,17 +4,19 @@ import SwiftData
 
 @main struct aether: AsyncParsableCommand {
 	static let configuration = CommandConfiguration(
-			abstract: "A utility for working with Aether projects.",
-			subcommands: [
-				ProgramCommand.self,
-				SectionCommand.self,
-				SegmentCommand.self,
-				StringCommand.self,
-				ProcedureCommand.self,
+		abstract: "A utility for working with Aether projects.",
+		subcommands: [
+			ProgramCommand.self,
+			SectionCommand.self,
+			SegmentCommand.self,
+			SymbolCommand.self,
+			ProcedureCommand.self,
+			AnnotationCommand.self,
+			BookmarkCommand.self,
 
-				NewCommand.self,
-				ImportCommand.self,
-			])
+			NewCommand.self,
+			ImportCommand.self,
+		])
 }
 
 struct AetherOptions: ParsableArguments {

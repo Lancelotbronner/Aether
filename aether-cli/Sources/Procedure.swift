@@ -27,12 +27,31 @@ extension ProcedureModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\ProcedureModel.symbol.address)]
 
 		if let name = options.name, !name.isEmpty {
-			descriptor.predicate = #Predicate<ProcedureModel> { $0.symbol.name.contains(name) }
+			descriptor.predicate = #Predicate<ProcedureModel> { $0.symbol.name.localizedStandardContains(name)}
 		}
 	}
 
+	var argumentList: String {
+		"[" + arguments.map { argument in
+			var text = "\(argument.name): \(argument.type)"
+			if let register = argument.register {
+				text += " " + register
+			} else if let stackOffset = argument.stackOffset {
+				text += " sp+\(stackOffset)"
+			}
+			return text
+		}.joined(separator: ", ") + "]"
+	}
+
+	var localList: String {
+		"[" + localVariables.map { local in "\(local.name): \(local.type) sp+\(local.stackOffset):\(local.size)" }.joined(separator: ", ") + "]"
+	}
+
 	func describe() -> String {
-		"\(symbol.name) @\(String(format: "%llX", symbol.address)) size=\(symbol.size) frame=\(stackSize)"
+		"\(symbol.name) @\(hex(symbol.address)) size=\(symbol.size) frame=\(stackSize)"
+			+ " thunk=\(isThunk) leaf=\(isLeaf) demangled=\(demangled)"
+			+ " blocks=\(blocks.count) callers=\(callers.count) callees=\(callees.count)"
+			+ " arguments=\(argumentList) locals=\(localList) program=\(binary.name)"
 	}
 }
 

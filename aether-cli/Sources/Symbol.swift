@@ -5,7 +5,7 @@ import SwiftData
 struct SymbolCommand: AsyncParsableCommand {
 	static let configuration = CommandConfiguration(
 		commandName: "symbol",
-		abstract: "Work with symbol.",
+		abstract: "Work with symbols.",
 		subcommands: [
 			FetchCommand<SymbolModel>.self,
 			CountCommand<SymbolModel>.self,
@@ -17,6 +17,8 @@ extension SymbolModel: FetchableModel {
 	static let plural = "symbols"
 
 	func describe() -> String {
-		name
+		"\(name) @\(hex(address)) size=\(size) kind=\(kind) type=\(type) binding=\(binding)"
+			+ " import=\(isImport) export=\(isExport) identifier=\(identifier) value=\(stringValue)"
+			+ " program=\(binary.name)"
 	}
 }
