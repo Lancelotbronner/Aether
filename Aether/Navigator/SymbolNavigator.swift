@@ -4,8 +4,10 @@ import AetherKit
 
 struct SymbolsListView: View {
 	@Environment(AppState.self) private var appState
-	@Query private var symbols: [SymbolModel]
 	@State private var searchText = ""
+
+	@Query(sort: \SymbolModel.address)
+	private var symbols: [SymbolModel]
 
 	// In-memory filter (Task 7): on the *display* name (computed,
 	// underscore-stripped), matching what the row shows.

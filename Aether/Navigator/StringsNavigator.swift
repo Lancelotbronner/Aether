@@ -6,12 +6,8 @@ struct StringsListView: View {
 	@Environment(AppState.self) private var appState
 	@State private var searchText = ""
 
-	@Query private var symbols: [SymbolModel]
-
-	// Strings are now `SymbolModel` rows with a string `type`.
-	var strings: [SymbolModel] {
-		symbols.filter { $0.type.isString }
-	}
+	@Query(filter: SymbolModel.isStringPredicate, sort: \.address)
+	private var strings: [SymbolModel]
 
 	// MUST be in-memory: filtering on a computed/display value, matching
 	// the other navigators.

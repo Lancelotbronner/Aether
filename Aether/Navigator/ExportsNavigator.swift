@@ -6,7 +6,7 @@ struct ExportsListView: View {
 	@Environment(AppState.self) private var appState
 	@State private var searchText = ""
 
-	@Query(filter: #Predicate<SymbolModel> { $0.isExport })
+	@Query(filter: #Predicate<SymbolModel> { $0.isExport }, sort: \.address)
 	private var symbols: [SymbolModel]
 
 	// In-memory filter (Task 7): on the *display* name (computed,

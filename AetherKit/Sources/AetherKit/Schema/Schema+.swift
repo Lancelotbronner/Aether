@@ -195,6 +195,14 @@ public extension SymbolModel {
 		// This is a placeholder - real implementation would call c++filt
 		return nil
 	}
+
+	static let isStringPredicate: Predicate<SymbolModel> = {
+		let ascii = SymbolType.ascii.rawValue
+		let utf16 = SymbolType.utf16.rawValue
+		return #Predicate<SymbolModel> {
+			$0.rawType >= ascii && $0.rawType <= utf16
+		}
+	}()
 }
 
 public extension ProcedureModel {

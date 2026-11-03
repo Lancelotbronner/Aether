@@ -7,6 +7,7 @@ public extension Array<any PersistentModel.Type> {
 		SegmentModel.self,
 		SectionModel.self,
 		SymbolModel.self,
+		ProcedureModel.self,
 
 		AnnotationModel.self,
 		BookmarkModel.self,
@@ -132,9 +133,9 @@ public extension SegmentModel {
 	public var name = ""
 	public var address: UInt64 = 0
 	public var size: UInt64 = 1
-	public var kind = SymbolKind.unknown
-	public var type = SymbolType.unknown
-	public var binding = SymbolBinding.undefined
+	public var rawKind = 0
+	public var rawType = 0
+	public var rawBinding = 0
 	public var isImport = false
 	public var isExport = false
 
@@ -143,30 +144,45 @@ public extension SegmentModel {
 	public init(in binary: BinaryModel) {
 		self.binary = binary
 	}
+
+	public var kind: SymbolKind {
+		get { SymbolKind(rawValue: rawKind) ?? .unknown }
+		set { rawKind = newValue.rawValue }
+	}
+
+	public var type: SymbolType {
+		get { SymbolType(rawValue: rawType) ?? .unknown }
+		set { rawType = newValue.rawValue }
+	}
+
+	public var binding: SymbolBinding {
+		get { SymbolBinding(rawValue: rawBinding) ?? .undefined }
+		set { rawBinding = newValue.rawValue }
+	}
 }
 
 /// Symbol type
 public enum SymbolKind: Int, Codable {
+	case unknown
 	case function
 	case data
 	case section
-	case unknown
 }
 
 public enum SymbolType: Int, Codable {
+	case unknown
 	case u8, u16, u32, u64, u128
 	case ascii, utf8, utf16
 	case ptr, function
-	case unknown
 }
 
 /// Symbol binding/visibility
-public enum SymbolBinding: String, Codable {
-	case local = "Local"
-	case global = "Global"
-	case weak = "Weak"
-	case external = "External"
-	case undefined = "Undefined"
+public enum SymbolBinding: Int, Codable {
+	case undefined
+	case local
+	case global
+	case weak
+	case external
 }
 
 /// Represents an identified function in the binary

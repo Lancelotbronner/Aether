@@ -6,7 +6,8 @@ struct FunctionsTab: View {
 	@Environment(AppState.self) private var appState
 	@State private var searchText = ""
 
-	@Query private var procedures: [ProcedureModel]
+	@Query(sort: \ProcedureModel.symbol.address)
+	private var procedures: [ProcedureModel]
 
 	// In-memory filter (Task 7): filters on the *display* name, which is
 	// computed (underscore-stripped), so a #Predicate on the stored
