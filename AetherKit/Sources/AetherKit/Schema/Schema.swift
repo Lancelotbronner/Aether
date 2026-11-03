@@ -248,7 +248,7 @@ public enum SymbolBinding: Int, Codable {
 
 @Model public final class AnnotationModel {
 	public var binary: BinaryModel
-	public var kind = AnnotationKind.inline
+	public var rawKind = 0
 	public var address: UInt64
 	public var text: String
 
@@ -257,9 +257,14 @@ public enum SymbolBinding: Int, Codable {
 		self.address = address
 		self.text = text
 	}
+
+	public var kind: AnnotationKind {
+		get { AnnotationKind(rawValue: rawKind) ?? .inline }
+		set { rawKind = newValue.rawValue }
+	}
 }
 
-public enum AnnotationKind: Int, Codable {
+public enum AnnotationKind: Int, Codable, CaseIterable, Sendable {
 	case inline
 	case trailing
 }

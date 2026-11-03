@@ -20,7 +20,7 @@ import SwiftData
 }
 
 struct AetherOptions: ParsableArguments {
-	@Option
+	@Flag
 	var dryRun = false
 
 	@Option(help: "The project file to open", completion: .file(extensions: ["aetherproj"]))
