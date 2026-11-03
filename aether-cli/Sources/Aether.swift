@@ -10,6 +10,7 @@ import SwiftData
 				SectionCommand.self,
 				SegmentCommand.self,
 				StringCommand.self,
+				ProcedureCommand.self,
 
 				NewCommand.self,
 				ImportCommand.self,
@@ -17,6 +18,9 @@ import SwiftData
 }
 
 struct AetherOptions: ParsableArguments {
+	@Option
+	var dryRun = false
+
 	@Option(help: "The project file to open", completion: .file(extensions: ["aetherproj"]))
 	var project: String
 

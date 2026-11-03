@@ -252,13 +252,11 @@ final class AppState {
 	}
 
 	func findFunctions() {
-//		guard let binary = selectedBinary else { return }
-//		Task {
-//			isLoading = true
-//			loadingMessage = "Finding functions..."
-//			self.functions = await functionAnalyzer.analyze(binary: binary, disassembler: disassembler)
-//			isLoading = false
-//		}
+		guard let binary = selectedBinary else { return }
+		// The pass is idempotent: `MachOLoader.load` already runs it, so this
+		// only picks up entry points added since (or re-runs after a re-load).
+		let report = ProcedureDetector().detect(in: binary)
+		Logger.app.info("Procedure detection on \(binary.name): \(report.created) new procedures, \(binary.procedures.count) total")
 	}
 
 	// MARK: - Advanced Analysis

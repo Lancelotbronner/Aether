@@ -271,13 +271,43 @@ enum [[clang::enum_extensibility(closed)]] n_type {
  */
 #define N_COLD_FUNC 0x0400
 
+/*
+ * The `n_type` byte of an `nlist_64`:
+ *
+ *   bit 0      N_EXT
+ *   bits 1-3   N_TYPE   — the three-bit field can only hold N_TYPE >> 1,
+ *                        because the `n_type` enum constants are byte values
+ *                        (N_SECT = 0x0e needs four bits)
+ *   bit 4      N_PEXT
+ *   bits 5-7   N_STAB   — likewise holds N_STAB >> 5
+ *
+ * The union keeps the raw byte available so the SDK-valued enums can be
+ * recovered with `n_type_of()` / `n_stab_of()` instead of comparing the
+ * shifted bitfield against byte constants.
+ */
 struct [[gnu::packed]] n_type_field {
-	/// if any of these bits set, a symbolic debugging entry
-	enum n_stab n_stab : 3;
-	/// private external symbol bit
-	bool n_pext : 1;
-	/// mask for the type bits
-	enum n_type n_type : 3;
-	/// external symbol bit, set for external symbols
-	bool n_ext : 1;
+	union {
+		unsigned char byte;                      /* the raw n_type byte */
+		struct [[gnu::packed]] {
+			bool n_ext : 1;          /* bit 0    — N_EXT   */
+			enum n_type n_type : 3;  /* bits 1-3 — N_TYPE value >> 1 */
+			bool n_pext : 1;         /* bit 4    — N_PEXT  */
+			enum n_stab n_stab : 3;  /* bits 5-7 — N_STAB value >> 5 */
+		};
+	};
 };
+
+/* The SDK `n_type` enum is byte-valued; extract the type bits (N_TYPE = 0x0e)
+ * from the raw byte rather than from the three-bit field, which can only hold
+ * N_TYPE >> 1. */
+static inline enum n_type n_type_of(unsigned char type) {
+	return (enum n_type)(type & 0x0E);
+}
+
+/* `<mach-o/nlist.h>` defines N_STAB (0xe0) as a mask, not an identity: any set
+ * bit in it means the entry is a symbolic debugging record. The `n_stab`
+ * bitfield keeps the high three bits for layout, but a stab's exact kind
+ * (N_STSYM = 0x26 vs N_GSYM = 0x20) is not recoverable from them. */
+static inline bool is_stab(unsigned char type) {
+	return (type & 0xE0) != 0;
+}

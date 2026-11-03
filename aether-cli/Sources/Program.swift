@@ -9,16 +9,13 @@ struct ProgramCommand: AsyncParsableCommand {
 		subcommands: [
 			FetchCommand<BinaryModel>.self,
 			CountCommand<BinaryModel>.self,
+			DeleteCommand<BinaryModel>.self,
 		],
 		defaultSubcommand: FetchCommand<BinaryModel>.self)
 }
 
 extension BinaryModel: FetchableModel {
 	static let plural = "programs"
-
-	struct FetchOptions: ParsableArguments {
-
-	}
 
 	func describe() -> String {
 		"\(name)\n" + "id: \(persistentModelID)"

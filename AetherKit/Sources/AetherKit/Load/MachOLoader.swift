@@ -72,6 +72,11 @@ public nonisolated extension MachOLoader {
 
 		bytes = bytes.extracting(droppingFirst: MemoryLayout<mach_header_64>.size)
 
+		// `n_sect` is a 1-based ordinal over the sections in load-command
+		// order, so the symbol table cannot be decoded until every section
+		// exists. Capture the command and decode after the loop.
+		var symtab: symtab_command?
+
 		log += "Parsing \(header.ncmds) load commands\n"
 		for _ in 0..<header.ncmds {
 			let item = bytes.unsafeLoad(as: load_command.self)
@@ -124,156 +129,7 @@ public nonisolated extension MachOLoader {
 				// relative to the load-command stream, so both are read from
 				// `model.data` (see the legacy path's
 				// `strOffset = binaryOffset + Int(symtab.stroff)` reference).
-				let command = bytes.unsafeLoad(as: symtab_command.self)
-				let stringTable = model.data
-				let symbolTable = model.data
-
-				model.symbols.reserveCapacity(model.symbols.count + Int(command.nsyms))
-
-				let start = ContinuousClock.now
-				log += "Parsing \(command.nsyms) symbols\n"
-
-				// Pass 1: read the nlist_64 array (bounds-guarded against a
-				// truncated table) and remember everything the size derivation
-				// in pass 2 needs. nlist_64 has no size field — sizes must be
-				// derived from the next symbol in the same section.
-				struct SymbolEntry {
-					let sym: nlist_64
-					let name: String
-				}
-
-				let entrySize = MemoryLayout<nlist_64>.size
-				guard symbolTable.count >= Int(command.symoff) + Int(command.nsyms) * entrySize else {
-					throw BinaryLoaderError.corruptedFile("Symbol table extends past end of file (symoff=\(command.symoff), nsyms=\(command.nsyms))")
-				}
-
-				//FIXME: MachO's nlist_64 doesn't conform to BitwiseCopyable, wait until fixed by Apple
-				let rawSymbols = [nlist_64](
-					unsafeUninitializedCapacity: Int(command.nsyms),
-					initializingWith: { buffer, count in
-						for i in 0..<Int(command.nsyms) {
-							buffer[i] = symbolTable.bytes
-								.extracting(droppingFirst: Int(command.symoff) + i * entrySize)
-								.unsafeLoad(as: nlist_64.self)
-						}
-						count = Int(command.nsyms)
-					})
-
-				let entries = rawSymbols.map { sym in
-					SymbolEntry(
-						sym: sym,
-						name: sym.n_un.n_strx == 0 ? "" :
-							stringTable.readCString(at: Int(command.stroff) + Int(sym.n_un.n_strx)) ?? "")
-				}
-
-				// Pass 2: derive sizes. Per section (n_sect), in ascending
-				// address order, a symbol runs until the next symbol in the
-				// same section. The last symbol per section and every
-				// N_ABS/N_UNDF symbol has no next symbol to bound it — those
-				// get size 0 (recorded decision: 0, not the SymbolModel
-				// default of 1; an unknown size must not be reported as a
-				// fabricated one-byte body).
-				var sectionSizes: [UInt8: Set<UInt64>] = [:]
-				for entry in entries where entry.sym.n_sect != 0 {
-					sectionSizes[entry.sym.n_sect, default: []].insert(entry.sym.n_value)
-				}
-				var sizes: [UInt64: UInt64] = [:]
-				for section in sectionSizes.keys.sorted() {
-					let sorted = Array(sectionSizes[section]!).sorted()
-					for i in 0..<sorted.count {
-						// Same address in several sections: the highest
-						// section ordinal wins; local + global aliases at
-						// the same address derive the same size.
-						sizes[sorted[i]] = i + 1 < sorted.count
-							? sorted[i + 1] - sorted[i] : 0
-					}
-				}
-
-				// In-pass dedupe (B3): a symtab can repeat the exact same
-				// (address, name) pair; `#Unique<SymbolModel>([\.binary,
-				// \.address, \.identifier])` rejects such duplicates, so keep
-				// only the highest-preference entry per (address, name):
-				// N_SECT (real body) beats N_ABS beats N_UNDF, external beats
-				// local within a kind. Aliases (same address, different name)
-				// and imports (different names at address 0) are kept.
-				func preference(_ sym: nlist_64) -> Int {
-					let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
-					let external = n_type.n_ext ? 1 : 0
-					switch n_type.n_type {
-					case .N_SECT:
-						return 4 + external
-					case .N_ABS:
-						return 2 + external
-					default:
-						// N_UNDF and the rest: no body in this file.
-						return external
-					}
-				}
-				struct SymKey: Hashable {
-					let address: UInt64
-					let name: String
-				}
-				var winners: [SymKey: (index: Int, rank: Int)] = [:]
-				for (i, entry) in entries.enumerated() {
-					let rank = preference(entry.sym)
-					let key = SymKey(address: entry.sym.n_value, name: entry.name)
-					if let current = winners[key], current.rank >= rank {
-						continue
-					}
-					winners[key] = (index: i, rank: rank)
-				}
-				let kept = Set(winners.values.map { $0.index })
-
-				for (i, entry) in entries.enumerated() where kept.contains(i) {
-					let sym = entry.sym
-					let symbol = SymbolModel(in: model)
-					model.symbols.append(symbol)
-
-					symbol.address = sym.n_value
-					// Aliases at the same address (local + global) share the
-					// derived size; N_SECT symbols without a derived entry
-					// (cannot happen: n_sect != 0 implies a dict entry) fall
-					// back to the SymbolModel default.
-					symbol.size = sizes[sym.n_value] ?? 1
-
-					symbol.name = entry.name
-					symbol.identifier = entry.name
-
-					let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
-					let isExternal = n_type.n_ext
-
-					switch n_type.n_type {
-					case .N_ABS:
-						// Absolute symbols: n_value is a constant, not a load
-						// address — never treat as a function.
-						symbol.kind = .unknown
-						symbol.size = 0
-						symbol.binding = isExternal ? .global : .local
-					case .N_SECT:
-						// Check if this looks like a function (in __TEXT,__text).
-						// Named data symbols keep `type: .unknown`: their extent
-						// is usually not a single fixed-width element.
-						symbol.kind = sym.n_sect == 1 ? .function : .data
-						symbol.type = sym.n_sect == 1 ? .function : .unknown
-						symbol.binding = isExternal ? .global : .local
-					default:
-						// N_UNDF and the rest: no body in this file.
-						symbol.kind = .unknown
-						symbol.size = 0
-						symbol.binding = isExternal ? .external : .undefined
-					}
-
-					symbol.refresh()
-
-					if symbol.kind == .function && symbol.address != 0 {
-						let procedure = ProcedureModel(is: symbol, in: model)
-						model.procedures.append(procedure)
-					}
-				}
-
-				log += "Parsed \(command.nsyms) symbols"
-				+ (entries.count - kept.count > 0 ? " (\(entries.count - kept.count) same-address aliases collapsed)" : "")
-				+ " in \(start.duration(to: .now).logDescription)\n"
+				symtab = bytes.unsafeLoad(as: symtab_command.self)
 			case LC_MAIN:
 				let command = bytes.unsafeLoad(as: entry_point_command.self)
 				let address = model.segments.first { $0.name == "__TEXT" }?.address ?? 0
@@ -291,6 +147,12 @@ public nonisolated extension MachOLoader {
 			bytes = bytes.extracting(droppingFirst: Int(item.cmdsize))
 		}
 
+		if let symtab {
+			let symbolsStart = ContinuousClock.now
+			let parsed = try parseSymbols(model, symtab)
+			log += "Parsed \(symtab.nsyms) symtab entries -> \(parsed) symbols in \(symbolsStart.duration(to: .now).logDescription)\n"
+		}
+
 		let generated = symbolize(in: model)
 		model.symbols.append(contentsOf: generated)
 
@@ -305,6 +167,158 @@ public nonisolated extension MachOLoader {
 		model.format = .machO
 		model.is64 = is64Bit
 		model.architecture = mapCPUType(UInt32(header.cputype))
+
+		// Procedures are an analysis result, not part of the file format:
+		// run the pass once the symbol table and sections exist.
+		let proceduresStart = ContinuousClock.now
+		let report = ProcedureDetector().detect(in: model)
+		let proceduresLine = "Detected \(report.created) procedures in \(proceduresStart.duration(to: .now).logDescription)"
+		log += proceduresLine
+		Logger.app.info("\(log)")
+		print(proceduresLine)
+	}
+
+	/// Decode the Mach-O symbol table into `SymbolModel` rows.
+	///
+	/// `n_type` is one byte split as `0xe0` N_STAB / `0x10` N_PEXT /
+	/// `0x0e` N_TYPE / `0x01` N_EXT (`<mach-o/nlist.h>`). N_STAB entries are
+	/// symbolic debugging records whose `n_value` is a line number or an
+	/// offset rather than an address, so they are dropped — decoding them as
+	/// symbols is what used to bury the real ones.
+	///
+	/// Runs after the load commands because `n_sect` is a 1-based ordinal over
+	/// section order: a symbol is a function only when the section it lives in
+	/// is executable.
+	static func parseSymbols(_ model: BinaryModel, _ symtab: symtab_command) throws -> Int {
+		struct Entry {
+			let type: n_type
+			let external: Bool
+			let sect: UInt8
+			let address: UInt64
+			let name: String
+		}
+
+		let count = Int(symtab.nsyms)
+		let symoff = Int(symtab.symoff)
+		let stroff = Int(symtab.stroff)
+		let entrySize = MemoryLayout<nlist_64>.size
+		guard symoff >= 0, stroff >= 0, model.data.count >= symoff + count * entrySize else {
+			throw BinaryLoaderError.corruptedFile("Symbol table extends past end of file (symoff=\(symoff), nsyms=\(count))")
+		}
+
+		// Pass 1: read the nlist_64 array and drop the stabs. nlist_64 is not
+		// BitwiseCopyable, so each record is loaded through a Span slice.
+		var entries: [Entry] = []
+		entries.reserveCapacity(count)
+		let symbolTable = model.data.bytes
+		for i in 0..<count {
+			let sym = symbolTable.extracting(droppingFirst: symoff + i * entrySize).unsafeLoad(as: nlist_64.self)
+			let n_type = unsafeBitCast(sym.n_type, to: n_type_field.self)
+			// The bitfields hold shifted extractions (N_TYPE >> 1, N_STAB >> 5),
+			// while the SDK enums are byte values — decode from the raw byte so
+			// the `switch entry.type` below can match `.N_SECT` (0x0e) etc.
+			if is_stab(n_type.byte) { continue }
+			let strx = sym.n_un.n_strx
+			entries.append(Entry(
+				type: n_type_of(n_type.byte),
+				external: n_type.n_ext,
+				sect: sym.n_sect,
+				address: sym.n_value,
+				name: strx == 0 ? "" : (model.data.readCString(at: stroff + Int(strx)) ?? "")))
+		}
+
+		// Pass 2: derive sizes. `nlist_64` has no size field, so a symbol runs
+		// to the next symbol in the same section; the last symbol per section
+		// has nothing to bound it and gets size 0 (an unknown size must not be
+		// reported as a fabricated one-byte body).
+		var addressesBySection: [UInt8: Set<UInt64>] = [:]
+		for entry in entries where entry.sect != 0 {
+			addressesBySection[entry.sect, default: []].insert(entry.address)
+		}
+		var sizes: [UInt64: UInt64] = [:]
+		for section in addressesBySection.keys.sorted() {
+			let sorted = Array(addressesBySection[section]!).sorted()
+			for i in 0..<sorted.count {
+				// Same address in several sections: the highest section
+				// ordinal wins; local + global aliases at one address derive
+				// the same size.
+				sizes[sorted[i]] = i + 1 < sorted.count ? sorted[i + 1] - sorted[i] : 0
+			}
+		}
+
+		// Dedupe: `#Unique<SymbolModel>([\.binary, \.address, \.identifier])`
+		// rejects repeated (address, name) pairs, so keep the highest-preference
+		// entry per pair — N_SECT (a real body) beats N_ABS beats N_UNDF, and
+		// external beats local within a kind. Aliases (same address, different
+		// name) and imports (different names at address 0) are kept.
+		func preference(_ entry: Entry) -> Int {
+			let external = entry.external ? 1 : 0
+			switch entry.type {
+			case .N_SECT: return 4 + external
+			case .N_ABS:  return 2 + external
+			default:     return external // N_UNDF, N_PBUD, N_INDR: no body in this file
+			}
+		}
+		struct SymKey: Hashable {
+			let address: UInt64
+			let name: String
+		}
+		var winners: [SymKey: (index: Int, rank: Int)] = [:]
+		for (i, entry) in entries.enumerated() {
+			let rank = preference(entry)
+			let key = SymKey(address: entry.address, name: entry.name)
+			if let current = winners[key], current.rank >= rank { continue }
+			winners[key] = (index: i, rank: rank)
+		}
+
+		var kept = 0
+		for (i, entry) in entries.enumerated() where winners[SymKey(address: entry.address, name: entry.name)]?.index == i {
+			let symbol = SymbolModel(in: model)
+			model.symbols.append(symbol)
+
+			// N_INDR means "this symbol is another symbol": `n_value` is a
+			// string-table index, not an address, so it must not be recorded
+			// as one.
+			symbol.address = entry.type == .N_INDR ? 0 : entry.address
+			symbol.name = entry.name
+			symbol.identifier = entry.name
+			symbol.size = sizes[entry.address] ?? 0
+
+			switch entry.type {
+			case .N_SECT:
+				// `n_sect` is a 1-based ordinal, but `n_value` is not guaranteed
+				// to sit inside it: `__mh_execute_header` is declared in `__text`
+				// while pointing at the image base. Only an address really inside
+				// an executable section is a function body.
+				let ordinal = Int(entry.sect) - 1
+				let section = ordinal >= 0 && ordinal < model.sections.count ? model.sections[ordinal] : nil
+				let inCode = section?.isExecutable == true && section?.contains(address: entry.address) == true
+				// Named data symbols keep `type: .unknown`: their extent is
+				// usually not a single fixed-width element.
+				symbol.kind = inCode ? .function : .data
+				symbol.type = inCode ? .function : .unknown
+				symbol.binding = entry.external ? .global : .local
+			case .N_ABS:
+				// Absolute symbol: `n_value` is a constant, not a load address.
+				symbol.kind = .unknown
+				symbol.size = 0
+				symbol.binding = entry.external ? .global : .local
+			case .N_UNDF, .N_PBUD, .N_INDR, .N_6:
+				// Referenced here, defined elsewhere (or pre-bound to a dylib).
+				symbol.kind = .unknown
+				symbol.size = 0
+				symbol.binding = entry.external ? .external : .undefined
+			default:
+				symbol.kind = .unknown
+				symbol.size = 0
+				symbol.binding = entry.external ? .external : .undefined
+			}
+
+			symbol.refresh()
+			kept += 1
+		}
+
+		return kept
 	}
 
 	/// Eager memory-map symbolization (supersedes the printable-ASCII

@@ -99,7 +99,7 @@ struct DisassemblyView: View {
 			if let function = appState.selectedFunction {
 				result = await appState.disassembleFunction(function)
 			} else if let section = appState.selectedSection, section.containsCode {
-				result = await appState.disassemble(section: section)
+//				result = await appState.disassemble(section: section)
 			}
 
 			// Limit instructions to prevent UI freeze

@@ -10,18 +10,14 @@ struct CountCommand<Model: FetchableModel>: AsyncParsableCommand {
 	}
 
 	@OptionGroup var aether: AetherOptions
-	@OptionGroup var options: Model.FetchOptions
+	@OptionGroup var modelOptions: Model.FetchOptions
+	@OptionGroup var fetchOption: FetchOptions
 
-	@Option(help: "Maximum number of models in the count")
-	var limit: Int?
-
-	@Option(help: "Skip this many models from the start of the result")
-	var offset: Int?
 
 	mutating func run() async throws {
-		var descriptor = Model.descriptor(using: options)
-		descriptor.fetchLimit = limit
-		descriptor.fetchOffset = offset
+		var descriptor = FetchDescriptor<Model>()
+		Model.apply(modelOptions, to: &descriptor)
+		fetchOption.apply(to: &descriptor)
 		let count = try aether.backgroundContext.fetchCount(descriptor)
 		print(count)
 	}

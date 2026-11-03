@@ -29,7 +29,10 @@ struct ImportCommand: AsyncParsableCommand {
 		// load would also lose the parsed segments/sections/symbols, since
 		// nothing else in this path saves.
 		try await MachOLoader.load(binary)
-		try modelContext.save()
+
+		if !aether.dryRun {
+			try modelContext.save()
+		}
 
 		print("Successfully imported as \(binary.persistentModelID).")
 	}

@@ -9,16 +9,12 @@ struct SegmentCommand: AsyncParsableCommand {
 		subcommands: [
 			FetchCommand<SegmentModel>.self,
 			CountCommand<SegmentModel>.self,
-		],
-		defaultSubcommand: FetchCommand<SegmentModel>.self)
+			DeleteCommand<SegmentModel>.self,
+		],)
 }
 
 extension SegmentModel: FetchableModel {
 	static let plural = "segments"
-
-	struct FetchOptions: ParsableArguments {
-
-	}
 
 	func describe() -> String {
 		name
