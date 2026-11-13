@@ -10,7 +10,10 @@ protocol FetchableModel: PersistentModel {
 
 	static var subcommands: [any ParsableCommand.Type] { get }
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<Self>)
+	/// Filters are allowed to look things up in the document first — a name or
+	/// a file offset only becomes a comparable address after that — which is
+	/// why this gets a context and may fail.
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<Self>, in modelContext: ModelContext) throws
 }
 
 extension FetchableModel {
@@ -18,7 +21,7 @@ extension FetchableModel {
 }
 
 extension FetchableModel where FetchOptions == EmptyOptions {
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<Self>) {}
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<Self>, in modelContext: ModelContext) throws {}
 }
 
 struct FetchOptions: ParsableArguments {
@@ -47,11 +50,12 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	@OptionGroup var fetchOptions: FetchOptions
 
 	mutating func run() async throws {
+		let context = aether.backgroundContext
 		var descriptor = FetchDescriptor<Model>()
-		Model.apply(modelOptions, to: &descriptor)
-		let count = try aether.backgroundContext.fetchCount(descriptor)
+		try Model.apply(modelOptions, to: &descriptor, in: context)
+		let count = try context.fetchCount(descriptor)
 		fetchOptions.apply(to: &descriptor)
-		let models = try aether.backgroundContext.fetch(descriptor)
+		let models = try context.fetch(descriptor)
 		let offset = fetchOptions.offset ?? 0
 		print("Showing \(models.count) (\(offset)-\(offset + models.count)) of \(count) \(Model.plural):")
 		for model in models {

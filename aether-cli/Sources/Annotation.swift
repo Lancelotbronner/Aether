@@ -25,21 +25,22 @@ extension AnnotationModel: FetchableModel {
 		@Option(help: "Filters to a specific binary")
 		var binary: String?
 
-		@Option(help: "Filter to an annotation at an address (decimal; addresses print as hex)")
-		var address: UInt64?
+		@Option(help: "Filter to an annotation at an address: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument?
 
 		@Option(help: "Filter on kind (0 inline, 1 trailing)")
 		var kind: AnnotationKind?
 	}
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<AnnotationModel>) {
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<AnnotationModel>, in modelContext: ModelContext) throws {
+		let addressValue = try filterAddress(options.address, named: options.binary, in: modelContext)
 		let text = options.text.flatMap { filter in
 			#Predicate<AnnotationModel> { $0.text.localizedStandardContains(filter) }
 		} ?? .true
 		let binary = options.binary.flatMap { filter in
 			#Predicate<AnnotationModel> { $0.binary.name == filter }
 		} ?? .true
-		let address = options.address.flatMap { filter in
+		let address = addressValue.flatMap { filter in
 			#Predicate<AnnotationModel> { $0.address == filter }
 		} ?? .true
 		let kind = options.kind.flatMap { filter in
@@ -63,8 +64,8 @@ extension AnnotationModel: InsertableModel {
 		@Argument(help: "Name of the program to annotate")
 		var binary: String
 
-		@Argument(help: "Address to annotate (decimal; addresses print as hex)")
-		var address: UInt64
+		@Argument(help: "Address to annotate: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument
 
 		@Argument(help: "Annotation text")
 		var text: String
@@ -82,7 +83,8 @@ extension AnnotationModel: InsertableModel {
 			throw InsertError.unknownBinary(binaryName)
 		}
 
-		self.init(options.text, at: options.address, in: binary)
+		let address = try resolveAddress(options.address, named: binaryName, in: modelContext)
+		self.init(options.text, at: address, in: binary)
 		self.kind = options.kind
 	}
 }

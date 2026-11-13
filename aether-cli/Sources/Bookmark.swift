@@ -25,21 +25,22 @@ extension BookmarkModel: FetchableModel {
 		@Option(help: "Search within the bookmark name")
 		var name: String?
 
-		@Option(help: "Filter to a bookmark at an address (decimal; addresses print as hex)")
-		var address: UInt64?
+		@Option(help: "Filter to a bookmark at an address: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument?
 
 		@Option(help: "Search within the bookmark summary")
 		var summary: String?
 	}
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<BookmarkModel>) {
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<BookmarkModel>, in modelContext: ModelContext) throws {
+		let addressValue = try filterAddress(options.address, named: options.binary, in: modelContext)
 		let binary = options.binary.flatMap { filter in
 			#Predicate<BookmarkModel> { $0.binary.name == filter }
 		} ?? .true
 		let name = options.name.flatMap { filter in
 			#Predicate<BookmarkModel> { $0.name.localizedStandardContains(filter) }
 		} ?? .true
-		let address = options.address.flatMap { filter in
+		let address = addressValue.flatMap { filter in
 			#Predicate<BookmarkModel> { $0.address == filter }
 		} ?? .true
 		let summary = options.summary.flatMap { filter in
@@ -66,8 +67,8 @@ extension BookmarkModel: InsertableModel {
 		@Argument(help: "Bookmark name")
 		var name: String
 
-		@Argument(help: "Address to bookmark (decimal; addresses print as hex)")
-		var address: UInt64
+		@Argument(help: "Address to bookmark: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument
 
 		@Option(help: "Note stored alongside the bookmark")
 		var summary: String = ""
@@ -75,8 +76,9 @@ extension BookmarkModel: InsertableModel {
 
 	convenience init(options: InsertOptions, using modelContext: ModelContext) async throws {
 		let binary = try requireBinary(named: options.binary, in: modelContext)
+		let address = try resolveAddress(options.address, named: binary.name, in: modelContext)
 
-		self.init(options.name, at: options.address, in: binary)
+		self.init(options.name, at: address, in: binary)
 		self.summary = options.summary
 	}
 }

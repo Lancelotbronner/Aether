@@ -16,6 +16,7 @@ import SwiftData
 
 			ImportCommand.self,
 			InspectCommand.self,
+			AddrCommand.self,
 		])
 }
 

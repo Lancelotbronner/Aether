@@ -14,13 +14,12 @@ struct DeleteCommand<Model: FetchableModel>: AsyncParsableCommand {
 	@OptionGroup var fetchOptions: FetchOptions
 
 	mutating func run() async throws {
+		let modelContext = aether.backgroundContext
 		var descriptor = FetchDescriptor<Model>()
-		Model.apply(modelOptions, to: &descriptor)
+		try Model.apply(modelOptions, to: &descriptor, in: modelContext)
 		fetchOptions.apply(to: &descriptor)
 		descriptor.propertiesToFetch = []
 		descriptor.relationshipKeyPathsForPrefetching = []
-
-		let modelContext = aether.backgroundContext
 		let models = try modelContext.fetch(descriptor)
 		for model in models {
 			modelContext.delete(model)

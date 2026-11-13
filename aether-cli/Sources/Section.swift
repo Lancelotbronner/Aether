@@ -28,14 +28,15 @@ extension SectionModel: FetchableModel {
 		@Option(help: "Search within the section name")
 		var name: String?
 
-		@Option(help: "Filter to a section at an address (decimal; addresses print as hex)")
-		var address: UInt64?
+		@Option(help: "Filter to a section at an address: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument?
 
 		@Option(help: "Filter to sections with these exact flag bits (decimal; printed as hex by fetch)")
 		var flags: UInt32?
 	}
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<SectionModel>) {
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<SectionModel>, in modelContext: ModelContext) throws {
+		let addressValue = try filterAddress(options.address, named: options.binary, in: modelContext)
 		let binary = options.binary.flatMap { filter in
 			#Predicate<SectionModel> { $0.binary.name == filter }
 		} ?? .true
@@ -45,7 +46,7 @@ extension SectionModel: FetchableModel {
 		let name = options.name.flatMap { filter in
 			#Predicate<SectionModel> { $0.name.localizedStandardContains(filter) }
 		} ?? .true
-		let address = options.address.flatMap { filter in
+		let address = addressValue.flatMap { filter in
 			#Predicate<SectionModel> { $0.address == filter }
 		} ?? .true
 		let flags = options.flags.flatMap { filter in
@@ -77,8 +78,8 @@ extension SectionModel: InsertableModel {
 		@Argument(help: "Section name")
 		var name: String
 
-		@Argument(help: "Memory address of the section (decimal; addresses print as hex)")
-		var address: UInt64
+		@Argument(help: "Address the section starts at: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument
 
 		@Option(help: "Size of the section in memory, in bytes (decimal)")
 		var size: UInt64 = 0
@@ -104,7 +105,7 @@ extension SectionModel: InsertableModel {
 			throw InsertError.unknownSegment(name: segmentName, binary: binaryName)
 		}
 
-		let address = options.address
+		let address = try resolveAddress(options.address, named: binaryName, in: modelContext)
 		var taken = FetchDescriptor<SectionModel>()
 		taken.predicate = #Predicate<SectionModel> { $0.binary.name == binaryName && $0.address == address }
 		taken.fetchLimit = 1

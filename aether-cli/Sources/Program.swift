@@ -31,7 +31,7 @@ extension BinaryModel: FetchableModel {
 		var endian: Endianness?
 	}
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<BinaryModel>) {
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<BinaryModel>, in modelContext: ModelContext) throws {
 		let name = options.name.flatMap { filter in
 			#Predicate<BinaryModel> { $0.name.localizedStandardContains(filter) }
 		} ?? .true

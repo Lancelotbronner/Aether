@@ -25,8 +25,8 @@ extension SymbolModel: FetchableModel {
 		@Option(help: "Search within the symbol name")
 		var name: String?
 
-		@Option(help: "Filter to a symbol at an address (decimal; addresses print as hex)")
-		var address: UInt64?
+		@Option(help: "Filter to a symbol at an address: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument?
 
 		@Option(help: "Filter on kind (0 unknown, 1 function, 2 data, 3 section)")
 		var kind: SymbolKind?
@@ -47,14 +47,15 @@ extension SymbolModel: FetchableModel {
 		var exported: Bool = false
 	}
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<SymbolModel>) {
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<SymbolModel>, in modelContext: ModelContext) throws {
+		let addressValue = try filterAddress(options.address, named: options.binary, in: modelContext)
 		let binary = options.binary.flatMap { filter in
 			#Predicate<SymbolModel> { $0.binary.name == filter }
 		} ?? .true
 		let name = options.name.flatMap { filter in
 			#Predicate<SymbolModel> { $0.name.localizedStandardContains(filter) }
 		} ?? .true
-		let address = options.address.flatMap { filter in
+		let address = addressValue.flatMap { filter in
 			#Predicate<SymbolModel> { $0.address == filter }
 		} ?? .true
 		let kind = options.kind.flatMap { filter in
@@ -96,8 +97,8 @@ extension SymbolModel: InsertableModel {
 		@Argument(help: "Symbol name")
 		var name: String
 
-		@Argument(help: "Memory address of the symbol (decimal; addresses print as hex)")
-		var address: UInt64
+		@Argument(help: "Address the symbol lives at: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument
 
 		@Option(help: "Size of the symbol in bytes (decimal)")
 		var size: UInt64 = 1
@@ -127,7 +128,7 @@ extension SymbolModel: InsertableModel {
 	convenience init(options: InsertOptions, using modelContext: ModelContext) async throws {
 		let binary = try requireBinary(named: options.binary, in: modelContext)
 		let binaryName = binary.name
-		let address = options.address
+		let address = try resolveAddress(options.address, named: binaryName, in: modelContext)
 		let identifier = options.identifier.isEmpty ? options.name : options.identifier
 		var taken = FetchDescriptor<SymbolModel>()
 		taken.predicate = #Predicate<SymbolModel> { $0.binary.name == binaryName && $0.address == address && $0.identifier == identifier }

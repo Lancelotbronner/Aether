@@ -26,8 +26,8 @@ extension ProcedureModel: FetchableModel {
 		@Option(help: "Filters to a specific program")
 		var binary: String?
 
-		@Option(help: "Filter to a procedure at an address (decimal; addresses print as hex)")
-		var address: UInt64?
+		@Option(help: "Filter to a procedure at an address: decimal, 0x…, @…, off:<file offset> or a symbol name")
+		var address: AddressArgument?
 
 		@Flag(help: "Filter to thunk procedures")
 		var thunk: Bool = false
@@ -36,14 +36,15 @@ extension ProcedureModel: FetchableModel {
 		var leaf: Bool = false
 	}
 
-	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<ProcedureModel>) {
+	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<ProcedureModel>, in modelContext: ModelContext) throws {
+		let addressValue = try filterAddress(options.address, named: options.binary, in: modelContext)
 		let name = options.name.flatMap { filter in
 			#Predicate<ProcedureModel> { $0.symbol.name.localizedStandardContains(filter) }
 		} ?? .true
 		let binary = options.binary.flatMap { filter in
 			#Predicate<ProcedureModel> { $0.binary.name == filter }
 		} ?? .true
-		let address = options.address.flatMap { filter in
+		let address = addressValue.flatMap { filter in
 			#Predicate<ProcedureModel> { $0.symbol.address == filter }
 		} ?? .true
 		let thunk = options.thunk ? #Predicate<ProcedureModel> { $0.isThunk } : .true
