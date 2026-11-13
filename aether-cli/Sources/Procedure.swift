@@ -109,6 +109,20 @@ extension ProcedureModel: FetchableModel {
 	}
 }
 
+extension ProcedureModel {
+	/// `ProcedureModel.blocks` declares `deleteRule: .cascade`, so a procedure
+	/// delete takes its block rows with it. There is no `block` command group,
+	/// so those rows are otherwise invisible in the CLI: this is the only place
+	/// their count surfaces.
+	static func cascade(of models: [ProcedureModel], in modelContext: ModelContext) -> CascadeReport {
+		var report = CascadeReport()
+		for model in models {
+			report.take("blocks", model.blocks.count)
+		}
+		return report
+	}
+}
+
 extension ProcedureModel: InsertableModel {
 	static let singular = "procedure"
 

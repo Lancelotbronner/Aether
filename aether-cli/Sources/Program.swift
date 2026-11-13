@@ -73,3 +73,24 @@ extension BinaryModel: FetchableModel {
 		]
 	}
 }
+
+extension BinaryModel {
+	/// Every child relationship on `BinaryModel` declares `deleteRule: .cascade`,
+	/// so one program row is really seven kinds of rows — and `Deleted 1 programs`
+	/// never said so. Counted from the rows the delete selected rather than from a
+	/// descriptor, because the question is whose children these are and no predicate
+	/// can name an instance.
+	static func cascade(of models: [BinaryModel], in modelContext: ModelContext) -> CascadeReport {
+		var report = CascadeReport()
+		for model in models {
+			report.take("segments", model.segments.count)
+			report.take("sections", model.sections.count)
+			report.take("symbols", model.symbols.count)
+			report.take("procedures", model.procedures.count)
+			report.take("references", model.references.count)
+			report.take("annotations", model.annotations.count)
+			report.take("bookmarks", model.bookmarks.count)
+		}
+		return report
+	}
+}

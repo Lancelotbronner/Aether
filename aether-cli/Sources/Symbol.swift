@@ -177,6 +177,39 @@ extension SymbolModel: FetchableModel {
 	}
 }
 
+extension SymbolModel {
+	/// A symbol owns nothing, so nothing cascades below it — but `ProcedureModel
+	/// .symbol` is a required relationship pointing at it with no delete rule of
+	/// its own, so deleting symbol rows leaves procedure rows behind, still
+	/// counted and no longer reachable by name. Measured: deleting `_main`'s row
+	/// from j7 drops the symbol count to 43 while `procedure count` stays 14,
+	/// and the following `procedure fetch` then traps inside SwiftData.
+	/// The count is one pass over each affected program's procedure table rather
+	/// than one per row, and the table comes from the relationship rather than a
+	/// descriptor because no predicate can compare a relationship to an instance.
+	static func cascade(of models: [SymbolModel], in modelContext: ModelContext) -> CascadeReport {
+		let doomed = Set(models.map { $0.persistentModelID })
+		var tables: [PersistentIdentifier: [ProcedureModel]] = [:]
+		for model in models {
+			let binary = model.binary
+			if tables[binary.persistentModelID] == nil {
+				tables[binary.persistentModelID] = binary.procedures
+			}
+		}
+		var orphans = 0
+		for table in tables.values {
+			for procedure in table {
+				if doomed.contains(procedure.symbol.persistentModelID) {
+					orphans += 1
+				}
+			}
+		}
+		var report = CascadeReport()
+		report.leave("procedures pointing at a deleted symbol", orphans)
+		return report
+	}
+}
+
 extension SymbolModel: InsertableModel {
 	static let singular = "symbol"
 

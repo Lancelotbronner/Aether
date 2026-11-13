@@ -24,6 +24,10 @@ struct DeleteCommand<Model: FetchableModel>: AsyncParsableCommand {
 		descriptor.propertiesToFetch = []
 		descriptor.relationshipKeyPathsForPrefetching = []
 		let models = try modelContext.fetch(descriptor)
+		// Asked before the rows go, so `--dry-run` and a real delete report the
+		// same numbers and a cascade much larger than `Deleted N` cannot be
+		// missed after the fact.
+		let cascade = Model.cascade(of: models, in: modelContext)
 		for model in models {
 			modelContext.delete(model)
 		}
@@ -31,7 +35,14 @@ struct DeleteCommand<Model: FetchableModel>: AsyncParsableCommand {
 		if !aether.dryRun {
 			try modelContext.save()
 		}
-		
-		print("Deleted \(models.count) \(Model.plural)")
+
+		// The count line is what it always was; the clause says what else moved
+		// with it, and what was left behind pointing at a row that is gone.
+		let line = "Deleted \(models.count) \(Model.plural)"
+		guard let clause = cascade.describe() else {
+			print(line)
+			return
+		}
+		print("\(line) — \(clause)")
 	}
 }

@@ -31,14 +31,79 @@ protocol FetchableModel: PersistentModel {
 
 	static var subcommands: [any ParsableCommand.Type] { get }
 
+	/// What else goes when this row goes, and what else is left pointing at a
+	/// row that is gone. `DeleteCommand` asks it of the selected rows *before*
+	/// deleting them, so `--dry-run` and a real delete report the same numbers
+	/// and a cascade that outnumbers its own count cannot be missed. Empty by
+	/// default: most rows own nothing and nothing depends on them.
+	static func cascade(of models: [Self], in modelContext: ModelContext) -> CascadeReport
+
 	/// Filters are allowed to look things up in the document first — a name or
 	/// a file offset only becomes a comparable address after that — which is
 	/// why this gets a context and may fail.
 	static func apply(_ options: FetchOptions, to descriptor: inout FetchDescriptor<Self>, in modelContext: ModelContext) throws
 }
 
+/// What a delete does beyond its own count. A dictionary keyed by the row
+/// kind, printed in `schemaOrder` rather than the dictionary's own order so the
+/// line is stable enough to grep and diff.
+struct CascadeReport {
+	/// Rows a `deleteRule: .cascade` relationship takes with the deleted rows.
+	var taken: [String: Int] = [:]
+
+	/// Rows that survive the delete still pointing at a row that is gone: a
+	/// required to-one relationship with no delete rule declares nothing about
+	/// the reverse direction, so SwiftData leaves them alone.
+	var left: [String: Int] = [:]
+
+	/// `BinaryModel`'s children in the order `Schema.swift` declares them.
+	static let schemaOrder = [
+		"segments", "sections", "symbols", "procedures", "references", "annotations", "bookmarks",
+	]
+
+	mutating func take(_ kind: String, _ count: Int) {
+		guard count > 0 else { return }
+		taken[kind, default: 0] += count
+	}
+
+	mutating func leave(_ kind: String, _ count: Int) {
+		guard count > 0 else { return }
+		left[kind, default: 0] += count
+	}
+
+	/// The clause `delete` and `import --replace` append to their own count line,
+	/// or `nil` when the delete really did only remove its own rows.
+	func describe() -> String? {
+		var parts: [String] = []
+		var takes: [String] = []
+		for kind in CascadeReport.schemaOrder {
+			guard let count = taken[kind], count > 0 else { continue }
+			takes.append("\(count) \(kind)")
+		}
+		for kind in taken.keys.sorted() where CascadeReport.schemaOrder.contains(kind) == false {
+			guard let count = taken[kind], count > 0 else { continue }
+			takes.append("\(count) \(kind)")
+		}
+		if !takes.isEmpty {
+			parts.append("the cascade takes " + takes.joined(separator: ", "))
+		}
+		var leaves: [String] = []
+		for kind in left.keys.sorted() {
+			guard let count = left[kind], count > 0 else { continue }
+			leaves.append("\(count) \(kind)")
+		}
+		if !leaves.isEmpty {
+			parts.append("left behind " + leaves.joined(separator: ", "))
+		}
+		guard !parts.isEmpty else { return nil }
+		return parts.joined(separator: "; ")
+	}
+}
+
 extension FetchableModel {
 	static var subcommands: [any ParsableCommand.Type] { [] }
+
+	static func cascade(of models: [Self], in modelContext: ModelContext) -> CascadeReport { CascadeReport() }
 
 	static var demanglable: Bool { false }
 

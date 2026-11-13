@@ -67,6 +67,19 @@ extension SegmentModel: FetchableModel {
 	}
 }
 
+extension SegmentModel {
+	/// A segment's `sections` relationship declares `deleteRule: .cascade`, so
+	/// `segment delete` takes its sections with it. Sections have no children of
+	/// their own, which is why this is one line and `program delete`'s is seven.
+	static func cascade(of models: [SegmentModel], in modelContext: ModelContext) -> CascadeReport {
+		var report = CascadeReport()
+		for model in models {
+			report.take("sections", model.sections.count)
+		}
+		return report
+	}
+}
+
 extension SegmentModel: InsertableModel {
 	static let singular = "segment"
 
