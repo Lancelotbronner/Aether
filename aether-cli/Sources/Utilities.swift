@@ -99,6 +99,20 @@ struct AddressArgument: ExpressibleByArgument {
 	}
 }
 
+enum SectionError: LocalizedError {
+	case noSection(name: String, program: String)
+	case ambiguousSection(name: String, program: String, sections: [String])
+
+	var errorDescription: String? {
+		switch self {
+		case .noSection(let name, let program):
+			return "No section named \(name) in \(program)"
+		case .ambiguousSection(let name, let program, let sections):
+			return "\(name) is several sections in \(program): \(sections.joined(separator: " ")) — spell it as <segment>,<section> instead"
+		}
+	}
+}
+
 enum AddressError: LocalizedError {
 	case noSymbol(name: String, program: String)
 	case ambiguousSymbol(name: String, program: String, addresses: [String])
@@ -182,4 +196,47 @@ func resolveAddress(_ argument: AddressArgument, named binary: String?, in model
 func filterAddress(_ argument: AddressArgument?, named binary: String?, in modelContext: ModelContext) throws -> UInt64? {
 	guard let argument else { return nil }
 	return try resolveAddress(argument, named: binary, in: modelContext)
+}
+
+/// A section named as a filter: the range of addresses it covers. `--section`
+/// cannot be a stored-field comparison because a `SymbolModel` has no
+/// relationship to a `SectionModel` — sections are their own group precisely
+/// so that a symbol can be scoped to one by address instead. Exact matching,
+/// like every other name that selects a place rather than searching a label,
+/// and both spellings are accepted: the bare section name and the
+/// `<segment>,<section>` identity `describe()` prints.
+func filterSection(_ name: String?, named binary: String?, in modelContext: ModelContext) throws -> Range<UInt64>? {
+	guard let name else { return nil }
+	let program = try requireProgram(named: binary, in: modelContext)
+
+	let needle = name
+	var descriptor = FetchDescriptor<SectionModel>()
+	if name.contains(",") {
+		let parts = name.components(separatedBy: ",")
+		guard parts.count == 2, !parts.first!.isEmpty, !parts.last!.isEmpty else {
+			throw SectionError.noSection(name: name, program: program.name)
+		}
+		let segmentName = parts.first!
+		let sectionName = parts.last!
+		descriptor.predicate = #Predicate<SectionModel> { $0.segmentName == segmentName && $0.name == sectionName }
+	} else {
+		descriptor.predicate = #Predicate<SectionModel> { $0.name == needle }
+	}
+	// Same-name sections in two segments of the same program, or of several
+	// programs, are a real ambiguity: guess one and scope the query to the
+	// wrong range.
+	let rows = try modelContext.fetch(descriptor).filter { $0.binary.name == program.name }
+	guard !rows.isEmpty else {
+		throw SectionError.noSection(name: name, program: program.name)
+	}
+	let starts = Array(Set(rows.map { $0.address })).sorted()
+	guard starts.count == 1 else {
+		throw SectionError.ambiguousSection(
+			name: name,
+			program: program.name,
+			sections: rows.map { $0.fullName }
+		)
+	}
+	let section = rows.first { $0.address == starts.first! }!
+	return section.address..<(section.address + section.size)
 }
