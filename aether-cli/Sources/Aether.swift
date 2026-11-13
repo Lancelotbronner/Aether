@@ -29,6 +29,8 @@ let cliVersion = "1.0"
 			FindCommand.self,
 			HashCommand.self,
 			DoctorCommand.self,
+			SnapshotCommand.self,
+			ChangesCommand.self,
 		])
 }
 
