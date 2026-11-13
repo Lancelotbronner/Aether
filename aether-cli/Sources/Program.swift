@@ -51,6 +51,6 @@ extension BinaryModel: FetchableModel {
 	}
 
 	func describe() -> String {
-		"\(name) \(format) \(architecture) \(endian) \(is64 ? "64-bit" : "32-bit") \(data.count) bytes base=\(hex(baseAddress)) entry=\(hex(entryPoint)) stack=\(stackSize) file=\(fileURL?.path ?? "<not read from disk>") segments=\(segments.count) sections=\(sections.count) symbols=\(symbols.count) procedures=\(procedures.count) references=\(references.count) annotations=\(annotations.count) bookmarks=\(bookmarks.count)"
+		"\(name) \(format) \(architecture) \(endian) \(is64 ? "64-bit" : "32-bit") \(data.count) bytes sha256=\(sha256) base=\(hex(baseAddress)) entry=\(hex(entryPoint)) stack=\(stackSize) file=\(fileURL?.path ?? "<not read from disk>") segments=\(segments.count) sections=\(sections.count) symbols=\(symbols.count) procedures=\(procedures.count) references=\(references.count) annotations=\(annotations.count) bookmarks=\(bookmarks.count)"
 	}
 }

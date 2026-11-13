@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public extension SymbolType {
@@ -117,6 +118,74 @@ public extension BinaryModel {
 		}
 		return String(data: view[..<i], encoding: .utf8)
 	}
+}
+
+/// What a digest is taken over. Three views of the same file, each answering a
+/// different "is this the same binary again" question.
+public enum DigestScope: String, CaseIterable {
+	/// The imported bytes, exactly as stored.
+	case file
+	/// The bytes inside sections, in address order: the header is not part of it,
+	/// so a rebuild that only moved the header still matches.
+	case body
+	/// The section set itself — names, addresses, sizes — so the same shape matches
+	/// regardless of what the sections contain.
+	case layout
+}
+
+public extension BinaryModel {
+	/// The bytes a digest covers for one scope. Sections are mapped through their
+	/// own segment's `fileoff`/`vmaddr` pair rather than by `baseAddress`, and
+	/// clamped to bytes the file actually holds: a zero-fill section has a size
+	/// and no file bytes, and padding between sections is not part of any.
+	func digestInput(_ scope: DigestScope) -> Data {
+		if scope == .file { return data }
+		var ordered: [SectionModel] = []
+		for section in sections {
+			ordered.append(section)
+		}
+		ordered.sort { $0.address < $1.address }
+		var out = Data()
+		if scope == .body {
+			for section in ordered where section.size > 0 {
+				let segment = section.segment
+				guard segment.fileSize > 0, section.address >= segment.address else { continue }
+				let start = Int(segment.fileOffset + (section.address - segment.address))
+				guard start < data.count else { continue }
+				let width = min(section.size, segment.fileSize - (section.address - segment.address), UInt64(data.count - start))
+				out.append(data[start..<(start + Int(width))])
+			}
+		} else {
+			for section in ordered {
+				out.append(Data("\(String(format: "%llX", section.address)) \(section.segmentName),\(section.name) +\(section.size) flags=\(section.flags) align=\(section.alignment)\n".utf8))
+			}
+		}
+		return out
+	}
+
+	/// Hex digest of one scope's bytes. `md5` and `sha256` are what feeds and
+	/// scratch corpora are searched by; both are cheap enough to compute per
+	/// program row, which is what `program fetch`'s `sha256=` needs.
+	enum DigestAlgorithm: String, CaseIterable {
+		case md5
+		case sha256
+	}
+
+	func hash(_ algorithm: DigestAlgorithm, of bytes: Data) -> String {
+		switch algorithm {
+		case .md5:
+			return Insecure.MD5.hash(data: bytes).map { String(format: "%02X", $0) }.joined()
+		case .sha256:
+			return SHA256.hash(data: bytes).map { String(format: "%02X", $0) }.joined()
+		}
+	}
+
+	func hash(_ algorithm: DigestAlgorithm, _ scope: DigestScope = .file) -> String {
+		hash(algorithm, of: digestInput(scope))
+	}
+
+	/// The identity `program describe()` prints.
+	var sha256: String { hash(.sha256) }
 }
 
 public extension SectionModel {

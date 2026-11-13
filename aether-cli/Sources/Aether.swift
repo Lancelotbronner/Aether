@@ -19,6 +19,7 @@ import SwiftData
 			AddrCommand.self,
 			BytesCommand.self,
 			FindCommand.self,
+			HashCommand.self,
 		])
 }
 
