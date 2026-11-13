@@ -67,7 +67,7 @@ aether <group> <verb> <project> [filters] [paging]
 | `aether symbol fetch\|count\|delete\|insert` | Symbols and strings — the single row kind for both | `--kind`/`--type`/`--binding`/`--min-length`/`--section`/`--imported`/`--exported` |
 | `aether symbol raw` | Re-parse the program's file in memory and diff it against the stored rows | `missing` / `stale` / `changed` buckets, plus a `detection skipped` note |
 | `aether procedure fetch\|count\|delete\|insert` | Detected functions (`ProcedureModel`) | `--name`/`--binary`/`--address` filters, `--thunk`/`--leaf` flags |
-| `aether procedure detect` | Run procedure detection over every program in the store | `--dry-run` reports the totals without writing rows; there is no `--binary` or per-pattern breakdown yet |
+| `aether procedure detect` | Run procedure detection over a program (`--binary`) or every program in the store | `--explain` prints a per-pattern census, whole store and per code section; `--pattern` runs one way of finding an entry point; `--address` says which pattern made a row |
 | `aether annotation fetch\|count\|delete\|insert` | Analyst notes (`AnnotationModel`) | |
 | `aether bookmark fetch\|count\|delete\|insert` | Analyst bookmarks (`BookmarkModel`) | |
 | `aether inspect <executable>` | Parse a binary **in memory**: no project, no store on disk | `--analyze` runs detection, `--log` prints the loader's narration |
@@ -210,6 +210,19 @@ program=thin_test scope=file input=51480 md5=95B1FCC57A61BC77AB42B1A1D82A0440 sh
 $ aether procedure detect readme20/ThinTest.aetherproj --dry-run
 thin_test: ProcedureDetector: 2 code sections, 14 entry points, 0 synthesized symbols, 0 procedures, 14 total procedures
 
+$ aether procedure detect readme20/ThinTest.aetherproj --explain --address _main --dry-run
+thin_test: ProcedureDetector: 2 code sections, 14 entry points, 0 synthesized symbols, 0 procedures, 14 total procedures
+thin_test: patterns symtab:14 entryPoint:1 stubThunk:9 bti:0 pacibsp:0 framePair:2 linkStore:0 stackAdjust:1
+  __TEXT,__text: framePair:2 stackAdjust:1
+  __TEXT,__stubs: stubThunk:9
+thin_test: @1000006E8 — symtab
+
+$ aether procedure detect readme20/ThinTest.aetherproj --pattern stubThunk --explain --dry-run
+thin_test: ProcedureDetector: 2 code sections, 14 entry points, 0 synthesized symbols, 0 procedures, 14 total procedures
+thin_test: patterns stubThunk:9
+  __TEXT,__text: none
+  __TEXT,__stubs: stubThunk:9
+
 $ aether inspect ./thin_test --analyze
 thin_test machO arm64 little 64-bit 51480 bytes sha256=BBE70CFB1F227538EFFD8A1433E1763003DB38CE12F558C339A98F915F89F59E base=100000000 entry=1000006E8 stack=0 file=/Users/lancelot/Developer/Hacking/Aether/.qwen/tmp/thin_test segments=5 sections=11 symbols=42 procedures=14 references=0 annotations=0 bookmarks=0
 5 segments:
@@ -221,6 +234,8 @@ thin_test machO arm64 little 64-bit 51480 bytes sha256=BBE70CFB1F227538EFFD8A143
 `find`'s hit offsets are file offsets (`off=210`), not addresses — the line shows the address they resolve to and whether the match sits at an aligned offset (`aligned=true`), which is what separates a real pointer from a byte sequence that happens to look like one. `--bytes` takes `??` for any byte (`4d80??00`); a pattern with no match prints `No hits in thin_test` rather than an empty `Showing` header.
 
 `doctor`'s third line is the point of the command: 13 rows at address 0 and 1 row outside any section say *what* is odd, which is how an analysis-only document is told apart from a binary that really has nothing in it.
+
+`procedure detect --explain` counts matches rather than rows, so an address a guard instruction and a prologue both hit is counted twice — and `--address` is the other half, naming which pattern put one row on the map (`symtab` claims the addresses the symbol table already names, whatever else matched there). A section line lists only the patterns that matched in it; `__TEXT,__text: none` under `--pattern stubThunk` is what lets one pattern's yield be read as that pattern's yield instead of looking like a store where nothing else exists.
 
 ### Pin a document, then diff it
 

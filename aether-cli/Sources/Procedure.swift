@@ -171,31 +171,103 @@ extension ProcedureModel: InsertableModel {
 struct DetectCommand: AsyncParsableCommand {
 	static let configuration = CommandConfiguration(
 		commandName: "detect",
-		abstract: "Run the procedure detection pass over every binary in the project.")
+		abstract: "Run procedure detection over a program or every program in the project.",
+		discussion: """
+			`--explain` answers "what did this pass actually match, and where": one
+			census line per program, then the same counts per code section the scan
+			walked. A section line names only the patterns that matched there; the
+			zeros live on the whole-program line, which is what makes `framePair:0`
+			read as a regression instead of an omission.
+
+			`--address` answers the narrower question — which pattern put this one
+			row on the map. It prints `none` when the pass never noted that
+			address, which includes rows that already existed before a restricted
+			pass ran. A symbol NAME is resolved before the pass runs, so it has to
+			be a name the store already holds: pass the address of a symbol this
+			run only just synthesized.
+
+			`--pattern` runs one way of finding an entry point on its own, which
+			is how one pattern's yield is measured rather than inferred from the
+			rows it created: a pass told to use only `stubThunk` declines the
+			symtab rows too. Addresses the store already has a procedure for stay
+			counted but are never synthesized twice, so a restricted pass is
+			idempotent the way a full one is.
+
+			On a store that has already been detected, a row an earlier pass
+			synthesized now reads as `symtab`: the symbol table names it now, which
+			is why the row exists today. The census counts matches this pass walked,
+			not rows in the store — `total procedures` stays the store's count.
+			""")
 
 	@OptionGroup var aether: AetherOptions
 
 	@Flag(help: "Emit one JSON object per program instead of the report lines")
 	var json = false
 
+	@Flag(help: "Report which pattern found how much, and the same counts per code section")
+	var explain = false
+
+	@Option(help: "Report which pattern put one entry point on the map: decimal, 0x…, @…, off:<file offset> or a symbol name")
+	var address: AddressArgument?
+
+	@Option(help: "Run only these ways of finding an entry point: symtab, entryPoint, stubThunk, bti, pacibsp, framePair, linkStore, stackAdjust, x86Prologue")
+	var pattern: [ProcedureDetectionPattern] = []
+
+	@Option(help: "Filters to a specific program")
+	var binary: String?
+
 	mutating func run() async throws {
 		let context = try aether.backgroundContext()
+		let program = binary
+
+		// Resolved before the pass runs, so a symbol name is answered from the
+		// persisted store rather than from a name this same pass just invented.
+		let wanted = try filterAddress(address, named: program, in: context)
+		// Empty means every pattern the architecture can walk.
+		let patterns = pattern.isEmpty ? nil : Set(pattern)
+
+		var programs: [BinaryModel]
+		if let program {
+			programs = [try requireBinary(named: program, in: context)]
+		} else {
+			programs = try context.fetch(FetchDescriptor<BinaryModel>())
+		}
+
 		var rows: [String] = []
-		for binary in try context.fetch(FetchDescriptor<BinaryModel>()) {
-			let report = ProcedureDetector().detect(in: binary)
+		for program in programs {
+			let report = ProcedureDetector().detect(in: program, patterns: patterns)
 			if json {
 				// The summary sentence is four counts; the JSON row gives them
 				// as fields rather than asking a script to parse prose.
-				rows.append(jsonRow([
-					field("program", binary.name),
+				var fields: [RowField] = [
+					field("program", program.name),
 					field("codeSections", report.codeSections),
 					field("entryPoints", report.entryPoints),
 					field("synthesized", report.synthesized),
 					field("created", report.created),
-					field("total", binary.procedures.count),
-				]))
+					field("total", program.procedures.count),
+				]
+				if explain {
+					fields.append(field("patterns", report.patternsSummary))
+					fields.append(field("patternSections", report.sections
+						.map { "\($0.name)=\($0.census)" }
+						.joined(separator: ";")))
+				}
+				if let wanted {
+					fields.append(field("origin", report.origin[wanted]?.rawValue ?? "none"))
+				}
+				rows.append(jsonRow(fields))
 			} else {
-				print("\(binary.name): \(report.summary), \(binary.procedures.count) total procedures")
+				print("\(program.name): \(report.summary), \(program.procedures.count) total procedures")
+				if explain {
+					print("\(program.name): patterns \(report.patternsSummary)")
+					for section in report.sections {
+						print("  \(section.name): \(section.census)")
+					}
+				}
+				if let wanted {
+					print("\(program.name): @\(hex(wanted)) — \(report.origin[wanted]?.rawValue ?? "none")")
+				}
 			}
 		}
 		if json {

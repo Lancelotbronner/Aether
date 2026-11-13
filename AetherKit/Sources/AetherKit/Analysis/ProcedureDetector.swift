@@ -18,22 +18,102 @@ public nonisolated struct ProcedureDetector {
 	public init() {}
 }
 
+/// Every way the pass learns about an entry point, named after the constants
+/// in `ProcedureDetector` so a census line can be read against this file
+/// without a mapping. String-backed, which is also what makes a CLI option
+/// taking it parse by raw *name* rather than by number the way the schema's
+/// `Int`-backed enums do.
+public nonisolated enum ProcedureDetectionPattern: String, CaseIterable, Sendable {
+	/// A symtab symbol already classified as a function.
+	case symtab
+	/// The image entry point, whether or not the symbol table names anyone there.
+	case entryPoint
+	/// The `adrp`/`ldr`/`br` triple of a dyld call thunk.
+	case stubThunk
+	/// `bti c` as the first instruction of a function.
+	case bti
+	/// `pacibsp` as the first instruction of a function.
+	case pacibsp
+	/// `stp Rt, Rt2, [sp, #-imm7]!`
+	case framePair
+	/// `str x30, [sp, #-imm9]!`
+	case linkStore
+	/// `sub sp, sp, #imm{, lsl #6k}`
+	case stackAdjust
+	/// `push rbp` / `mov rbp, rsp`
+	case x86Prologue
+}
+
+/// One code section the scan walked, and how often each pattern matched inside
+/// it. A pattern that stopped matching in `__text` while still matching in
+/// `__stubs` is invisible in a whole-pass census, which is the regression this
+/// breakdown exists to catch.
+public nonisolated struct ProcedureDetectionSection {
+	/// `<segment>,<section>`, the identity `describe()` prints.
+	public let name: String
+	/// Patterns that matched in this section, counted per match.
+	public let matches: [ProcedureDetectionPattern: Int]
+
+	/// The section's counts in the detector's own pattern order. A pattern
+	/// that matched nothing in this section is simply absent from the line;
+	/// the whole-program census is where the zeros live. A section where
+	/// nothing matched at all says `none` rather than ending in a bare colon.
+	public var census: String {
+		censusText(matches)
+	}
+}
+
 /// What a single `detect` pass saw and produced.
 public nonisolated struct ProcedureDetectionReport {
 	/// Executable sections the scan walked.
 	public let codeSections: Int
 	/// Distinct entry points the pass knows about: symtab symbols, the image
-	/// entry point, and every postpattern hit.
+	/// entry point, every postpattern hit, and the addresses the store already
+	/// has procedures for. That last term is what keeps the count steady when
+	/// `--pattern` restricts a pass over a store that has rows: the per-pattern
+	/// census is the number that moves.
 	public let entryPoints: Int
 	/// Entry points that had no symbol and got a synthesized one.
 	public let synthesized: Int
 	/// `ProcedureModel` rows this pass appended.
 	public let created: Int
+	/// Times each pattern matched — per match, not per row, so a guard
+	/// instruction and a prologue over the same address both count. Patterns
+	/// this pass could walk are seeded to 0, so a pattern that stopped
+	/// matching reads as `framePair:0` rather than going missing, while one
+	/// the architecture cannot walk stays out of the census. A match the pass
+	/// declines is not counted either: `linkStore` counts only the stores below
+	/// `sp` it accepts as a prologue, not the positive-offset spills it skips.
+	public let matches: [ProcedureDetectionPattern: Int]
+	/// Per code section the scan walked, in the order it walked them.
+	public let sections: [ProcedureDetectionSection]
+	/// Which pattern put each entry point on the map — "why is this row here".
+	/// A prologue that only supplied a frame size to an address the symbol
+	/// table already had does not take the origin.
+	public let origin: [UInt64: ProcedureDetectionPattern]
 
 	public var summary: String {
 		"ProcedureDetector: \(codeSections) code sections, \(entryPoints) entry points, "
 		+ "\(synthesized) synthesized symbols, \(created) procedures"
 	}
+
+	/// The census as one greppable line, in the detector's own case order, so
+	/// the shape cannot drift away from the pattern list above.
+	public var patternsSummary: String {
+		censusText(matches)
+	}
+}
+
+/// Counts formatted as `pattern:count` pairs in `allCases` order — the single
+/// place the census line's shape is decided, so a per-section line and the
+/// whole-program line cannot drift apart. An empty census says `none`: a
+/// section that was walked but matched nothing must not end in a bare colon.
+private func censusText(_ matches: [ProcedureDetectionPattern: Int]) -> String {
+	let pairs = ProcedureDetectionPattern.allCases.compactMap { pattern -> String? in
+		guard let count = matches[pattern] else { return nil }
+		return "\(pattern.rawValue):\(count)"
+	}
+	return pairs.isEmpty ? "none" : pairs.joined(separator: " ")
 }
 
 public nonisolated extension ProcedureDetector {
@@ -81,6 +161,15 @@ public nonisolated extension ProcedureDetector {
 	/// x86-64 `push rbp` / `mov rbp, rsp`
 	private static let x86Prologue: [UInt8] = [0x55, 0x48, 0x89, 0xE5]
 
+	/// Which patterns each architecture can walk, in the order the scan tests
+	/// them. Seeding them to zero is what makes a regression visible as
+	/// `framePair:0`: a pattern the architecture cannot walk stays out of the
+	/// census, while one it can walk but which stopped matching is reported.
+	private static let arm64Patterns: [ProcedureDetectionPattern] = [
+		.stubThunk, .bti, .pacibsp, .framePair, .linkStore, .stackAdjust,
+	]
+	private static let x86Patterns: [ProcedureDetectionPattern] = [.x86Prologue]
+
 	/// A detected entry point that has no symbol yet.
 	private struct Synthesized {
 		let address: UInt64
@@ -89,25 +178,91 @@ public nonisolated extension ProcedureDetector {
 	}
 
 	/// Creates the procedures and reports what the pass saw.
-	func detect(in model: BinaryModel) -> ProcedureDetectionReport {
+	///
+	/// `patterns` restricts which ways of finding an entry point run, which is
+	/// how one pattern's yield is measured on its own rather than by grepping
+	/// the store afterwards; `nil` — what every caller passes today — runs them
+	/// all.
+	func detect(in model: BinaryModel, patterns: Set<ProcedureDetectionPattern>? = nil) -> ProcedureDetectionReport {
 		// Entry points, deduped by address so a symtab symbol and a postpattern
 		// hit at the same address produce one procedure. Value = frame size
 		// where the prologue reveals one.
 		var known: [UInt64: Int] = [:]
-		for symbol in model.symbols where symbol.kind == .function && symbol.address != 0 {
-			known[symbol.address] = 0
+		var matches: [ProcedureDetectionPattern: Int] = [:]
+		// Which pattern first put each address on the map: the answer to "why
+		// is this row here", which a match count alone cannot give because
+		// several patterns can fire at one address.
+		var origin: [UInt64: ProcedureDetectionPattern] = [:]
+
+		/// Is this way of finding an entry point running in this pass?
+		func ran(_ pattern: ProcedureDetectionPattern) -> Bool {
+			guard let patterns else { return true }
+			return patterns.contains(pattern)
 		}
-		if model.entryPoint != 0 {
-			known[model.entryPoint] = 0
+
+		/// Patterns the architecture can walk, counted even when they match
+		/// nothing.
+		func seed(_ patterns: [ProcedureDetectionPattern]) {
+			for pattern in patterns where ran(pattern) {
+				matches[pattern, default: 0] = 0
+			}
+		}
+
+		switch model.architecture {
+		case .arm64, .appleSilicon, .arm64e:
+			seed(Self.arm64Patterns)
+		case .x86_64, .i386:
+			seed(Self.x86Patterns)
+		default:
+			break
+		}
+		seed([.symtab, .entryPoint])
+
+		if ran(.symtab) {
+			for symbol in model.symbols where symbol.kind == .function && symbol.address != 0 {
+				if known[symbol.address] == nil {
+					known[symbol.address] = 0
+					origin[symbol.address] = .symtab
+				}
+				matches[.symtab, default: 0] += 1
+			}
+		}
+		if ran(.entryPoint), model.entryPoint != 0 {
+			if known[model.entryPoint] == nil {
+				known[model.entryPoint] = 0
+				origin[model.entryPoint] = .entryPoint
+			}
+			matches[.entryPoint, default: 0] += 1
+		}
+
+		// An address that already has a procedure is already on the map, which
+		// is not a pattern running: it is what keeps every pass idempotent,
+		// restricted or not. A `--pattern stubThunk` over a store that already
+		// has stubs must count the thunk again without synthesizing a second
+		// `stub_…` symbol at the same address, which the symbol table's
+		// uniqueness constraint would reject the moment the pass saves.
+		// No origin is claimed here — a row this pass did not put on the
+		// map has no pattern to name.
+		for procedure in model.procedures {
+			if known[procedure.symbol.address] == nil {
+				known[procedure.symbol.address] = 0
+			}
 		}
 
 		var synthesized: [Synthesized] = []
+		// Matches inside the section being walked, so the per-section breakdown
+		// can be emitted as the scan moves rather than by a second pass.
+		var inside: [ProcedureDetectionPattern: Int] = [:]
 
 		// Record an entry point. A hit that knows a frame size upgrades an
 		// address that only a symbol or a guard instruction put on the map.
-		func note(_ address: UInt64, stackSize: Int, isStub: Bool) {
+		func note(_ address: UInt64, stackSize: Int, isStub: Bool, pattern: ProcedureDetectionPattern) {
+			guard ran(pattern) else { return }
+			matches[pattern, default: 0] += 1
+			inside[pattern, default: 0] += 1
 			if known[address] == nil {
 				known[address] = stackSize
+				origin[address] = pattern
 				synthesized.append(Synthesized(address: address, stackSize: stackSize, isStub: isStub))
 			} else if known[address] == 0 && stackSize != 0 {
 				known[address] = stackSize
@@ -115,6 +270,7 @@ public nonisolated extension ProcedureDetector {
 		}
 
 		var codeSections = 0
+		var walked: [ProcedureDetectionSection] = []
 
 		for section in model.sections where section.containsCode {
 			codeSections += 1
@@ -122,6 +278,7 @@ public nonisolated extension ProcedureDetector {
 			let offset = Int(section.offset)
 			guard size >= 4, offset >= 0, offset + size <= model.data.count else { continue }
 			let data = model.data
+			inside.removeAll()
 
 			switch model.architecture {
 			case .arm64, .appleSilicon, .arm64e:
@@ -142,7 +299,7 @@ public nonisolated extension ProcedureDetector {
 							if load & Self.stubLoadMask != Self.stubLoadPattern { continue }
 							if branch & Self.stubBranchMask != Self.stubBranchPattern { continue }
 
-							note(section.address + UInt64(block * Self.stubThunkWidth), stackSize: 0, isStub: true)
+							note(section.address + UInt64(block * Self.stubThunkWidth), stackSize: 0, isStub: true, pattern: .stubThunk)
 						}
 					} else {
 						for i in 0..<(size / 4) {
@@ -150,15 +307,18 @@ public nonisolated extension ProcedureDetector {
 							if model.endian == .big { word = word.byteSwapped }
 
 							if word == Self.bti || word == Self.pacibsp {
-								note(section.address + UInt64(i * 4), stackSize: 0, isStub: false)
+								note(section.address + UInt64(i * 4), stackSize: 0, isStub: false,
+									pattern: word == Self.bti ? .bti : .pacibsp)
 								continue
 							}
 
 							let stackSize: Int
+							let matched: ProcedureDetectionPattern
 
 							if word & Self.framePairMask == Self.framePairPattern {
 								// imm7 is the scaled index: a pre-indexed store of
 								// the frame pair *is* the frame allocation.
+								matched = .framePair
 								let imm7 = Int((word >> 15) & 0x7F)
 								let signed = imm7 & 0x40 != 0 ? imm7 - 128 : imm7
 								stackSize = abs(signed) * 8
@@ -167,10 +327,12 @@ public nonisolated extension ProcedureDetector {
 								// signed byte count in bits 20-12. Only stores below
 								// sp allocate a frame; a positive offset is a spill
 								// inside a body, not a prologue.
+								matched = .linkStore
 								let imm9 = Int((word >> 12) & 0x1FF)
 								if imm9 & 0x100 == 0 { continue }
 								stackSize = 512 - imm9
 							} else if word & Self.stackAdjustMask == Self.stackAdjustPattern {
+								matched = .stackAdjust
 								let imm12 = Int((word >> 10) & 0xFFF)
 								let shift = Int((word >> 21) & 3) * 6
 								stackSize = imm12 << shift
@@ -178,7 +340,7 @@ public nonisolated extension ProcedureDetector {
 								continue
 							}
 
-							note(section.address + UInt64(i * 4), stackSize: stackSize, isStub: false)
+							note(section.address + UInt64(i * 4), stackSize: stackSize, isStub: false, pattern: matched)
 						}
 					}
 				}
@@ -188,21 +350,20 @@ public nonisolated extension ProcedureDetector {
 					if data[base] != Self.x86Prologue[0] || data[base + 1] != Self.x86Prologue[1]
 					|| data[base + 2] != Self.x86Prologue[2] || data[base + 3] != Self.x86Prologue[3] { continue }
 
-					let address = section.address + UInt64(i)
-					if known[address] != nil { continue }
-					known[address] = 0
-					synthesized.append(Synthesized(address: address, stackSize: 0, isStub: false))
+					note(section.address + UInt64(i), stackSize: 0, isStub: false, pattern: .x86Prologue)
 				}
 			default:
 				break
 			}
+
+			walked.append(ProcedureDetectionSection(name: section.fullName, matches: inside))
 		}
 
 		// The entry point is a function start even when the symbol table names
 		// nobody there (`LC_MAIN` gives only an offset), and a procedure needs a
 		// symbol to hang off — so give the entry point one. The postpattern scan
 		// may already have synthesized it, in which case there is nothing to do.
-		if model.entryPoint != 0
+		if ran(.entryPoint), model.entryPoint != 0
 		&& !synthesized.contains(where: { $0.address == model.entryPoint })
 		&& !model.symbols.contains(where: { $0.kind == .function && $0.address == model.entryPoint }) {
 			synthesized.append(Synthesized(address: model.entryPoint, stackSize: known[model.entryPoint] ?? 0, isStub: false))
@@ -242,21 +403,29 @@ public nonisolated extension ProcedureDetector {
 		}
 
 		// Idempotence: symbols that already have a procedure are left alone,
-		// including the ones synthesized above.
-		let existing = Set(model.procedures.map { $0.symbol.persistentModelID })
-		for symbol in model.symbols where symbol.kind == .function && symbol.address != 0 {
-			if existing.contains(symbol.persistentModelID) { continue }
-			let procedure = ProcedureModel(is: symbol, in: model)
-			procedure.stackSize = known[symbol.address] ?? 0
-			model.procedures.append(procedure)
-			created += 1
+		// including the ones synthesized above. The symtab loop is gated like
+		// every other way of finding an entry point: a pass restricted to one
+		// postpattern would otherwise anchor rows on symbols it was told not to
+		// use, which is precisely the yield `--pattern` exists to measure.
+		if ran(.symtab) {
+			let existing = Set(model.procedures.map { $0.symbol.persistentModelID })
+			for symbol in model.symbols where symbol.kind == .function && symbol.address != 0 {
+				if existing.contains(symbol.persistentModelID) { continue }
+				let procedure = ProcedureModel(is: symbol, in: model)
+				procedure.stackSize = known[symbol.address] ?? 0
+				model.procedures.append(procedure)
+				created += 1
+			}
 		}
 
 		return ProcedureDetectionReport(
 			codeSections: codeSections,
 			entryPoints: known.count,
 			synthesized: synthesized.count,
-			created: created
+			created: created,
+			matches: matches,
+			sections: walked,
+			origin: origin
 		)
 	}
 }
