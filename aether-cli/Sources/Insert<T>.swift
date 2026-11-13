@@ -25,7 +25,7 @@ struct InsertCommand<Model: InsertableModel>: AsyncParsableCommand {
 	var json = false
 
 	mutating func run() async throws {
-		let modelContext = aether.backgroundContext
+		let modelContext = try aether.backgroundContext()
 		let model = try await Model(options: modelOptions, using: modelContext)
 		modelContext.insert(model)
 

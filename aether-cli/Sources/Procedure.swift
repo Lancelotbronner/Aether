@@ -165,7 +165,7 @@ struct DetectCommand: AsyncParsableCommand {
 	var json = false
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		var rows: [String] = []
 		for binary in try context.fetch(FetchDescriptor<BinaryModel>()) {
 			let report = ProcedureDetector().detect(in: binary)

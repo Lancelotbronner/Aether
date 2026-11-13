@@ -14,7 +14,7 @@ struct DeleteCommand<Model: FetchableModel>: AsyncParsableCommand {
 	@OptionGroup var fetchOptions: FetchOptions
 
 	mutating func run() async throws {
-		let modelContext = aether.backgroundContext
+		let modelContext = try aether.backgroundContext()
 		var descriptor = FetchDescriptor<Model>()
 		try Model.apply(modelOptions, to: &descriptor, in: modelContext)
 		fetchOptions.apply(to: &descriptor)

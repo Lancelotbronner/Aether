@@ -87,14 +87,15 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	var demangle = false
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		var descriptor = FetchDescriptor<Model>()
 		try Model.apply(modelOptions, to: &descriptor, in: context)
 		let count = try context.fetchCount(descriptor)
 		fetchOptions.apply(to: &descriptor)
 		let models = try context.fetch(descriptor)
 		// One process per demangler for the whole page, keyed by the mangled
-		// name, so a page of 8903 rows is two processes rather than 17806.
+		// name, so a page of any size costs at most two processes rather than
+		// one per row.
 		var demangled: [String: String] = [:]
 		if demangle {
 			guard Model.demanglable else {

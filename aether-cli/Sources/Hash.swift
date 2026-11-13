@@ -20,7 +20,7 @@ struct HashCommand: AsyncParsableCommand {
 	var digestOnly = false
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		let programs = try context.fetch(FetchDescriptor<BinaryModel>(sortBy: [SortDescriptor(\BinaryModel.name)]))
 		guard !programs.isEmpty else { throw AddressError.noProgram }
 		var targets = programs

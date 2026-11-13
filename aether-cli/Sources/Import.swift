@@ -23,7 +23,7 @@ struct ImportCommand: AsyncParsableCommand {
 	var json = false
 
 	mutating func run() async throws {
-		let modelContext = aether.backgroundContext
+		let modelContext = try aether.backgroundContext()
 		let url = URL(filePath: executablePath, directoryHint: .notDirectory)
 
 		let binary = BinaryModel()

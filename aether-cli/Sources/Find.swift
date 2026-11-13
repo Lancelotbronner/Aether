@@ -29,7 +29,7 @@ struct FindCommand: AsyncParsableCommand {
 	var all: Bool = false
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		let program = try requireProgram(named: binary, in: context)
 		guard bytes != nil || text != nil || pointerTo != nil else { throw FindError.noPattern }
 		guard limit >= 0 else { throw FindError.negativeLimit }

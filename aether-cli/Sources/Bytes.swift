@@ -23,7 +23,7 @@ struct BytesCommand: AsyncParsableCommand {
 	var read: ReadKind?
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		let program = try requireProgram(named: binary, in: context)
 		let address = try resolveAddress(address, named: program.name, in: context)
 		guard let offset = fileOffset(of: address, in: program) else {

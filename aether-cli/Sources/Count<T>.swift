@@ -16,7 +16,7 @@ struct CountCommand<Model: FetchableModel>: AsyncParsableCommand {
 	var json = false
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		var descriptor = FetchDescriptor<Model>()
 		try Model.apply(modelOptions, to: &descriptor, in: context)
 		let count = try context.fetchCount(descriptor)

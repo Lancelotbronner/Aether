@@ -320,7 +320,7 @@ struct RawCommand: AsyncParsableCommand {
 	}
 
 	mutating func run() async throws {
-		let context = aether.backgroundContext
+		let context = try aether.backgroundContext()
 		let program = try requireProgram(named: modelOptions.binary, in: context)
 		let addressFilter = try filterAddress(modelOptions.address, named: modelOptions.binary, in: context)
 		let sectionRange = try filterSection(modelOptions.section, named: modelOptions.binary, in: context)
