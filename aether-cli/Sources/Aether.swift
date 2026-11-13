@@ -15,6 +15,7 @@ import SwiftData
 			BookmarkCommand.self,
 
 			ImportCommand.self,
+			InspectCommand.self,
 		])
 }
 

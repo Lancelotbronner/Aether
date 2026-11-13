@@ -7,7 +7,7 @@ Implemented entries are deleted rather than left behind, so the numbering has pe
 
 ## Verified CLI surface today (HEAD `0abcc98`)
 
-`aether --help` registers seven model groups — `program`, `section`, `segment`, `symbol`, `procedure`, `annotation`, `bookmark` — plus `import`; `new` is gone because the project argument is created on demand.
+`aether --help` registers seven model groups — `program`, `section`, `segment`, `symbol`, `procedure`, `annotation`, `bookmark` — plus `import` and `inspect`; `new` is gone because the project argument is created on demand.
 Every group carries `fetch` / `count` / `delete`; every group except `program` also carries `insert`, and `procedure` additionally carries `detect`.
 No group sets `defaultSubcommand`, so the subcommand has to be spelled out. The project is a positional `<project>` argument, and because option groups come first in the parse order it is always the first positional — `aether symbol fetch D`, `aether symbol insert D bin name address`.
 `Sources/Fetch<T>.swift` is the read-side machinery: a `FetchableModel` protocol with `plural`, `describe()`, an associated `FetchOptions` defaulting to `EmptyOptions` (`Sources/Utilities.swift`), `static var subcommands`, and `static func apply(_:to:)` to decorate the `FetchDescriptor` with a predicate and `sortBy`.
@@ -29,6 +29,7 @@ Hex is upper-case through one `hex(_:) helper`; `persistentModelID` is deliberat
 Every group now sorts: children by address (`procedure` by `symbol.address`), `program` by name.
 `fetch` pages with `--limit` / `--offset` and prints `Showing N (lo-hi) of M plural:`, where `M` is a second `fetchCount` taken before the page is applied; `count` has no page options at all, so it is always the whole census.
 `import` takes `--no-analyze` (skip the procedure-detection pass) and `--quiet` (drop the loader's narration). The library side moved with it: `MachOLoader.machO(for:analyze:)` and `load(_:analyze:)` return `MachOLoadReport(log:procedures:)` instead of printing, so only the CLI decides what reaches stdout; the app's `try await MachOLoader.load(binary)` call site discards the report and compiles unchanged.
+`inspect` is the one command that takes no `<project>`: it builds a `BinaryModel` from a raw executable path, parses it through `MachOLoader.load(_:analyze:)` against an in-memory `ModelConfiguration(schema: .project, isStoredInMemoryOnly: true)`, and prints `program.describe()`, then every segment and section row through the same `describe()` used by `fetch`, then a symbol census over `kind` / `binding` / `type` plus a string-row count. Detection is opt-in there — `--analyze` — where `import` runs it by default; `--log` prints the report narration.
 Helpers still `public` and directly reusable: `BinaryModel.read(at:count:)`, `readString(at:)`, `data(in:)`, `format(hex:)`, `section(containing:)`, `SegmentModel.protectionString`, `SectionModel.{isExecutable,isZeroFill,containsCode}`, `SymbolModel.isStringPredicate`, `SymbolModel.displayName`.
 
 ### Filters on the wire today
@@ -59,23 +60,14 @@ Under `--dry-run` the mutating commands still print `Inserted …` and `Deleted 
 Because `count` and `delete` share the filter group, an unfiltered `symbol delete D` wipes every symbol row in the document, and `program delete` cascades to segments, sections, symbols, procedures, annotations and bookmarks while printing only the program count.
 A document written by the pre-conversion build no longer opens at all: `addPersistentStoreWithType:… returned error NSCocoaErrorDomain (134140)` with `reason=Can't find or automatically infer mapping model for migration` and `entity=BinaryModel, property=endian.endian, reason=Source and destination attribute types are incompatible`, then `Trace/BPT trap: 5` (exit 133) out of `try! ModelContainer` in `AetherOptions.modelContainer`.
 That trap is entry 12's complaint reproduced with a cause, and it means the scratch corpus of older `.aetherproj` stores is dead to the current build rather than merely stale.
+A `ModelContainer` with no `configurations:` does not mean "in memory": it opens `~/Library/Application Support/default.store`, which is why `AetherTests`' `ModelContainer(for: Schema.project)` fails on that stale file. The in-memory shape is `ModelConfiguration(schema:isStoredInMemoryOnly:)` — there is no `inMemory:` label, and `url:` is a separate initialiser, so a store path and in-memory storage cannot be combined in one configuration.
 
 ### Still open after these changes
 
-`inspect` / `bytes` / `find` (1, 3, 4), `--explain` (5), `--json` and any field selector (7), `symbol --min-length` / `--section` / `--raw` (8), `--demangle` (11), store validation (12, 17), `disassemble` (13), `import --replace` and the pre-delete census (15), `analyze --pass` / `--list-passes` (16), `doctor` (17), README regeneration (20), `addr` (21), `snapshot` / `changes` (22), the default fetch page cap (23), `graph` (24), `hash` (25), `decompile` (26), `grep` / `index` (27).
+`bytes` / `find` (3, 4), `--explain` (5), `--json` and any field selector (7), `symbol --min-length` / `--section` / `--raw` (8), `--demangle` (11), store validation (12, 17), `disassemble` (13), `import --replace` and the pre-delete census (15), `analyze --pass` / `--list-passes` (16), `doctor` (17), README regeneration (20), `addr` (21), `snapshot` / `changes` (22), the default fetch page cap (23), `graph` (24), `hash` (25), `decompile` (26), `grep` / `index` (27).
 Entry 20 is no longer a nice-to-have: the README documents a command tree that does not exist, now including six `insert` subcommands it has never heard of.
 
 ## Tier 1 — cheap, high value
-
-### 1. `aether inspect <binary>` — parse a Mach-O without a document
-
-**Evidence.** Every probe in the scratch set re-derives the layout from a raw path instead of using the CLI: `.qwen/tmp/prologue_scan.swift`, `.qwen/tmp/symtab_probe.swift`, `.qwen/tmp/sectdump.swift`, `.qwen/tmp/symdump.swift`, `.qwen/tmp/nlist_hist.swift`, `/private/tmp/prologues.py`.
-The shape is not hypothetical: the Homebrew tool `borer` (0.2.12) on this machine takes a raw path on every command — `borer info <binary>` is "summary: format, arch, sections, symbols", with no document and no project anywhere in its CLI.
-**Status.** Still open, and slightly harder than when written.
-`.qwen/tmp/proctest.swift` already demonstrates the target shape: build a `BinaryModel`, wrap it in `ModelContainer(Schema.project)`, call `MachOLoader.machO(for:)`, and print segment/section/symbol/procedure counts.
-**Feature.** Parse in memory — no project, no store on disk — and print header fields, format/endian/architecture, `entryPoint`, `baseAddress`, segments with protection, sections with flags/offset/size, and symbol-table counts by kind.
-The README pitch (inspect a document on a machine that cannot run the app) extends naturally to inspect a binary on any machine.
-**Cost.** Low but now ordered: `machO(for:)` is `static`, `nonisolated`, `throws` and takes a detached `BinaryModel`, yet it also prints (`Load/MachOLoader.swift:161`, `:178`) and runs detection (`:174`), so a read-only `inspect` wants entry 19's `--quiet` / `--no-analyze` first.
 
 ### 3. `aether bytes` — read file bytes at a virtual address
 
