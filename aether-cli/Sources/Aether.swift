@@ -2,9 +2,17 @@ import ArgumentParser
 import Foundation
 import SwiftData
 
+/// The CLI's own version: registered with ArgumentParser so `aether --version`
+/// answers, and printed by `doctor` so a report names the build doing the
+/// diagnosing. It is a constant carried by hand — matching `Aether.xcodeproj`'s
+/// `MARKETING_VERSION` — so it says which release the sources belong to, not
+/// which build wrote the store it is complaining about; see CLI.md entry 17.
+let cliVersion = "1.0"
+
 @main struct aether: AsyncParsableCommand {
 	static let configuration = CommandConfiguration(
 		abstract: "A utility for working with Aether projects.",
+		version: cliVersion,
 		subcommands: [
 			ProgramCommand.self,
 			SectionCommand.self,
