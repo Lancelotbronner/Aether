@@ -6,7 +6,7 @@ import Foundation
 struct ImportCommand: AsyncParsableCommand {
 	static let configuration = CommandConfiguration(
 		commandName: "import",
-		abstract: "Import and load an executable into an existing document.")
+		abstract: "Import and load an executable into a project.")
 
 	@OptionGroup var aether: AetherOptions
 

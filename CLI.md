@@ -7,15 +7,16 @@ Implemented entries are deleted rather than left behind, so the numbering has pe
 
 ## Verified CLI surface today (HEAD `0abcc98`)
 
-`aether --help` registers seven model groups — `program`, `section`, `segment`, `symbol`, `procedure`, `annotation`, `bookmark` — plus `new` and `import`.
+`aether --help` registers seven model groups — `program`, `section`, `segment`, `symbol`, `procedure`, `annotation`, `bookmark` — plus `import`; `new` is gone because the project argument is created on demand.
 Every group carries `fetch` / `count` / `delete`; every group except `program` also carries `insert`, and `procedure` additionally carries `detect`.
-No group sets `defaultSubcommand`, so the subcommand has to be spelled out — `aether symbol --project D` reports `Unknown option --project`.
+No group sets `defaultSubcommand`, so the subcommand has to be spelled out. The project is a positional `<project>` argument, and because option groups come first in the parse order it is always the first positional — `aether symbol fetch D`, `aether symbol insert D bin name address`.
 `Sources/Fetch<T>.swift` is the read-side machinery: a `FetchableModel` protocol with `plural`, `describe()`, an associated `FetchOptions` defaulting to `EmptyOptions` (`Sources/Utilities.swift`), `static var subcommands`, and `static func apply(_:to:)` to decorate the `FetchDescriptor` with a predicate and `sortBy`.
 `CountCommand` and `DeleteCommand` take the same `Model.FetchOptions`, so every filter below is also a filter on `count` and on `delete`.
 `Sources/Insert<T>.swift` is the write side: an `InsertableModel` protocol with `singular`, `describe()` and `init(options:using modelContext:) async throws`; `InsertCommand` builds the model, inserts it, skips `save()` under `--dry-run`, and prints `Inserted <describe()>`.
 `Sources/Utilities.swift` holds `EmptyOptions`, the `hex(_:)' helper over `some BinaryInteger`, the `InsertError` enum (`unknownBinary` / `unknownSegment` / `unknownSymbol` / `duplicate`) and `requireBinary(named:in:)`, which resolves the program an insert was told to operate on.
 `Sources/AetherKit+.swift` exists only to add `@retroactive ExpressibleByArgument` for `AnnotationKind`, `SymbolKind`, `SymbolType`, `SymbolBinding`, `BinaryFormat`, `Endianness` and `Architecture`; without it none of those enums parse as a CLI value.
-`AetherOptions` (`Sources/Aether.swift`) carries `--project` plus a bare `@Flag --dry-run`; `import`, `delete`, `insert` and `procedure detect` all guard `save()`.
+`AetherOptions` (`Sources/Aether.swift`) carries a required positional `<project>` plus a bare `@Flag --dry-run`; `import`, `delete`, `insert` and `procedure detect` all guard `save()`.
+The project URL is opened by a lazy `try! ModelContainer`, which creates the `.aetherproj` directory (and missing parents) when it does not exist — the behaviour `new` used to perform by hand.
 The schema just changed under the CLI: `BinaryFormat`, `Endianness` and `Architecture` are now `Int`-backed enums, and `SymbolKind` / `SymbolType` / `SymbolBinding` gained `CaseIterable, Sendable`.
 Every `describe()` is one `key=value` line — greppable, and exactly the shape entry 7 wants to JSON-ify:
 - `program`: `thin_test machO arm64 little 64-bit 51480 bytes base=100000000 entry=1000006E8 stack=0 file=<path> segments=5 sections=11 symbols=42 procedures=14 references=0 annotations=0 bookmarks=0` — the three header enums print as case names, not numbers.
@@ -26,6 +27,7 @@ Every `describe()` is one `key=value` line — greppable, and exactly the shape 
 - `annotation`: `entry point @1000006E8 kind=trailing program=thin_test`; `bookmark`: `main @1000006E8 created=2026-11-03 20:59:55 +0000 summary=program entry program=thin_test`.
 Hex is upper-case through one `hex(_:) helper`; `persistentModelID` is deliberately not printed in any `describe()`, but `import` still ends with `Successfully imported as PersistentIdentifier(…)`.
 Every group now sorts: children by address (`procedure` by `symbol.address`), `program` by name.
+`fetch` pages with `--limit` / `--offset` and prints `Showing N (lo-hi) of M plural:`, where `M` is a second `fetchCount` taken before the page is applied; `count` has no page options at all, so it is always the whole census.
 Helpers still `public` and directly reusable: `BinaryModel.read(at:count:)`, `readString(at:)`, `data(in:)`, `format(hex:)`, `section(containing:)`, `SegmentModel.protectionString`, `SectionModel.{isExecutable,isZeroFill,containsCode}`, `SymbolModel.isStringPredicate`, `SymbolModel.displayName`.
 
 ### Filters on the wire today
@@ -53,13 +55,13 @@ Relationship keypaths do translate: `$0.binary.name`, `$0.segment.name`, `$0.sym
 Numeric arguments are decimal-only while `describe()` prints upper-case hex: `--address 4296007680` selects the row printed as `@1000FE000`.
 Int-raw enums take their numeric raw value as a CLI argument, so `--format 1` selects Mach-O, `--architecture 3` selects ARM64 and `--endian 0` selects little; the help strings spell the numbering out because the raw-name spelling is rejected.
 Under `--dry-run` the mutating commands still print `Inserted …` and `Deleted N <plural>` while persisting nothing, which matches how `import` and `procedure detect` already behaved; the tense of those messages is the papergun, not the behaviour.
-Because `count` and `delete` share the filter group, an unfiltered `symbol delete --project D` wipes every symbol row in the document, and `program delete` cascades to segments, sections, symbols, procedures, annotations and bookmarks while printing only the program count.
+Because `count` and `delete` share the filter group, an unfiltered `symbol delete D` wipes every symbol row in the document, and `program delete` cascades to segments, sections, symbols, procedures, annotations and bookmarks while printing only the program count.
 A document written by the pre-conversion build no longer opens at all: `addPersistentStoreWithType:… returned error NSCocoaErrorDomain (134140)` with `reason=Can't find or automatically infer mapping model for migration` and `entity=BinaryModel, property=endian.endian, reason=Source and destination attribute types are incompatible`, then `Trace/BPT trap: 5` (exit 133) out of `try! ModelContainer` in `AetherOptions.modelContainer`.
 That trap is entry 12's complaint reproduced with a cause, and it means the scratch corpus of older `.aetherproj` stores is dead to the current build rather than merely stale.
 
 ### Still open after these changes
 
-`inspect` / `bytes` / `find` (1, 3, 4), `--explain` (5), `--json` and any field selector (7), `symbol --min-length` / `--section` / `--raw` (8), `--demangle` (11), store validation (12, 17), `disassemble` (13), `import --replace` and the pre-delete census (15), `analyze --pass` / `--list-passes` (16), `doctor` (17), `import --no-analyze` / `--quiet` (19), README regeneration (20), `addr` (21), `snapshot` / `changes` (22), fetch page totals (23), `graph` (24), `hash` (25), `decompile` (26), `grep` / `index` (27).
+`inspect` / `bytes` / `find` (1, 3, 4), `--explain` (5), `--json` and any field selector (7), `symbol --min-length` / `--section` / `--raw` (8), `--demangle` (11), store validation (12, 17), `disassemble` (13), `import --replace` and the pre-delete census (15), `analyze --pass` / `--list-passes` (16), `doctor` (17), `import --no-analyze` / `--quiet` (19), README regeneration (20), `addr` (21), `snapshot` / `changes` (22), the default fetch page cap (23), `graph` (24), `hash` (25), `decompile` (26), `grep` / `index` (27).
 Entry 20 is no longer a nice-to-have: the README documents a command tree that does not exist, now including six `insert` subcommands it has never heard of.
 
 ## Tier 1 — cheap, high value
@@ -70,7 +72,7 @@ Entry 20 is no longer a nice-to-have: the README documents a command tree that d
 The shape is not hypothetical: the Homebrew tool `borer` (0.2.12) on this machine takes a raw path on every command — `borer info <binary>` is "summary: format, arch, sections, symbols", with no document and no project anywhere in its CLI.
 **Status.** Still open, and slightly harder than when written.
 `.qwen/tmp/proctest.swift` already demonstrates the target shape: build a `BinaryModel`, wrap it in `ModelContainer(Schema.project)`, call `MachOLoader.machO(for:)`, and print segment/section/symbol/procedure counts.
-**Feature.** Parse in memory — no `new`, no `--project`, no store on disk — and print header fields, format/endian/architecture, `entryPoint`, `baseAddress`, segments with protection, sections with flags/offset/size, and symbol-table counts by kind.
+**Feature.** Parse in memory — no project, no store on disk — and print header fields, format/endian/architecture, `entryPoint`, `baseAddress`, segments with protection, sections with flags/offset/size, and symbol-table counts by kind.
 The README pitch (inspect a document on a machine that cannot run the app) extends naturally to inspect a binary on any machine.
 **Cost.** Low but now ordered: `machO(for:)` is `static`, `nonisolated`, `throws` and takes a detached `BinaryModel`, yet it also prints (`Load/MachOLoader.swift:161`, `:178`) and runs detection (`:174`), so a read-only `inspect` wants entry 19's `--quiet` / `--no-analyze` first.
 
@@ -151,18 +153,18 @@ What has to widen is `ProcedureDetectionReport` (`AetherKit/Sources/AetherKit/An
 **Status.** `procedure fetch` prints `demangled=` empty for every row of the rustc documents, while the stored `demangled` column stays blank.
 **Feature.** `--demangle` calling `swift demangle` / `c++filt` with a raw-name fallback; `--set-demangled` on an existing row is the only write side still open.
 
-### 12. `--project` validation / `aether doctor`
+### 12. Project opening errors / `aether doctor`
 
-**Evidence.** The README documents the quirk: a nonexistent `--project` silently creates an empty store and reports `Showing 0 models:` with exit 0. Fixtures `.qwen/tmp/nope.aetherproj` and `.qwen/tmp/clidocs/ErrDoc.aetherproj` exist to exercise error paths.
-**Status.** Still open, and now with a reproducible trigger: `modelContainer` is a lazy `try! ModelContainer(…)`, so opening a store whose columns disagree with the current schema prints the Core Data migration failure and traps (`Trace/BPT trap: 5`, exit 133) instead of exiting non-zero with a message.
-**Feature.** Make a missing document an error (behind a flag if the default must stay), replace `try!` with a thrown error so the CLI exits non-zero, and add `aether doctor --project`: store path, per-model row counts, `format`/`endian`/`architecture`, and whether every `SymbolModel` lies inside a section.
+**Evidence.** The README documents the quirk: a nonexistent project silently created an empty store and reported `Showing 0 models:` with exit 0. Fixtures `.qwen/tmp/nope.aetherproj` and `.qwen/tmp/clidocs/ErrDoc.aetherproj` exist to exercise error paths.
+**Status.** The "silently creates" half is now the design, not a quirk: `<project>` is a required positional argument and the model container creates the `.aetherproj` directory (missing parents included) on demand, which is why `new` was deleted. `Showing 0 … of 0` with exit 0 is still what a typo'd path prints.
+**Feature.** Keep the create-on-demand default, add `--existing` (or an equivalent guard) for scripts that must not silently branch on a typo; replace `try!` in `AetherOptions.modelContainer` with a thrown error so the CLI exits non-zero, and add `aether doctor <project>`: store path, per-model row counts, `format`/`endian`/`architecture`, and whether every `SymbolModel` lies inside a section.
 
-### 23. `aether fetch` page totals — `Showing N of M`
+### 23. `aether fetch` — cap the default page
 
 **Evidence.** Every borer list command prints its page and its cap: `functions <binary> [filter] [offset] [limit]` "(100 a page, max 300)", `symbols` "(50 a page, max 1000)", `strings` "(100 a page, max 500)", `grep` "(100 a page, max 500)", `map` "(max 5000)", and the server answers `# showing N of M` so a page never reads as the whole answer.
-**Feature.** `FetchCommand` prints the matched total next to the page: `Showing 100 of 15795 procedures (offset 0)`. Cap the page when `--limit` was omitted — `aether procedure fetch` on the rustc document currently writes 15795 lines into a terminal — with `--all` to opt out.
-`count` needs the mirror decision: `CountCommand` takes the same `FetchOptions` group, so `aether procedure count --limit 100` prints `100` and reads like a census. Either ignore the page there, or print `100 (page 1 of 15795)`.
-**Cost.** Low, and half-built: `FetchOptions` in `aether-cli/Sources/Fetch<T>.swift` already carries `--limit`/`--offset` into `descriptor.fetchLimit` / `fetchOffset`, so the fix is one extra `fetchCount` on the same descriptor with the limit cleared, plus deciding whether a printed count means the page or the match set.
+**Status.** The totals half landed: `fetch` prints `Showing N (lo-hi) of M plural:` from a `fetchCount` taken before the page is applied, and the `count` mirror decision was settled by removing the page options from `CountCommand` entirely — `aether procedure count` is always the whole census.
+**Feature.** Still open: cap the page when `--limit` was omitted — `aether procedure fetch` on the rustc document currently writes 15795 lines into a terminal — with `--all` to opt out.
+**Cost.** Low, and now only the default: `FetchOptions` in `aether-cli/Sources/Fetch<T>.swift` already carries `--limit`/`--offset` into `descriptor.fetchLimit` / `fetchOffset`; the remaining work is a default limit plus an `--all` that clears it.
 No predicate is touched, so none of the `#Predicate` constraints apply.
 
 ### 24. `aether graph` — block CFG and callgraph per procedure
@@ -259,6 +261,6 @@ Every filter and every enum-valued option is undocumented as well, including the
 - Layout probes `.qwen/tmp/sizes.swift`, `maskcheck.swift`, `nlist_bc.swift`, `/private/tmp/nlist_check.c`: they assert SDK struct sizes and constants, a role now split between `AetherKit/Tests/CoreAetherTests/NListTypeTests.swift` and the detector comments. Pick one home.
 - Assembled-instruction fixtures `.qwen/tmp/{br,sig,sig2,strimm,strimm2,strimm3,vectors,linkstore,offs,enc_probe}.s` (and their `.o`): the `clang -c` evidence behind every mask in `ProcedureDetector`. Their decoded values are already transcribed into the detector comments; the `mask_check.py` symmetric-diff assertions should become `AetherTests` cases.
 - Corpus binaries `/private/tmp/probe_bin`, `probe_x86`, `probe_x86_stripped`, `.qwen/tmp/thin_test`: commit the sources (`.qwen/tmp/thin_test.swift`, `/private/tmp/probe.c`) as test fixtures; binaries do not belong in the repo.
-- The 12 `/private/tmp/*.aetherproj` stores (`probe*`, `rustc*`, `x86*`, `py-proj`) are the working corpus behind entries 15-17: regenerate them with `aether new` + `aether import` from the committed sources rather than checking them in. They are worse than stale now — every one written before the `Int`-backed enum conversion refuses to open and traps (see the gotchas), so carry none of them over.
+- The 12 `/private/tmp/*.aetherproj` stores (`probe*`, `rustc*`, `x86*`, `py-proj`) are the working corpus behind entries 15-17: regenerate them with `aether import` from the committed sources rather than checking them in. They are worse than stale now — every one written before the `Int`-backed enum conversion refuses to open and traps (see the gotchas), so carry none of them over.
 - `.qwen/tmp/underflow_check.swift`: documents a non-bug (Int arithmetic, no trap). Historical.
 - `.qwen/tmp/clidocs/{ThinTest,ErrDoc}.aetherproj`, `/private/tmp/j2r*`, `/private/tmp/dumps`, `.qwen/tmp/s-*`, `__pycache__`: error fixtures or regenerable scratch.

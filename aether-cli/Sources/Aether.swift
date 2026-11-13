@@ -14,7 +14,6 @@ import SwiftData
 			AnnotationCommand.self,
 			BookmarkCommand.self,
 
-			NewCommand.self,
 			ImportCommand.self,
 		])
 }
@@ -23,7 +22,7 @@ struct AetherOptions: ParsableArguments {
 	@Flag
 	var dryRun = false
 
-	@Option(help: "The project file to open", completion: .file(extensions: ["aetherproj"]))
+	@Argument(help: "The project file to open, created if it does not exist", completion: .file(extensions: ["aetherproj"]))
 	var project: String
 
 	lazy var projectURL: URL = {

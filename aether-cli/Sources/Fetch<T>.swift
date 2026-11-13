@@ -49,9 +49,11 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	mutating func run() async throws {
 		var descriptor = FetchDescriptor<Model>()
 		Model.apply(modelOptions, to: &descriptor)
+		let count = try aether.backgroundContext.fetchCount(descriptor)
 		fetchOptions.apply(to: &descriptor)
 		let models = try aether.backgroundContext.fetch(descriptor)
-		print("Showing \(models.count) \(Model.plural):")
+		let offset = fetchOptions.offset ?? 0
+		print("Showing \(models.count) (\(offset)-\(offset + models.count)) of \(count) \(Model.plural):")
 		for model in models {
 			print(model.describe())
 		}
