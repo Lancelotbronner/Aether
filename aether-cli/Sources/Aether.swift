@@ -18,6 +18,7 @@ import SwiftData
 			InspectCommand.self,
 			AddrCommand.self,
 			BytesCommand.self,
+			FindCommand.self,
 		])
 }
 

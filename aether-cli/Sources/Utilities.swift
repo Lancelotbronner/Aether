@@ -133,6 +133,17 @@ func fileOffset(of address: UInt64, in program: BinaryModel) -> UInt64? {
 	return segment.fileOffset + (address - segment.address)
 }
 
+/// Inverse of `fileOffset(of:in:)`: where in the image a byte of the file sits.
+/// A search finds its match by file offset and has to report the address an
+/// `--address` filter would take, so the same segment table is walked the other
+/// way instead of adding `baseAddress`.
+func virtualAddress(of offset: UInt64, in program: BinaryModel) -> UInt64? {
+	guard let segment = program.segments.first(where: {
+		$0.fileSize > 0 && offset >= $0.fileOffset && offset < $0.fileOffset + $0.fileSize
+	}) else { return nil }
+	return segment.address + (offset - segment.fileOffset)
+}
+
 /// Turn an `<address|name>` argument into a virtual address. A name goes
 /// through the symbol table and an `off:` through the segment table, because
 /// a Mach-O image maps file offsets per segment — `fileoff`/`vmaddr` pairs
