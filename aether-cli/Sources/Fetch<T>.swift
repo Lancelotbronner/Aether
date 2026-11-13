@@ -56,14 +56,25 @@ extension FetchableModel where FetchOptions == EmptyOptions {
 }
 
 struct FetchOptions: ParsableArguments {
-	@Option(help: "Maximum number of models to show")
+	@Option(help: "Maximum number of models to show (default 100; 0 prints only the total)")
 	var limit: Int?
 
 	@Option(help: "Skip this many models from the start of the result")
 	var offset: Int?
 
-	func apply(to descriptor: inout FetchDescriptor<some PersistentModel>) {
-		descriptor.fetchLimit = limit
+	@Flag(help: "Show every row rather than the first 100")
+	var all = false
+
+	/// The page a caller gets when it asked for none. The default lives here
+	/// rather than inside `apply(_:to:)` because `DeleteCommand` shares this group:
+	/// an unfiltered `symbol delete` has to stay the whole census, and a default
+	/// page reaching that descriptor would silently wipe 100 rows at a time.
+	func pageLimit() -> Int? {
+		all ? nil : (limit ?? 100)
+	}
+
+	func apply(page: Int?, to descriptor: inout FetchDescriptor<some PersistentModel>) {
+		descriptor.fetchLimit = page
 		descriptor.fetchOffset = offset
 	}
 }
@@ -91,7 +102,26 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 		var descriptor = FetchDescriptor<Model>()
 		try Model.apply(modelOptions, to: &descriptor, in: context)
 		let count = try context.fetchCount(descriptor)
-		fetchOptions.apply(to: &descriptor)
+		// The default page is a terminal courtesy, and `--json` has no header that
+		// can admit one: an array that stopped early would read as complete. So a
+		// script still gets every row unless it spells `--limit` itself.
+		let page = json ? fetchOptions.limit : fetchOptions.pageLimit()
+		// `find --limit 0` counts without printing, and that is the only honest
+		// reading of a zero page here too — SwiftData treats a zero `fetchLimit`
+		// as "no limit", which would print the whole census instead. A negative
+		// page is the same typed error `find` answers with.
+		if let page {
+			guard page >= 0 else { throw FindError.negativeLimit }
+			if page == 0 {
+				if json {
+					print("[]")
+				} else {
+					print("Showing 0 (0-0) of \(count) \(Model.plural):")
+				}
+				return
+			}
+		}
+		fetchOptions.apply(page: page, to: &descriptor)
 		let models = try context.fetch(descriptor)
 		// One process per demangler for the whole page, keyed by the mangled
 		// name, so a page of any size costs at most two processes rather than
@@ -108,7 +138,16 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 			return
 		}
 		let offset = fetchOptions.offset ?? 0
-		print("Showing \(models.count) (\(offset)-\(offset + models.count)) of \(count) \(Model.plural):")
+		let last = offset + models.count
+		// The range is the 1-based inclusive span of the rows this page printed;
+		// it used to print `(0-1)` for a single row, which is half-open against a
+		// total that is not.
+		print(models.isEmpty
+			? "Showing 0 (0-0) of \(count) \(Model.plural):"
+			: "Showing \(models.count) (\(offset + 1)-\(last)) of \(count) \(Model.plural):")
+		if !models.isEmpty, last < count {
+			print("… \(count - last) more — --all for every row, --offset \(last) for the next page")
+		}
 		if demangle {
 			// Rows the demanglers did not change print no field at all, so the
 			// census line is the only place a script can tell "no mangling here"

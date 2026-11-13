@@ -17,7 +17,10 @@ struct DeleteCommand<Model: FetchableModel>: AsyncParsableCommand {
 		let modelContext = try aether.backgroundContext()
 		var descriptor = FetchDescriptor<Model>()
 		try Model.apply(modelOptions, to: &descriptor, in: modelContext)
-		fetchOptions.apply(to: &descriptor)
+		// Only a page that was typed: `fetch` adds a 100-row default, and a
+		// default reaching a delete would silently wipe a document 100 rows at a
+		// time while reporting a smaller `Deleted N` each run.
+		fetchOptions.apply(page: fetchOptions.limit, to: &descriptor)
 		descriptor.propertiesToFetch = []
 		descriptor.relationshipKeyPathsForPrefetching = []
 		let models = try modelContext.fetch(descriptor)

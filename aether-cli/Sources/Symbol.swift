@@ -312,8 +312,11 @@ struct RawCommand: AsyncParsableCommand {
 			return
 		}
 		let offset = fetchOptions.offset ?? 0
-		let shown = Array(rows.dropFirst(offset).prefix(fetchOptions.limit ?? rows.count))
+		let shown = Array(rows.dropFirst(offset).prefix(fetchOptions.pageLimit() ?? rows.count))
 		print("\(title): \(rows.count)" + (shown.count == rows.count ? "" : ", showing \(shown.count)"))
+		if offset + shown.count < rows.count {
+			print("… \(rows.count - offset - shown.count) more — --all for every row, --offset \(offset + shown.count) for the next page")
+		}
 		for symbol in shown {
 			print(symbol.describe())
 		}
