@@ -8,6 +8,16 @@ public nonisolated final class MachOLoader {
 	public init() {}
 }
 
+/// What a Mach-O parse produced. The narration is returned rather than
+/// printed: `AetherKit` is a library, so the CLI and the app decide what
+/// reaches `stdout`.
+public struct MachOLoadReport: Sendable {
+	/// Parse narration, one line per load command plus the summary lines.
+	public let log: String
+	/// Procedures created by the detection pass; 0 when the pass was skipped.
+	public let procedures: Int
+}
+
 public nonisolated extension MachOLoader {
 
 	func canLoad(data: Data) -> Bool {
@@ -22,11 +32,11 @@ public nonisolated extension MachOLoader {
 	/// Format validation and the re-parse guard live in `machO(for:)` so
 	/// every caller of the model-based path gets them.
 	@concurrent
-	static func load(_ model: BinaryModel) async throws {
-		try machO(for: model)
+	static func load(_ model: BinaryModel, analyze: Bool = true) async throws -> MachOLoadReport {
+		try machO(for: model, analyze: analyze)
 	}
 
-	static func machO(for model: BinaryModel) throws {
+	static func machO(for model: BinaryModel, analyze: Bool = true) throws -> MachOLoadReport {
 		// Format gate (B3): the model-based path supports thin 64-bit
 		// Mach-O only. Fat, 32-bit and non-Mach-O input used to hit a
 		// fatalError; now it throws a typed error the "Load..." call
@@ -157,8 +167,6 @@ public nonisolated extension MachOLoader {
 		model.symbols.append(contentsOf: generated)
 
 		log += "Parsed \(model.segments.count) segments, \(model.sections.count) sections, \(model.symbols.count) symbols (\(generated.count) generated) in \(start.duration(to: .now).logDescription)"
-		Logger.app.info("\(log)")
-		print(log)
 
 		// Determine base address (skip __PAGEZERO which has address 0)
 		let baseAddress = model.segments.first(where: { $0.name != "__PAGEZERO" && $0.address > 0 })?.address ?? model.segments.first?.address ?? 0
@@ -169,13 +177,19 @@ public nonisolated extension MachOLoader {
 		model.architecture = mapCPUType(UInt32(header.cputype))
 
 		// Procedures are an analysis result, not part of the file format:
-		// run the pass once the symbol table and sections exist.
-		let proceduresStart = ContinuousClock.now
-		let report = ProcedureDetector().detect(in: model)
-		let proceduresLine = "Detected \(report.created) procedures in \(proceduresStart.duration(to: .now).logDescription)"
-		log += proceduresLine
+		// run the pass once the symbol table and sections exist. It is opt-out
+		// so a read-only look at a binary (entry 1's `inspect`, `import
+		// --no-analyze`) does not imply analysis and its rows.
+		var procedures = 0
+		if analyze {
+			let proceduresStart = ContinuousClock.now
+			let detection = ProcedureDetector().detect(in: model)
+			procedures = detection.created
+			log += "\nDetected \(detection.created) procedures in \(proceduresStart.duration(to: .now).logDescription)"
+		}
+
 		Logger.app.info("\(log)")
-		print(proceduresLine)
+		return MachOLoadReport(log: log, procedures: procedures)
 	}
 
 	/// Decode the Mach-O symbol table into `SymbolModel` rows.

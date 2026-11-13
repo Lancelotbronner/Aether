@@ -13,6 +13,12 @@ struct ImportCommand: AsyncParsableCommand {
 	@Argument(help: "Path to a thin 64-bit Mach-O executable")
 	var executablePath: String
 
+	@Flag(help: "Parse structure only; skip the procedure detection pass")
+	var noAnalyze = false
+
+	@Flag(help: "Do not print the loader's parse narration")
+	var quiet = false
+
 	mutating func run() async throws {
 		let modelContext = aether.backgroundContext
 		let url = URL(filePath: executablePath, directoryHint: .notDirectory)
@@ -28,7 +34,11 @@ struct ImportCommand: AsyncParsableCommand {
 		// persisted and the document is left untouched. Saving before the
 		// load would also lose the parsed segments/sections/symbols, since
 		// nothing else in this path saves.
-		try await MachOLoader.load(binary)
+		let report = try await MachOLoader.load(binary, analyze: !noAnalyze)
+
+		if !quiet {
+			print(report.log)
+		}
 
 		if !aether.dryRun {
 			try modelContext.save()

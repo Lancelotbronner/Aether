@@ -28,6 +28,7 @@ Every `describe()` is one `key=value` line — greppable, and exactly the shape 
 Hex is upper-case through one `hex(_:) helper`; `persistentModelID` is deliberately not printed in any `describe()`, but `import` still ends with `Successfully imported as PersistentIdentifier(…)`.
 Every group now sorts: children by address (`procedure` by `symbol.address`), `program` by name.
 `fetch` pages with `--limit` / `--offset` and prints `Showing N (lo-hi) of M plural:`, where `M` is a second `fetchCount` taken before the page is applied; `count` has no page options at all, so it is always the whole census.
+`import` takes `--no-analyze` (skip the procedure-detection pass) and `--quiet` (drop the loader's narration). The library side moved with it: `MachOLoader.machO(for:analyze:)` and `load(_:analyze:)` return `MachOLoadReport(log:procedures:)` instead of printing, so only the CLI decides what reaches stdout; the app's `try await MachOLoader.load(binary)` call site discards the report and compiles unchanged.
 Helpers still `public` and directly reusable: `BinaryModel.read(at:count:)`, `readString(at:)`, `data(in:)`, `format(hex:)`, `section(containing:)`, `SegmentModel.protectionString`, `SectionModel.{isExecutable,isZeroFill,containsCode}`, `SymbolModel.isStringPredicate`, `SymbolModel.displayName`.
 
 ### Filters on the wire today
@@ -61,7 +62,7 @@ That trap is entry 12's complaint reproduced with a cause, and it means the scra
 
 ### Still open after these changes
 
-`inspect` / `bytes` / `find` (1, 3, 4), `--explain` (5), `--json` and any field selector (7), `symbol --min-length` / `--section` / `--raw` (8), `--demangle` (11), store validation (12, 17), `disassemble` (13), `import --replace` and the pre-delete census (15), `analyze --pass` / `--list-passes` (16), `doctor` (17), `import --no-analyze` / `--quiet` (19), README regeneration (20), `addr` (21), `snapshot` / `changes` (22), the default fetch page cap (23), `graph` (24), `hash` (25), `decompile` (26), `grep` / `index` (27).
+`inspect` / `bytes` / `find` (1, 3, 4), `--explain` (5), `--json` and any field selector (7), `symbol --min-length` / `--section` / `--raw` (8), `--demangle` (11), store validation (12, 17), `disassemble` (13), `import --replace` and the pre-delete census (15), `analyze --pass` / `--list-passes` (16), `doctor` (17), README regeneration (20), `addr` (21), `snapshot` / `changes` (22), the default fetch page cap (23), `graph` (24), `hash` (25), `decompile` (26), `grep` / `index` (27).
 Entry 20 is no longer a nice-to-have: the README documents a command tree that does not exist, now including six `insert` subcommands it has never heard of.
 
 ## Tier 1 — cheap, high value
@@ -240,11 +241,6 @@ The byte-count worry from the earlier draft is resolved: `program fetch` prints 
 **Cost.** Low — the queries are the ones already documented in this file's sqlite snippets; the hard part is agreeing on the per-model row-count list.
 **First line to add.** borer's `doctor [offline]` prints "the local setup, one line each: version and commit, toolchain, symbol cache and server (`offline` skips the server), index cache, `.mcp.json`" — it names the build before it diagnoses anything.
 `aether` registers no `version` in `Sources/Aether.swift`'s `CommandConfiguration`, so `aether --version` does not exist and `doctor` cannot say which build wrote the store it is complaining about; that is precisely the schema-generation mismatch this entry documents, and the fix is a version stamp in the report (and, later, in the document itself) rather than a smarter query.
-
-### 19. `import --no-analyze` — and a parse path that does not print
-
-**Evidence.** Entry 1's `aether inspect` is only cheap if parsing has no side effects. `machO(for:)` still prints from library code (`print(log)` at `Load/MachOLoader.swift:161`, `print(proceduresLine)` at `:178`) and still calls `ProcedureDetector().detect(in:)` inline at `:174`, so a read-only look at a binary implies analysis, a mutation and uncontrolled stdout from a library function.
-**Feature.** `import --no-analyze` (structure only) and a `--quiet` that captures loader output; move the loader's `print` behind the CLI so `AetherKit` stays a library. This is also what makes `--dry-run` and `analyze` (entry 16) composable instead of three different side-effect levels.
 
 ### 20. `aether-cli/README.md` is stale against the shipped command tree
 
