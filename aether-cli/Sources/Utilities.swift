@@ -122,6 +122,17 @@ enum AddressError: LocalizedError {
 	}
 }
 
+/// Where a virtual address sits inside the file. The load commands pair each
+/// segment's `fileoff` with its own `vmaddr`, so this is a segment-table lookup,
+/// not the global `address - baseAddress` shift AetherKit's own byte helpers
+/// still perform.
+func fileOffset(of address: UInt64, in program: BinaryModel) -> UInt64? {
+	guard let segment = program.segments.first(where: {
+		$0.fileSize > 0 && address >= $0.address && address < $0.address + $0.fileSize
+	}) else { return nil }
+	return segment.fileOffset + (address - segment.address)
+}
+
 /// Turn an `<address|name>` argument into a virtual address. A name goes
 /// through the symbol table and an `off:` through the segment table, because
 /// a Mach-O image maps file offsets per segment — `fileoff`/`vmaddr` pairs

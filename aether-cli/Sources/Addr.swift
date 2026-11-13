@@ -21,13 +21,7 @@ struct AddrCommand: AsyncParsableCommand {
 		let program = try requireProgram(named: binary, in: context)
 		let address = try resolveAddress(address, named: program.name, in: context)
 
-		// Answering "which segment?" for a file offset has to use the segment
-		// table as well: the load commands pair each segment's `fileoff` with
-		// its own `vmaddr`, so a file offset is not one global shift from a
-		// virtual address.
-		let offset = program.segments.first(where: {
-			$0.fileSize > 0 && address >= $0.address && address < $0.address + $0.fileSize
-		}).map { $0.fileOffset + (address - $0.address) }
+		let offset = fileOffset(of: address, in: program)
 
 		print([
 			"@\(hex(address))",
@@ -43,10 +37,11 @@ struct AddrCommand: AsyncParsableCommand {
 
 /// The symbol that owns an address: the row starting closest at or before it
 /// whose size still covers it. A row with `size == 0` runs to the next symbol,
-/// so it owns everything after it.
+/// so it owns everything after it — except at address 0, which is how imported
+/// symbols are stored, and a row with no place in the file owns no address.
 private func owner(of address: UInt64, in rows: [SymbolModel]) -> SymbolModel? {
 	var owner: SymbolModel?
-	for row in rows where row.address <= address && (row.size == 0 || address < row.address + row.size) {
+	for row in rows where row.address != 0 && row.address <= address && (row.size == 0 || address < row.address + row.size) {
 		guard let current = owner else {
 			owner = row
 			continue
@@ -63,7 +58,7 @@ private func owner(of address: UInt64, in rows: [SymbolModel]) -> SymbolModel? {
 /// alone would never answer for it.
 private func owner(of address: UInt64, in rows: [ProcedureModel]) -> ProcedureModel? {
 	var owner: ProcedureModel?
-	for row in rows where row.contains(address: address) || (row.symbol.size == 0 && address >= row.symbol.address) {
+	for row in rows where row.symbol.address != 0 && (row.contains(address: address) || (row.symbol.size == 0 && address >= row.symbol.address)) {
 		guard let current = owner else {
 			owner = row
 			continue
