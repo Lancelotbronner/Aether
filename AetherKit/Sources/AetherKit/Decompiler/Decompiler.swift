@@ -1,5 +1,4 @@
 import Foundation
-import AetherKit
 import SwiftData
 
 // Task 12c: re-homed from the deleted `Models/Architecture.swift` — only the
@@ -79,7 +78,7 @@ extension Architecture {
 }
 
 /// Enhanced pseudo-code decompiler with control flow recovery
-nonisolated final class Decompiler {
+public nonisolated final class Decompiler {
 
 	private let structurer = ControlFlowStructurer()
 	private var binary: BinaryModel?
@@ -88,8 +87,10 @@ nonisolated final class Decompiler {
 	private var variableCounter = 0
 	private var cachedBinaryID: PersistentIdentifier?
 
+	public init() {}
+
 	/// Decompile a procedure to pseudo-C code
-	func decompile(procedure: ProcedureModel, instructions: ArraySlice<DisassembledInstruction>, binary: BinaryModel) -> String {
+	public func decompile(procedure: ProcedureModel, instructions: ArraySlice<DisassembledInstruction>, binary: BinaryModel) -> String {
 		self.binary = binary
 		self.variableNames = [:]
 		self.variableCounter = 0

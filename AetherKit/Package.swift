@@ -12,6 +12,7 @@ let package = Package(
 	],
 	dependencies: [
 		.package(url: "https://github.com/tomasf/Zip.git", from: "2.1.1"),
+		.package(url: "https://github.com/Lancelotbronner/capstone", branch: "next"),
 	],
 	targets: [
 		.target(name: "CoreAether"),
@@ -19,6 +20,7 @@ let package = Package(
 
 		.target(name: "AetherKit", dependencies: [
 			.product(name: "Zip", package: "Zip"),
+			.product(name: "CapstoneKit", package: "capstone"),
 			"CoreAether",
 		], swiftSettings: [
 			.enableExperimentalFeature("Lifetimes"),

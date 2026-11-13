@@ -1,7 +1,6 @@
 import Foundation
 import capstone
 import CapstoneKit
-import AetherKit
 
 nonisolated struct CapstoneDisassembler: DisassemblerPlugin, ~Copyable {
 	let capstone: Capstone

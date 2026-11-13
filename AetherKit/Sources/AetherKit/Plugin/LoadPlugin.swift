@@ -22,11 +22,21 @@ public protocol AetherBinary: AnyObject {
 	//TODO: fill out functions
 }
 
+public struct ProcessorMode: RawRepresentable, Sendable {
+	public var rawValue: UInt8
+
+	public init(rawValue: UInt8) {
+		self.rawValue = rawValue
+	}
+
+	public static let `default` = Self(rawValue: 0)
+}
+
 public struct EntryDescriptor {
 	public var address: UInt64
-	public var mode: CpuMode?
+	public var mode: ProcessorMode?
 
-	public init(at address: UInt64, mode: CpuMode? = nil) {
+	public init(at address: UInt64, mode: ProcessorMode? = nil) {
 		self.address = address
 		self.mode = mode
 	}
@@ -34,9 +44,9 @@ public struct EntryDescriptor {
 
 public struct ProcedureDescriptor {
 	public var address: UInt64
-	public var mode: CpuMode?
+	public var mode: ProcessorMode?
 
-	public init(at address: UInt64, mode: CpuMode? = nil) {
+	public init(at address: UInt64, mode: ProcessorMode? = nil) {
 		self.address = address
 		self.mode = mode
 	}

@@ -27,6 +27,7 @@
   ],
   "files": [
     { "path": "AGENTS.md" },
+    { "path": "IDEAS.md" },
     { "path": "AetherKit" },
     { "path": "aether-cli" },
     {

@@ -1,5 +1,4 @@
 import Foundation
-import AetherKit
 
 extension DisassemblerEngine {
 	func disassembleJVM(data: Data, address: UInt64) -> [DisassembledInstruction] {

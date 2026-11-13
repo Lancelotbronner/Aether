@@ -13,13 +13,3 @@ public extension ArchitectureId {
 	static let x86_64 = Self(rawValue: "x86_64")
 	static let aarch64 = Self(rawValue: "aarch64")
 }
-
-public struct CpuMode: RawRepresentable, Sendable {
-	public var rawValue: UInt8
-
-	public init(rawValue: UInt8) {
-		self.rawValue = rawValue
-	}
-
-	public static let `default` = Self(rawValue: 0)
-}

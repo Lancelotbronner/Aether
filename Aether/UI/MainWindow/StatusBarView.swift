@@ -32,7 +32,7 @@ struct StatusBarView: View {
 						.frame(height: 12)
 
 					// Format
-					Label(file.format.rawValue, systemImage: "square.stack.3d.up")
+					Label(file.format.title, systemImage: "square.stack.3d.up")
 						.font(.caption)
 						.foregroundColor(.secondary)
 
@@ -40,7 +40,7 @@ struct StatusBarView: View {
 						.frame(height: 12)
 
 					// Architecture
-					Label(file.architecture.rawValue, systemImage: "cpu")
+					Label(file.architecture.title, systemImage: "cpu")
 						.font(.caption)
 						.foregroundColor(.secondary)
 

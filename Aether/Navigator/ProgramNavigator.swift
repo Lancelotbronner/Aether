@@ -16,7 +16,7 @@ struct ProgramNavigator: View {
 				.listRowSeparator(.hidden)
 				.contextMenu {
 					Button("Load...") {
-						Task { @concurrent in
+						Task {
 							do {
 								// Drop any pre-Load disassembly first: a
 								// re-Load must not serve stale instructions,

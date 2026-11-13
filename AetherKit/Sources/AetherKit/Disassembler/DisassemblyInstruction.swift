@@ -1,4 +1,4 @@
-nonisolated struct DisassemblyInstruction {
+public nonisolated struct DisassemblyInstruction {
 	/// The kind of instruction this is
 	var kind = InstructionKind.other
 	/// Instruction mnemonic, with its optional condition.
@@ -40,14 +40,14 @@ nonisolated struct DisassemblyInstruction {
 	typealias RegistersW = InlineArray<47, RegisterIndex>
 }
 
-nonisolated struct InstructionAssembly {
+public nonisolated struct InstructionAssembly {
 	var mnemonic = ""
 	var condition = ""
 	var operands = ""
 }
 
 /// Classification of instruction types
-nonisolated enum InstructionKind: Equatable, Codable {
+public nonisolated enum InstructionKind: Equatable, Codable {
 	case move
 	case arithmetic
 	case logic
@@ -68,7 +68,7 @@ nonisolated enum InstructionKind: Equatable, Codable {
 	case other
 }
 
-nonisolated extension InstructionKind {
+public nonisolated extension InstructionKind {
 	var type: InstructionCategory {
 		switch self {
 		case .move: .move
@@ -133,11 +133,11 @@ nonisolated extension InstructionKind {
 	}
 }
 
-nonisolated enum Halt {
+public nonisolated enum Halt: Sendable {
 	case never, maybe, always
 }
 
-nonisolated enum DisassemblyBranch: Int8, Codable {
+public nonisolated enum DisassemblyBranch: Int8, Codable, Sendable {
 	/// Jump if not overflow
 	case jno = -1
 	/// Jump if not carry

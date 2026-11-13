@@ -1,5 +1,4 @@
 import Foundation
-import AetherKit
 
 /// A single disassembled instruction in the app's in-memory pipeline
 /// (Task 12c: replaces the legacy `Models/Instruction.swift` `Instruction`).
@@ -9,27 +8,27 @@ import AetherKit
 /// consumed by the Decompiler, the disassembly/branch views, and the
 /// Inspector. Bytes are never stored: vaddr → bytes goes through the
 /// bounds-guarded `BinaryModel.data(in:)` (vaddr − baseAddress).
-nonisolated struct DisassembledInstruction: Identifiable {
-	var addressRange: Range<UInt64>
-	var address: UInt64 { addressRange.lowerBound }
-	var size: Int { addressRange.count }
-	let mnemonic: String
-	let operands: String
-	let architecture: Architecture
+public nonisolated struct DisassembledInstruction: Identifiable {
+	public var addressRange: Range<UInt64>
+	public var address: UInt64 { addressRange.lowerBound }
+	public var size: Int { addressRange.count }
+	public let mnemonic: String
+	public let operands: String
+	public let architecture: Architecture
 	/// Offset of the start of this instruction in the pseudo-instruction list.
-	var pcode: Range<Int>
+	public var pcode: Range<Int>
 
-	var id: UInt64 { addressRange.lowerBound }
+	public var id: UInt64 { addressRange.lowerBound }
 
 	// Analysis metadata
-	var comment: String?
+	public var comment: String?
 
 	// Instruction classification
-	let kind: InstructionKind
-	var type: InstructionCategory { kind.type }
-	var branchTarget: UInt64? { kind.branchTarget }
+	public let kind: InstructionKind
+	public var type: InstructionCategory { kind.type }
+	public var branchTarget: UInt64? { kind.branchTarget }
 
-	init(_ result: DisassemblyInstruction, with bytes: Range<UInt64>, at address: UInt64, for arch: Architecture, pcode: Range<Int> = 0..<0) {
+	public init(_ result: DisassemblyInstruction, with bytes: Range<UInt64>, at address: UInt64, for arch: Architecture, pcode: Range<Int> = 0..<0) {
 		addressRange = address..<(address + UInt64(bytes.count))
 		mnemonic = result.assembly.mnemonic
 		operands = result.assembly.operands
@@ -37,7 +36,9 @@ nonisolated struct DisassembledInstruction: Identifiable {
 		kind = result.kind
 		self.pcode = pcode
 	}
+}
 
+public extension DisassembledInstruction {
 	/// Full instruction string
 	var text: String {
 		if operands.isEmpty {
@@ -72,7 +73,7 @@ nonisolated struct DisassembledInstruction: Identifiable {
 
 /// Classification of instruction types (Task 12c: renamed from the legacy
 /// `InstructionType`; the dead `color: String` property was dropped).
-nonisolated enum InstructionCategory: String, Codable {
+public nonisolated enum InstructionCategory: String, Codable, Sendable {
 	case move = "Move"
 	case arithmetic = "Arithmetic"
 	case logic = "Logic"

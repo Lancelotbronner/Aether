@@ -1,5 +1,4 @@
 import Foundation
-import AetherKit
 import capstone
 
 nonisolated final class AetherDisassemblyContext: DisassemblyContext {
@@ -58,16 +57,18 @@ nonisolated final class AetherDisassemblyContext: DisassemblyContext {
 	}
 }
 
-struct DisassemblyResult {
-	var instructions: [DisassembledInstruction]
-	var pcode: [Pcode]
+public struct DisassemblyResult {
+	public var instructions: [DisassembledInstruction]
+	public var pcode: [Pcode]
 }
 
-actor DisassemblerEngine {
-	static var capstone: [CapstoneArch: Rc<CapstoneDisassembler>] = [:]
+public actor DisassemblerEngine {
+	nonisolated(unsafe) static var capstone: [CapstoneArch: Rc<CapstoneDisassembler>] = [:]
+
+	public init() {}
 
 	/// Disassemble binary data
-	func disassemble(
+	public func disassemble(
 		data: Data,
 		address: UInt64,
 		architecture: Architecture

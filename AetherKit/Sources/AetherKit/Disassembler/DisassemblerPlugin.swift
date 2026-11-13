@@ -1,5 +1,4 @@
 import SwiftUI
-import AetherKit
 
 nonisolated protocol DisassemblerPlugin : ~Copyable {
 	/// Disassembles a single instruction.
