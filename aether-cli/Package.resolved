@@ -2,6 +2,15 @@
   "originHash" : "a0aa63e1bd0d43483c865aefc3eb0d9ea0ec65564a733eecb94a7715377b2c84",
   "pins" : [
     {
+      "identity" : "capstone",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lancelotbronner/capstone",
+      "state" : {
+        "branch" : "next",
+        "revision" : "6f29886c687d29c8017dd74389f7ee0175640134"
+      }
+    },
+    {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser.git",
