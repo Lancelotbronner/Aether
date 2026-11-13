@@ -4,7 +4,12 @@ import Testing
 import AetherKit
 
 private func probeBinary(architecture: Architecture, code: [UInt8], entryPoint: UInt64 = 0) throws -> BinaryModel {
-	let container = try ModelContainer(for: Schema.project)
+	// An unconfigured ModelContainer opens ~/Library/Application
+	// Support/default.store, so a schema drift from any unrelated run makes
+	// the store refuse to open (134140) instead of testing the assertion.
+	let container = try ModelContainer(
+		for: Schema.project,
+		configurations: ModelConfiguration(schema: Schema.project, isStoredInMemoryOnly: true))
 	let context = ModelContext(container)
 
 	let binary = BinaryModel()
