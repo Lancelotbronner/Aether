@@ -71,11 +71,22 @@ extension ProcedureModel: FetchableModel {
 		"[" + localVariables.map { local in "\(local.name): \(local.type) sp+\(local.stackOffset):\(local.size)" }.joined(separator: ", ") + "]"
 	}
 
-	func describe() -> String {
-		"\(symbol.name) @\(hex(symbol.address)) size=\(symbol.size) frame=\(stackSize)"
-			+ " thunk=\(isThunk) leaf=\(isLeaf) demangled=\(demangled)"
-			+ " blocks=\(blocks.count) callers=\(callers.count) callees=\(callees.count)"
-			+ " arguments=\(argumentList) locals=\(localList) program=\(binary.name)"
+	func fields() -> [RowField] {
+		[
+			head("name", symbol.name),
+			at(hex(symbol.address)),
+			field("size", symbol.size),
+			field("frame", stackSize),
+			field("thunk", isThunk),
+			field("leaf", isLeaf),
+			field("demangled", demangled),
+			field("blocks", blocks.count),
+			field("callers", callers.count),
+			field("callees", callees.count),
+			field("arguments", argumentList),
+			field("locals", localList),
+			field("program", binary.name),
+		]
 	}
 }
 
@@ -131,11 +142,31 @@ struct DetectCommand: AsyncParsableCommand {
 
 	@OptionGroup var aether: AetherOptions
 
+	@Flag(help: "Emit one JSON object per program instead of the report lines")
+	var json = false
+
 	mutating func run() async throws {
 		let context = aether.backgroundContext
+		var rows: [String] = []
 		for binary in try context.fetch(FetchDescriptor<BinaryModel>()) {
 			let report = ProcedureDetector().detect(in: binary)
-			print("\(binary.name): \(report.summary), \(binary.procedures.count) total procedures")
+			if json {
+				// The summary sentence is four counts; the JSON row gives them
+				// as fields rather than asking a script to parse prose.
+				rows.append(jsonRow([
+					field("program", binary.name),
+					field("codeSections", report.codeSections),
+					field("entryPoints", report.entryPoints),
+					field("synthesized", report.synthesized),
+					field("created", report.created),
+					field("total", binary.procedures.count),
+				]))
+			} else {
+				print("\(binary.name): \(report.summary), \(binary.procedures.count) total procedures")
+			}
+		}
+		if json {
+			print(jsonRows(rows))
 		}
 		if !aether.dryRun {
 			try context.save()

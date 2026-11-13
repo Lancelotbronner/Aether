@@ -58,10 +58,20 @@ extension SectionModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\SectionModel.address)]
 	}
 
-	func describe() -> String {
-		"\(fullName) @\(hex(address)) size=\(size) offset=\(hex(offset)) align=\(alignment) flags=\(hex(flags))"
-			+ " executable=\(isExecutable) zerofill=\(isZeroFill) code=\(containsCode)"
-			+ " segment=\(segmentName) program=\(binary.name)"
+	func fields() -> [RowField] {
+		[
+			head("name", fullName),
+			at(hex(address)),
+			field("size", size),
+			field("offset", hex(offset)),
+			field("align", alignment),
+			field("flags", hex(flags)),
+			field("executable", isExecutable),
+			field("zerofill", isZeroFill),
+			field("code", containsCode),
+			field("segment", segmentName),
+			field("program", binary.name),
+		]
 	}
 }
 

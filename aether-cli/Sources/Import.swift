@@ -19,6 +19,9 @@ struct ImportCommand: AsyncParsableCommand {
 	@Flag(help: "Do not print the loader's parse narration")
 	var quiet = false
 
+	@Flag(help: "Print the imported program as a JSON object")
+	var json = false
+
 	mutating func run() async throws {
 		let modelContext = aether.backgroundContext
 		let url = URL(filePath: executablePath, directoryHint: .notDirectory)
@@ -36,7 +39,9 @@ struct ImportCommand: AsyncParsableCommand {
 		// nothing else in this path saves.
 		let report = try await MachOLoader.load(binary, analyze: !noAnalyze)
 
-		if !quiet {
+		// `--json` is for a script, and the narration is not part of the
+		// report: the program row is. Treat the flag as implying `--quiet`.
+		if !quiet, !json {
 			print(report.log)
 		}
 
@@ -44,6 +49,13 @@ struct ImportCommand: AsyncParsableCommand {
 			try modelContext.save()
 		}
 
-		print("Successfully imported as \(binary.persistentModelID).")
+		// The command that creates the row prints the row, which is the same
+		// one `program fetch` prints: the store's own identifier repr was
+		// never a fact a caller could use.
+		if json {
+			print(jsonRow(binary.fields()))
+		} else {
+			print(binary.describe())
+		}
 	}
 }

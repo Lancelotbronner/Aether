@@ -8,6 +8,11 @@ protocol FetchableModel: PersistentModel {
 
 	func describe() -> String
 
+	/// The row as fields rather than as text, which is what `--json` prints and
+	/// what `describe()` renders. One source for both, so a field cannot be
+	/// added to a row and forgotten in the other view.
+	func fields() -> [RowField]
+
 	static var subcommands: [any ParsableCommand.Type] { get }
 
 	/// Filters are allowed to look things up in the document first — a name or
@@ -18,6 +23,10 @@ protocol FetchableModel: PersistentModel {
 
 extension FetchableModel {
 	static var subcommands: [any ParsableCommand.Type] { [] }
+
+	func describe() -> String {
+		fields().map { $0.text }.joined(separator: " ")
+	}
 }
 
 extension FetchableModel where FetchOptions == EmptyOptions {
@@ -49,6 +58,9 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	@OptionGroup var modelOptions: Model.FetchOptions
 	@OptionGroup var fetchOptions: FetchOptions
 
+	@Flag(help: "Emit the rows as a JSON array of objects keyed by the field names of the text rows")
+	var json = false
+
 	mutating func run() async throws {
 		let context = aether.backgroundContext
 		var descriptor = FetchDescriptor<Model>()
@@ -56,6 +68,10 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 		let count = try context.fetchCount(descriptor)
 		fetchOptions.apply(to: &descriptor)
 		let models = try context.fetch(descriptor)
+		if json {
+			print(jsonRows(models.map { jsonRow($0.fields()) }))
+			return
+		}
 		let offset = fetchOptions.offset ?? 0
 		print("Showing \(models.count) (\(offset)-\(offset + models.count)) of \(count) \(Model.plural):")
 		for model in models {

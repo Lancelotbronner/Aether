@@ -52,8 +52,14 @@ extension BookmarkModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\BookmarkModel.address)]
 	}
 
-	func describe() -> String {
-		"\(name) @\(hex(address)) created=\(created) summary=\(summary) program=\(binary.name)"
+	func fields() -> [RowField] {
+		[
+			head("name", name),
+			at(hex(address)),
+			field("created", created),
+			field("summary", summary),
+			field("program", binary.name),
+		]
 	}
 }
 

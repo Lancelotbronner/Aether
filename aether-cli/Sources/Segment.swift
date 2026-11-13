@@ -52,10 +52,18 @@ extension SegmentModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\SegmentModel.address)]
 	}
 
-	func describe() -> String {
-		"\(name) @\(hex(address)) size=\(size) file=\(hex(fileOffset))+\(hex(fileSize))"
-			+ " prot=\(protectionString) maxprot=\(hex(maxProtection)) initprot=\(hex(initProtection))"
-			+ " sections=\(sections.count) program=\(binary.name)"
+	func fields() -> [RowField] {
+		[
+			head("name", name),
+			at(hex(address)),
+			field("size", size),
+			field("file", "\(hex(fileOffset))+\(hex(fileSize))"),
+			field("prot", protectionString),
+			field("maxprot", hex(maxProtection)),
+			field("initprot", hex(initProtection)),
+			field("sections", sections.count),
+			field("program", binary.name),
+		]
 	}
 }
 

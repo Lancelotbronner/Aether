@@ -52,8 +52,13 @@ extension AnnotationModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\AnnotationModel.address)]
 	}
 
-	func describe() -> String {
-		"\(text) @\(hex(address)) kind=\(kind) program=\(binary.name)"
+	func fields() -> [RowField] {
+		[
+			head("text", text),
+			at(hex(address)),
+			field("kind", kind),
+			field("program", binary.name),
+		]
 	}
 }
 

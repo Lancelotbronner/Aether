@@ -80,10 +80,20 @@ extension SymbolModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\SymbolModel.address)]
 	}
 
-	func describe() -> String {
-		"\(name) @\(hex(address)) size=\(size) kind=\(kind) type=\(type) binding=\(binding)"
-			+ " import=\(isImport) export=\(isExport) identifier=\(identifier) value=\(stringValue)"
-			+ " program=\(binary.name)"
+	func fields() -> [RowField] {
+		[
+			head("name", name),
+			at(hex(address)),
+			field("size", size),
+			field("kind", kind),
+			field("type", type),
+			field("binding", binding),
+			field("import", isImport),
+			field("export", isExport),
+			field("identifier", identifier),
+			field("value", stringValue),
+			field("program", binary.name),
+		]
 	}
 }
 

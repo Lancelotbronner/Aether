@@ -50,7 +50,26 @@ extension BinaryModel: FetchableModel {
 		descriptor.sortBy = [SortDescriptor(\BinaryModel.name)]
 	}
 
-	func describe() -> String {
-		"\(name) \(format) \(architecture) \(endian) \(is64 ? "64-bit" : "32-bit") \(data.count) bytes sha256=\(sha256) base=\(hex(baseAddress)) entry=\(hex(entryPoint)) stack=\(stackSize) file=\(fileURL?.path ?? "<not read from disk>") segments=\(segments.count) sections=\(sections.count) symbols=\(symbols.count) procedures=\(procedures.count) references=\(references.count) annotations=\(annotations.count) bookmarks=\(bookmarks.count)"
+	func fields() -> [RowField] {
+		[
+			head("name", name),
+			head("format", format),
+			head("architecture", architecture),
+			head("endian", endian),
+			head("bits", is64 ? "64-bit" : "32-bit"),
+			head("bytes", data.count, unit: "bytes"),
+			field("sha256", sha256),
+			field("base", hex(baseAddress)),
+			field("entry", hex(entryPoint)),
+			field("stack", stackSize),
+			field("file", fileURL?.path ?? "<not read from disk>"),
+			field("segments", segments.count),
+			field("sections", sections.count),
+			field("symbols", symbols.count),
+			field("procedures", procedures.count),
+			field("references", references.count),
+			field("annotations", annotations.count),
+			field("bookmarks", bookmarks.count),
+		]
 	}
 }
