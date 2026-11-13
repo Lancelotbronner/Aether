@@ -1,6 +1,15 @@
 {
-  "originHash" : "e523068bfc10a1b4dd3c0e57495ec8e91fb73974444af58a447b47df2ee14625",
+  "originHash" : "386ede7132ff0e8d9e491cb2eecfe88c2d7ed2464f04a79e16a4e12e87087a22",
   "pins" : [
+    {
+      "identity" : "capstone",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Lancelotbronner/capstone",
+      "state" : {
+        "branch" : "next",
+        "revision" : "6f29886c687d29c8017dd74389f7ee0175640134"
+      }
+    },
     {
       "identity" : "zip",
       "kind" : "remoteSourceControl",
