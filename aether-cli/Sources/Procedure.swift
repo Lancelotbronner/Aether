@@ -88,6 +88,25 @@ extension ProcedureModel: FetchableModel {
 			field("program", binary.name),
 		]
 	}
+
+	static let demanglable = true
+
+	/// The procedure's display name comes from its symbol; the mangled spelling
+	/// lives on that symbol's `identifier`.
+	var mangledName: String? {
+		symbol.identifier.isEmpty ? nil : symbol.identifier
+	}
+
+	/// This row already carries a `demangled` column, which `procedure insert
+	/// --demangled` writes by hand, so the demangler only fills the ones that
+	/// are empty: a name the user stored outranks the toolchain's guess, and
+	/// the column never gains a second value to disagree with.
+	func row(applying names: [String: String]) -> [RowField] {
+		guard let mangled = mangledName, let demangled = names[mangled] else { return fields() }
+		return fields().map { existing in
+			existing.key == "demangled" && existing.value.isEmpty ? field("demangled", demangled) : existing
+		}
+	}
 }
 
 extension ProcedureModel: InsertableModel {

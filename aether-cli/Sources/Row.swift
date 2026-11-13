@@ -44,6 +44,13 @@ func at(_ value: Any) -> RowField {
 	return RowField(key: "address", value: text, text: "@\(escapeControl(text))")
 }
 
+/// A row rendered as text from a field list: what `describe()` does with a
+/// model's own `fields()`, and what a row altered by `--demangle` needs before
+/// it is printed.
+func render(_ fields: [RowField]) -> String {
+	fields.map { $0.text }.joined(separator: " ")
+}
+
 /// A row as one JSON object.
 func jsonRow(_ fields: [RowField]) -> String {
 	"{" + fields.map { "\(escapeJSON($0.key)): \(escapeJSON($0.value))" }.joined(separator: ", ") + "}"

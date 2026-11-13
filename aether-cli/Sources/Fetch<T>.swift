@@ -13,6 +13,22 @@ protocol FetchableModel: PersistentModel {
 	/// added to a row and forgotten in the other view.
 	func fields() -> [RowField]
 
+	/// Whether `--demangle` means anything for this row type, and the name on
+	/// the row the demangler should be asked about. The flag lives on `fetch`
+	/// rather than in the shared filter group so `count` and `delete` cannot
+	/// accept a spelling of a row they never print.
+	static var demanglable: Bool { get }
+
+	var mangledName: String? { get }
+
+	/// The row with the demangled siblings applied. A row that already carries
+	/// a `demangled` column fills it — a name the user set with
+	/// `insert --demangled` outranks the toolchain's guess — while a row that
+	/// has no such column gains one, so an un-flagged row keeps its shape.
+	/// The label is `applying:` because a call spelled `row(demangled:)` resolves
+	/// to a member taking a single `String` before it reaches this requirement.
+	func row(applying names: [String: String]) -> [RowField]
+
 	static var subcommands: [any ParsableCommand.Type] { get }
 
 	/// Filters are allowed to look things up in the document first — a name or
@@ -24,8 +40,14 @@ protocol FetchableModel: PersistentModel {
 extension FetchableModel {
 	static var subcommands: [any ParsableCommand.Type] { [] }
 
+	static var demanglable: Bool { false }
+
+	var mangledName: String? { nil }
+
+	func row(applying names: [String: String]) -> [RowField] { fields() }
+
 	func describe() -> String {
-		fields().map { $0.text }.joined(separator: " ")
+		render(fields())
 	}
 }
 
@@ -61,6 +83,9 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 	@Flag(help: "Emit the rows as a JSON array of objects keyed by the field names of the text rows")
 	var json = false
 
+	@Flag(help: "Ask the toolchain's own demanglers for a `demangled` sibling of each row's symbol name; a name they do not recognise keeps the raw spelling and prints no field")
+	var demangle = false
+
 	mutating func run() async throws {
 		let context = aether.backgroundContext
 		var descriptor = FetchDescriptor<Model>()
@@ -68,14 +93,37 @@ struct FetchCommand<Model: FetchableModel>: AsyncParsableCommand {
 		let count = try context.fetchCount(descriptor)
 		fetchOptions.apply(to: &descriptor)
 		let models = try context.fetch(descriptor)
+		// One process per demangler for the whole page, keyed by the mangled
+		// name, so a page of 8903 rows is two processes rather than 17806.
+		var demangled: [String: String] = [:]
+		if demangle {
+			guard Model.demanglable else {
+				throw DemangleError.unsupported(plural: Model.plural)
+			}
+			demangled = demangledNames(models.compactMap { $0.mangledName })
+		}
 		if json {
-			print(jsonRows(models.map { jsonRow($0.fields()) }))
+			print(jsonRows(models.map { jsonRow($0.row(applying: demangled)) }))
 			return
 		}
 		let offset = fetchOptions.offset ?? 0
 		print("Showing \(models.count) (\(offset)-\(offset + models.count)) of \(count) \(Model.plural):")
+		if demangle {
+			// Rows the demanglers did not change print no field at all, so the
+			// census line is the only place a script can tell "no mangling here"
+			// apart from "mangling not recognised".
+			let hits = models.filter { model in
+				guard let name = model.mangledName else { return false }
+				return demangled[name] != nil
+			}.count
+			if hits == 0 {
+				print("demangled 0 of \(models.count) rows — neither /usr/bin/swift demangle nor /usr/bin/c++filt recognised these names")
+			} else {
+				print("demangled \(hits) of \(models.count) rows")
+			}
+		}
 		for model in models {
-			print(model.describe())
+			print(render(model.row(applying: demangled)))
 		}
 	}
 }

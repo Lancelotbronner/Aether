@@ -240,3 +240,111 @@ func filterSection(_ name: String?, named binary: String?, in modelContext: Mode
 	let section = rows.first { $0.address == starts.first! }!
 	return section.address..<(section.address + section.size)
 }
+
+enum DemangleError: LocalizedError {
+	case unsupported(plural: String)
+
+	var errorDescription: String? {
+		switch self {
+		case .unsupported(let plural):
+			return "Nothing to demangle in \(plural): these rows carry no symbol name"
+		}
+	}
+}
+
+/// The high-level name for a page of rows, asked from the toolchain's own
+/// demanglers rather than from a mangling grammar written in Swift — the
+/// grammar is versioned, while these are the same tools that read the binary.
+/// `SymbolModel.displayName` has called itself a placeholder for this since
+/// the schema was written.
+///
+/// Which tool a name goes to is decided by prefix: Swift's mangled names carry
+/// `_$` (the bare `$s…` spelling appears too), C++ Itanium names carry `_Z`
+/// or — the way `nm` prints them on macOS — `__Z`. Names are passed over
+/// verbatim, with no underscore stripped: `c++filt` accepts the double-underscore
+/// spelling directly, and stripping would quietly turn a plain `_main` into
+/// `main`.
+///
+/// The whole page goes through one process per tool: both read names on stdin
+/// and print one line per name in order, so 8903 rows cost two processes
+/// (measured: 300 names through `c++filt` in 0.007 s — process start-up is
+/// the only cost worth paying). A name the tool does not recognise comes back
+/// unchanged, which is the raw name rather than an error: rustc's current
+/// V0 mangling (`__R…`, which is what the `rg` store holds) is spoken by
+/// neither tool on this machine, and a pass-through row is not a difference.
+func demangledNames(_ names: [String]) -> [String: String] {
+	var out: [String: String] = [:]
+	for (executable, arguments, batch) in [
+		("/usr/bin/swift", ["demangle"], names.filter { $0.hasPrefix("_$") || $0.hasPrefix("$") }),
+		("/usr/bin/c++filt", [], names.filter { $0.hasPrefix("__Z") || $0.hasPrefix("_Z") }),
+	] {
+		guard !batch.isEmpty else { continue }
+		guard let lines = runDemangler(executable, arguments: arguments, names: batch) else { continue }
+		guard lines.count == batch.count else {
+			// Rows are paired by position, so a tool that changes the framing
+			// is not applied at all rather than guessed at row by row.
+			warning("\(executable) printed \(lines.count) lines for \(batch.count) names")
+			continue
+		}
+		for (name, line) in zip(batch, lines) where line != name {
+			out[name] = line
+		}
+	}
+	return out
+}
+
+/// One batch through an external demangler. `Process` cannot hand a child a
+/// string, and a name given as an argument would be read as a *file name* by
+/// both tools, so the names are staged in a temp file on stdin.
+private func runDemangler(_ executable: String, arguments: [String], names: [String]) -> [String]? {
+	guard FileManager.default.isExecutableFile(atPath: executable) else {
+		warning("no demangler at \(executable)")
+		return nil
+	}
+	let url = FileManager.default.temporaryDirectory
+		.appending(path: "aether-demangle-\(UUID().uuidString).txt")
+	guard FileManager.default.createFile(atPath: url.path, contents: Data((names.joined(separator: "\n") + "\n").utf8)) else {
+		warning("cannot stage names for \(executable)")
+		return nil
+	}
+	defer { try? FileManager.default.removeItem(at: url) }
+
+	let process = Process()
+	process.executableURL = URL(fileURLWithPath: executable)
+	process.arguments = arguments
+	guard let stdin = try? FileHandle(forReadingFrom: url) else {
+		warning("cannot read the staged names back for \(executable)")
+		return nil
+	}
+	process.standardInput = stdin
+	let stdout = Pipe()
+	process.standardOutput = stdout
+	do {
+		try process.run()
+	} catch {
+		warning("cannot run \(executable): \(error)")
+		return nil
+	}
+	let data = stdout.fileHandleForReading.readDataToEndOfFile()
+	process.waitUntilExit()
+	guard process.terminationStatus == 0 else {
+		warning("\(executable) did not exit cleanly")
+		return nil
+	}
+	guard let text = String(data: data, encoding: .utf8) else {
+		warning("\(executable) printed text that is not UTF-8")
+		return nil
+	}
+	var lines = text.components(separatedBy: "\n")
+	if lines.last == "" {
+		lines.removeLast()
+	}
+	return lines
+}
+
+/// A demangler that is missing or failed earns one line on stderr: the rows
+/// still print, so the run is not a failure, but without this a bare
+/// `demangled 0 of N rows` reads as "these names are not mangled".
+private func warning(_ text: String) {
+	FileHandle.standardError.write(Data((text + "\n").utf8))
+}

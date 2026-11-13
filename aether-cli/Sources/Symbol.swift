@@ -117,6 +117,23 @@ extension SymbolModel: FetchableModel {
 		]
 	}
 
+	static let demanglable = true
+
+	/// A symbol row's mangled name is its `identifier`: `name` is what the loader
+	/// chose to display, which for a string row is the string's text.
+	var mangledName: String? {
+		identifier.isEmpty ? nil : identifier
+	}
+
+	/// A symbol row has no `demangled` column to fill, so the sibling is
+	/// appended after the stored fields — and only when a demangler actually
+	/// changed the name, which is why `--demangle` over a Rust binary leaves
+	/// every row byte-for-byte as it was printed before.
+	func row(applying names: [String: String]) -> [RowField] {
+		guard let mangled = mangledName, let demangled = names[mangled] else { return fields() }
+		return fields() + [field("demangled", demangled)]
+	}
+
 	/// The same filters `apply` compiles into a `Predicate`, evaluated in
 	/// Swift. `symbol raw` needs a row-by-row rule because a row produced by a
 	/// fresh scan is not in the store, so no descriptor can reach it — and
